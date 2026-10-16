@@ -1,0 +1,14 @@
+# Render.com blueprint: New + -> Blueprint -> connect the GitHub repo with this folder.
+services:
+  - type: web
+    name: afib-monitor
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SEED_DEMO          # demo doctor and patients; set to 0 for real use
+        value: "1"
+      # - key: DATABASE_URL     # optional PostgreSQL; by default SQLite inside the container
+      #   fromDatabase: { name: afib-db, property: connectionString }

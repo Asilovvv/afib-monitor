@@ -1,0 +1,84 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+export type Doctor = { id: number; name: string; clinic?: string | null; phone?: string | null }
+export type User = {
+  id: number; email: string; name: string; role: 'patient' | 'doctor'
+  birth_year?: number | null; sex?: 'm' | 'f' | null; phone?: string | null
+  doctor?: Doctor | null
+}
+export type Episode = {
+  start: string; end: string; duration_s: number; max_prob: number; mean_bpm: number | null
+  verdict?: 'confirmed' | 'false_alarm' | null; ecg_id?: number | null
+}
+export type Hour = { t: string; monitored_min: number; af_min: number; bpm: number | null }
+export type Symptom = { id: number; ts: string; kinds: string[]; severity: number; note: string | null }
+export type EcgMeta = { id: number; ts: string; fs: number; duration_s: number; state: number; prob: number; bpm: number; reason: string }
+export type Report = {
+  stats: {
+    monitored_minutes: number; af_burden: number; episodes_count: number; longest_episode_s: number
+    hr_mean: number | null; hr_min: number | null; hr_max: number | null
+    confirmed_episodes?: number; false_alarms?: number
+  }
+  episodes: Episode[]
+  hourly: Hour[]
+  symptoms: Symptom[]
+  ecg: EcgMeta[]
+  battery: number | null
+}
+export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
+export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' }
+
+const K_URL = 'afib.server', K_TOKEN = 'afib.token'
+
+export const settings = {
+  server: '' as string,
+  token: '' as string,
+  async load() {
+    this.server = (await AsyncStorage.getItem(K_URL)) ?? ''
+    this.token = (await AsyncStorage.getItem(K_TOKEN)) ?? ''
+  },
+  async setServer(url: string) {
+    let u = url.trim().replace(/\/+$/, '')
+    if (u && !/^https?:\/\//.test(u)) u = 'http://' + u
+    this.server = u
+    await AsyncStorage.setItem(K_URL, this.server)
+  },
+  async setToken(t: string) {
+    this.token = t
+    if (t) await AsyncStorage.setItem(K_TOKEN, t); else await AsyncStorage.removeItem(K_TOKEN)
+  },
+}
+
+async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!settings.server) throw new Error('no_server')
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (settings.token) headers.Authorization = `Bearer ${settings.token}`
+  const ctl = new AbortController()
+  const to = setTimeout(() => ctl.abort(), 15000)
+  try {
+    const r = await fetch(settings.server + path, { ...init, headers, signal: ctl.signal })
+    if (!r.ok) {
+      let msg = `HTTP ${r.status}`
+      try { const j = await r.json(); if (typeof j.detail === 'string') msg = j.detail } catch { /* not json */ }
+      throw new Error(msg)
+    }
+    return r.json() as Promise<T>
+  } finally { clearTimeout(to) }
+}
+
+export const api = {
+  login: (email: string, password: string) =>
+    call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  register: (b: { email: string; password: string; name: string; doctor_code?: string; birth_year?: number; sex?: string }) =>
+    call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...b, role: 'patient' }) }),
+  me: () => call<User>('/api/me'),
+  updateMe: (b: Partial<Pick<User, 'name' | 'birth_year' | 'sex' | 'phone'>>) => call<User>('/api/me', { method: 'PUT', body: JSON.stringify(b) }),
+  linkDoctor: (code: string) => call<User>('/api/me/doctor', { method: 'PUT', body: JSON.stringify({ doctor_code: code }) }),
+  upload: (readings: ReadingOut[]) => call<{ saved: number; alerts: number }>('/api/readings', { method: 'POST', body: JSON.stringify({ readings }) }),
+  report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`),
+  symptom: (b: { kinds: string[]; severity: number; note?: string; ts?: number }) =>
+    call<Symptom>('/api/symptoms', { method: 'POST', body: JSON.stringify(b) }),
+  ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),
+  ecgGet: (id: number) => call<EcgMeta & { samples: number[] }>(`/api/ecg/${id}`),
+  health: () => call<{ ok: boolean; version: string }>('/api/health'),
+}
