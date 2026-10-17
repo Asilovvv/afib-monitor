@@ -27,7 +27,7 @@ export type Report = {
   battery: number | null
 }
 export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
-export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' }
+export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' | 'check' }
 
 export type TgLink = { id: number; name: string; kind: string; created_at: string }
 export type Risk = { cha2ds2_vasc: number; cha2ds2_va: number; annual_stroke_risk_pct: number | null; level: 'low' | 'moderate' | 'high'; updated_at: string | null }
@@ -84,6 +84,8 @@ export const api = {
   report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`, {}, WAKE),
   symptom: (b: { kinds: string[]; severity: number; note?: string; ts?: number }) =>
     call<Symptom>('/api/symptoms', { method: 'POST', body: JSON.stringify(b) }),
+  setDay: (day: string, tags: string[]) => call<{ day: string; tags: string[] }>('/api/me/day', { method: 'POST', body: JSON.stringify({ day, tags }) }),
+  days: (n = 31) => call<{ day: string; tags: string[] }[]>(`/api/me/days?days=${n}`),
   ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),
   ecgGet: (id: number) => call<EcgMeta & { samples: number[] }>(`/api/ecg/${id}`),
   health: () => call<{ ok: boolean; version: string }>('/api/health', {}, WAKE),

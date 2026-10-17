@@ -10,6 +10,7 @@ import { useApp } from '../store'
 import { F, stateTone } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
 import { SymptomSheet } from './SymptomSheet'
+import { CheckSheet } from './CheckSheet'
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -67,6 +68,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
   const now = useNow()
   const [devOpen, setDevOpen] = useState(false)
   const [symOpen, setSymOpen] = useState(false)
+  const [checkOpen, setCheckOpen] = useState(false)
   const stale = !!status && now - status.at > 15000
   const wellness = mode === 'wellness'
   const rhythmKnown = status?.state === RhythmState.Normal || status?.state === RhythmState.AFib
@@ -149,6 +151,18 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
               )}
             </Card>
 
+            {/* 30-second check: the one big button for people who will never read the ECG */}
+            <Card style={{ marginTop: 14, padding: 18 }} tone={tm.accent} onPress={() => setCheckOpen(true)}>
+              <Row gap={14}>
+                <View style={[s.qIco, { width: 52, height: 52, backgroundColor: 'rgba(255,255,255,.18)' }]}><Icon name="heart" color="#fff" size={28} /></View>
+                <View style={{ flex: 1 }}>
+                  <T v="h2" c="#fff">{t('check_btn')}</T>
+                  <T v="small" c="rgba(255,255,255,.85)">{t('check_sub')}</T>
+                </View>
+                <Icon name="chev" color="#fff" />
+              </Row>
+            </Card>
+
             {/* live ECG */}
             <Card style={{ marginTop: 14, padding: 14 }}>
               <Row style={{ justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 4 }}>
@@ -202,6 +216,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
         )}
       </ScrollView>
       <DeviceSheet open={devOpen} onClose={() => setDevOpen(false)} />
+      <CheckSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
       <SymptomSheet open={symOpen} onClose={() => setSymOpen(false)} onSaved={() => go('diary')} />
     </View>
   )

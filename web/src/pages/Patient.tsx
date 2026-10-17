@@ -207,7 +207,7 @@ function EcgTab({ rep, onEcg }: { rep: Report; onEcg: (id: number) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rep.ecg])
   if (!rep.ecg.length) return <Empty>{f.t('Записей нет.')}</Empty>
-  const reason = (r: string) => r === 'afib_onset' ? f.t('автозапись при ФП') : r === 'symptom' ? f.t('при симптомах') : f.t('записано пациентом')
+  const reason = (r: string) => r === 'afib_onset' ? f.t('автозапись при ФП') : r === 'symptom' ? f.t('при симптомах') : r === 'check' ? f.tr('проверка 30 с', '30-s check', '30 с текшерүү') : f.t('записано пациентом')
   return (
     <div className="ecg-grid">
       {rep.ecg.map(e => (

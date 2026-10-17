@@ -7,6 +7,7 @@ import { api, settings, type EcgOut, type ReadingOut, type User } from './api'
 import { DeviceLink, type LinkState } from './ble'
 import { translate, type Key, type Lang } from './i18n'
 import { ECG_FS, RhythmState, type EcgPacket, type Status } from './protocol'
+import { check, CHECK_SECONDS, type CheckVerdict } from './rr'
 import { Simulator } from './simulator'
 import { dark, light, type Theme } from './theme'
 
@@ -84,6 +85,8 @@ type Ctx = {
   // ecg + symptoms
   recording: number | null          // progress 0..1 while recording
   recordEcg: () => Promise<void>
+  checking: number | null           // progress 0..1 during the 30-second check
+  checkMe: () => Promise<CheckResult | null>
   symptoms: LocalSymptom[]
   addSymptom: (kinds: string[], severity: number, note: string, attachEcg: boolean) => Promise<void>
   // sync
@@ -96,6 +99,8 @@ type Ctx = {
   toasts: Toast[]
   toast: (text: string, tone?: Toast['tone']) => void
 }
+
+export type CheckResult = { verdict: CheckVerdict; bpm: number; sqi: number; irregularity: number | null; at: number }
 
 const C = createContext<Ctx | null>(null)
 export const useApp = () => useContext(C)!
@@ -125,6 +130,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [episodes, setEpisodes] = useState<LocalEpisode[]>([])
   const [connectedAt, setConnectedAt] = useState<number | null>(null)
   const [recording, setRecording] = useState<number | null>(null)
+  const [checking, setChecking] = useState<number | null>(null)
   const [symptoms, setSymptoms] = useState<LocalSymptom[]>([])
   const [pending, setPending] = useState(0)
   const [lastSync, setLastSync] = useState<number | null>(null)
@@ -215,6 +221,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (settings.token) { await syncNow(); toast(translate(langRef.current, ecgQueue.current.length ? 'ecg_saved_local' : 'ecg_saved'), 'ok') }
     else toast(translate(langRef.current, 'ecg_saved_local'), 'ok')
   }, [recording, ecg, captureLast, syncNow, toast])
+
+  /** "Check me in 30 seconds": verdict on the phone (same rule as the server), recording queued for the doctor. */
+  const checkMe = useCallback(async (): Promise<CheckResult | null> => {
+    if (checking !== null || recording !== null || !lastStatus.current) return null
+    const start = ecg.total, need = CHECK_SECONDS * ECG_FS
+    const ok = await new Promise<boolean>(res => {
+      setChecking(0)
+      let seen = ecg.total, still = Date.now()
+      const iv = setInterval(() => {
+        if (ecg.total !== seen) { seen = ecg.total; still = Date.now() }
+        const p = (ecg.total - start) / need
+        setChecking(Math.min(1, p))
+        if (p >= 1) { clearInterval(iv); res(true) } else if (Date.now() - still > 4000) { clearInterval(iv); res(false) }
+      }, 200)
+    })
+    setChecking(null)
+    if (!ok) { toast(translate(langRef.current, 'check_lost'), 'info'); return null }
+    const samples = ecg.last(need).map(x => Math.round(x * 1e4) / 1e4)
+    const r = check(samples, ECG_FS)
+    const s = lastStatus.current
+    ecgQueue.current.push({ ts: Date.now() / 1000 - samples.length / ECG_FS, fs: ECG_FS, samples, reason: 'check',
+      state: s?.state ?? 1, prob: s?.prob ?? 0, bpm: r.bpm })
+    persist()
+    Haptics.notificationAsync(r.verdict === 'regular' ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning).catch(() => undefined)
+    if (settings.token) syncNow()
+    return { verdict: r.verdict, bpm: r.bpm, sqi: r.sqi, irregularity: r.irregularity, at: Date.now() }
+  }, [checking, recording, ecg, persist, syncNow, toast])
 
   // ------------------------------------------------ incoming status (device or simulator)
   const onStatus = useCallback((s: Status) => {
@@ -349,7 +382,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ready, lang, setLang, mode, themePref, setThemePref, theme, t, onboarded, finishOnboarding,
     user, offline, setOffline, signIn, signOut, setUser,
     source, link, status, battery, rssi, ecg, history, episodes, startDevice, startSimulator, stop, connectedAt,
-    recording, recordEcg, symptoms, addSymptom,
+    recording, recordEcg, checking, checkMe, symptoms, addSymptom,
     pending, lastSync, syncError, syncNow, dataVersion, toasts, toast,
   }
   return <C.Provider value={value}>{children}</C.Provider>

@@ -62,6 +62,12 @@ const ru = {
   consent_research: 'Разрешаю использовать мои обезличенные данные ритма для улучшения алгоритма (по желанию).',
   my_data: 'Мои данные', export_data: 'Скачать мои данные', export_sub: 'Один JSON-файл: профиль, ритм, ЭКГ, симптомы', who_viewed: 'Кто смотрел мои данные', nobody_viewed: 'Пока никто', research_toggle: 'Участие в исследовании',
   delete_account: 'Удалить аккаунт', delete_title: 'Удалить аккаунт навсегда?', delete_text: 'Будут удалены профиль, ритм, ЭКГ, симптомы и подключения Telegram. Это нельзя отменить. Введите пароль для подтверждения.', delete_btn: 'Удалить навсегда', deleted: 'Аккаунт удалён',
+  check_btn: 'Проверь меня · 30 с', check_sub: 'Сидите спокойно и не разговаривайте', check_running: 'Проверяю… {s} с', check_lost: 'Датчик потерял сигнал — повторите',
+  check_regular: 'Ритм ровный', check_regular_sub: 'За 30 секунд ритм был ровным. Если вам плохо — всё равно обратитесь к врачу.',
+  check_irregular: 'Ритм неровный', check_irregular_sub: 'Это не диагноз. Запись сохранена — покажите её врачу. Боль в груди, одышка или обморок — сразу звоните 103.',
+  check_no_verdict: 'Не удалось прочитать', check_no_verdict_sub: 'Сядьте удобно, проверьте электроды и повторите проверку.', check_again: 'Проверить ещё раз', check_saved: 'Запись отправлена врачу', close: 'Закрыть',
+  day_title: 'Что было сегодня?', day_sub: 'Отметьте — врач увидит, как это связано с ритмом', day_nothing: 'Ничего особенного', day_saved: 'Сохранено', day_offline: 'Нет связи — отметьте позже',
+  f_alcohol: 'Алкоголь', f_caffeine: 'Кофе, крепкий чай', f_poor_sleep: 'Плохо спал(а)', f_stress: 'Стресс', f_exercise: 'Спорт, нагрузка', f_missed_meds: 'Пропустил(а) лекарство', f_heavy_meal: 'Плотно поел(а)',
   act_report: 'открыл отчёт', act_ecg: 'смотрел ЭКГ', act_risk_edit: 'изменил шкалу риска',
 }
 export type Key = keyof typeof ru
@@ -119,6 +125,12 @@ const en: Record<Key, string> = {
   consent_research: 'Allow my de-identified rhythm data to be used to improve the algorithm (optional).',
   my_data: 'My data', export_data: 'Download my data', export_sub: 'One JSON file: profile, rhythm, ECG, symptoms', who_viewed: 'Who viewed my data', nobody_viewed: 'Nobody yet', research_toggle: 'Research participation',
   delete_account: 'Delete account', delete_title: 'Delete your account forever?', delete_text: 'Your profile, rhythm, ECG, symptoms and Telegram connections will be deleted. This cannot be undone. Enter your password to confirm.', delete_btn: 'Delete forever', deleted: 'Account deleted',
+  check_btn: 'Check me · 30 s', check_sub: 'Sit still and do not talk', check_running: 'Checking… {s} s', check_lost: 'The sensor lost the signal — try again',
+  check_regular: 'Regular rhythm', check_regular_sub: 'Your rhythm was regular for 30 seconds. If you feel unwell, see a doctor anyway.',
+  check_irregular: 'Irregular rhythm', check_irregular_sub: 'This is not a diagnosis. The recording is saved — show it to your doctor. Chest pain, breathlessness or fainting — call 103 now.',
+  check_no_verdict: 'Could not read', check_no_verdict_sub: 'Sit comfortably, check the electrodes and try again.', check_again: 'Check again', check_saved: 'Recording sent to your doctor', close: 'Close',
+  day_title: 'How was today?', day_sub: 'Tick what happened — your doctor will see how it relates to your rhythm', day_nothing: 'Nothing special', day_saved: 'Saved', day_offline: 'No connection — tick it later',
+  f_alcohol: 'Alcohol', f_caffeine: 'Coffee, strong tea', f_poor_sleep: 'Slept badly', f_stress: 'Stress', f_exercise: 'Exercise', f_missed_meds: 'Missed medication', f_heavy_meal: 'Heavy meal',
   act_report: 'opened the report', act_ecg: 'viewed an ECG', act_risk_edit: 'edited the risk score',
 }
 
@@ -175,10 +187,17 @@ const ky: Record<Key, string> = {
   consent_research: 'Ритмдин жашыруун маалыматтарын алгоритмди жакшыртуу үчүн колдонууга уруксат берем (каалоо боюнча).',
   my_data: 'Менин маалыматтарым', export_data: 'Маалыматымды жүктөө', export_sub: 'Бир JSON файл: профиль, ритм, ЭКГ, белгилер', who_viewed: 'Маалыматымды ким көрдү', nobody_viewed: 'Азырынча эч ким', research_toggle: 'Изилдөөгө катышуу',
   delete_account: 'Аккаунтту өчүрүү', delete_title: 'Аккаунтту биротоло өчүрөсүзбү?', delete_text: 'Профиль, ритм, ЭКГ, белгилер жана Telegram туташуулары өчүрүлөт. Муну кайтаруу мүмкүн эмес. Ырастоо үчүн сырсөздү киргизиңиз.', delete_btn: 'Биротоло өчүрүү', deleted: 'Аккаунт өчүрүлдү',
+  check_btn: 'Мени текшер · 30 с', check_sub: 'Тынч отуруңуз, сүйлөбөңүз', check_running: 'Текшерип жатам… {s} с', check_lost: 'Датчик сигналды жоготту — кайталаңыз',
+  check_regular: 'Ритм бирдей', check_regular_sub: '30 секунд ичинде ритм бирдей болду. Эгер өзүңүздү жаман сезсеңиз — баары бир дарыгерге кайрылыңыз.',
+  check_irregular: 'Ритм бирдей эмес', check_irregular_sub: 'Бул диагноз эмес. Жазуу сакталды — дарыгерге көрсөтүңүз. Көкүрөк ооруса, дем жетпесе же эс-учуңузду жоготсоңуз — дароо 103кө чалыңыз.',
+  check_no_verdict: 'Окуй алган жокмун', check_no_verdict_sub: 'Ыңгайлуу отуруп, электроддорду текшерип, кайталаңыз.', check_again: 'Дагы текшерүү', check_saved: 'Жазуу дарыгерге жөнөтүлдү', close: 'Жабуу',
+  day_title: 'Бүгүн эмне болду?', day_sub: 'Белгилеңиз — дарыгер анын ритм менен байланышын көрөт', day_nothing: 'Өзгөчө эч нерсе', day_saved: 'Сакталды', day_offline: 'Байланыш жок — кийинчерээк белгилеңиз',
+  f_alcohol: 'Алкоголь', f_caffeine: 'Кофе, коюу чай', f_poor_sleep: 'Начар уктадым', f_stress: 'Стресс', f_exercise: 'Спорт, көнүгүү', f_missed_meds: 'Дары ичпей калдым', f_heavy_meal: 'Көп тамак жедим',
   act_report: 'отчётту ачты', act_ecg: 'ЭКГны карады', act_risk_edit: 'тобокелдик шкаласын өзгөрттү',
 }
 
 export const DICT: Record<Lang, Record<Key, string>> = { ru, en, ky }
+export const DAY_TAGS = ['alcohol', 'caffeine', 'poor_sleep', 'stress', 'exercise', 'missed_meds', 'heavy_meal'] as const
 export const SYMPTOMS = ['palpitations', 'dizziness', 'shortness_of_breath', 'chest_pain', 'fatigue', 'anxiety', 'other'] as const
 
 export function translate(lang: Lang, k: Key | string, vars?: Record<string, string | number>): string {
