@@ -19,7 +19,7 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from .models import (STATE_AFIB, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
 
@@ -33,6 +33,11 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 ALERT_WINDOW = timedelta(minutes=10)
 CONSENT_KINDS = ("terms", "data", "research")
+# "research": AF detection, alerts, Telegram (pilot under a research protocol) · "wellness": no rhythm verdicts,
+# no AF alerts — the version that can ship before the AF function is registered as a medical device.
+PRODUCT_MODE = os.getenv("PRODUCT_MODE", "research").strip().lower()
+if PRODUCT_MODE not in ("research", "wellness"):
+    PRODUCT_MODE = "research"
 CONSENT_VERSION = "2026-10"          # bump when the privacy policy / terms text changes
 
 
@@ -247,7 +252,7 @@ def ingest(db: Session, user: User, items: list) -> tuple[int, int]:
     for r in items:
         ts = from_unix(r.ts)
         rows.append(Reading(patient_id=user.id, ts=ts, state=r.state, prob=r.prob, bpm=r.bpm, battery=r.battery))
-        if r.state == STATE_AFIB and prev != STATE_AFIB:
+        if r.state == STATE_AFIB and prev != STATE_AFIB and PRODUCT_MODE == "research":
             alerts.append(Alert(patient_id=user.id, ts=ts, prob=r.prob, bpm=r.bpm))
         if r.state in (1, 2):              # ignore 'collecting' / 'no signal' gaps
             prev = r.state
@@ -641,6 +646,7 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(Consent).where(Consent.user_id == uid),
         delete(AccessLog).where((AccessLog.patient_id == uid) | (AccessLog.actor_id == uid)),
         delete(ExportToken).where(ExportToken.user_id == uid),
+        delete(Feedback).where(Feedback.user_id == uid),
     ):
         db.execute(stmt)
     db.execute(Alert.__table__.update().where(Alert.ack_by == uid).values(ack_by=None))
@@ -752,6 +758,72 @@ async def stream(request: Request, token: str):
 
     return StreamingResponse(gen(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.get("/api/config")
+def config():
+    """Public app configuration, read by the mobile app and the portal at start."""
+    return {"mode": PRODUCT_MODE, "version": app.version, "telegram_bot": telegram.bot_username,
+            "consent_version": CONSENT_VERSION}
+
+
+class FeedbackIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    text: str | None = Field(default=None, max_length=2000)
+    platform: str | None = Field(default=None, max_length=20)
+    app_version: str | None = Field(default=None, max_length=20)
+
+
+@app.post("/api/feedback")
+def add_feedback(body: FeedbackIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    f = Feedback(user_id=user.id, ts=utcnow(), rating=body.rating, text=(body.text or "").strip() or None,
+                 platform=body.platform, app_version=body.app_version)
+    db.add(f)
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/metrics")
+def product_metrics(days: int = Query(30, ge=1, le=365), doctor: User = Depends(require_role("doctor")),
+                    db: Session = Depends(get_db)):
+    """Product quality for this doctor's patients: alert load, how many alerts were real, how fast they were seen."""
+    now = utcnow()
+    since = now - timedelta(days=days)
+    pats = list(db.scalars(select(User).where(User.doctor_id == doctor.id)))
+    ids = [p.id for p in pats] or [-1]
+    monitored_min = 0.0
+    for p in pats:
+        monitored_min += analytics.summary(load_rows(db, p.id, since, now))["monitored_minutes"]
+    patient_days = monitored_min / 60 / 24
+    alerts = list(db.scalars(select(Alert).where(Alert.patient_id.in_(ids), Alert.ts >= since)))
+    acked = [a for a in alerts if a.ack_at]
+    delays = sorted((a.ack_at - a.ts).total_seconds() / 60 for a in acked if a.ack_at >= a.ts)
+    reviews = list(db.scalars(select(EpisodeReview).where(EpisodeReview.patient_id.in_(ids), EpisodeReview.ts >= since)))
+    conf = sum(r.verdict == "confirmed" for r in reviews)
+    false = sum(r.verdict == "false_alarm" for r in reviews)
+    fam_acks = db.scalar(select(func.count(AlertAck.id)).where(AlertAck.alert_id.in_([a.id for a in alerts] or [-1]),
+                                                               AlertAck.kind == "family"))
+    fb = list(db.scalars(select(Feedback).where(Feedback.user_id.in_(ids + [doctor.id]), Feedback.ts >= since)
+                         .order_by(Feedback.ts.desc())))
+    names = {p.id: p.name for p in pats}
+    names[doctor.id] = doctor.name
+    med = lambda v: (v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2) if v else None
+    return {
+        "days": days, "mode": PRODUCT_MODE, "patients": len(pats),
+        "patient_days": round(patient_days, 2),
+        "alerts": len(alerts),
+        "alerts_per_patient_day": round(len(alerts) / patient_days, 2) if patient_days else None,
+        "reviewed": conf + false, "confirmed": conf, "false_alarms": false,
+        "ppv": round(conf / (conf + false), 3) if conf + false else None,
+        "false_alarms_per_patient_day": round(false / patient_days, 2) if patient_days else None,
+        "acked": len(acked), "ack_median_min": round(med(delays), 1) if delays else None,
+        "ack_within_15_min": round(sum(d <= 15 for d in delays) / len(alerts), 3) if alerts else None,
+        "family_acks": fam_acks or 0,
+        "feedback_count": len(fb),
+        "feedback_avg": round(sum(f.rating for f in fb) / len(fb), 2) if fb else None,
+        "feedback": [{"ts": iso(f.ts), "rating": f.rating, "text": f.text, "who": names.get(f.user_id, "—"),
+                      "platform": f.platform} for f in fb[:20]],
+    }
 
 
 @app.get("/api/health")

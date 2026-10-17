@@ -181,3 +181,15 @@ class ExportToken(Base):
     token: Mapped[str] = mapped_column(String(48), primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Feedback(Base):
+    """In-app rating and comment (patients and doctors) — input for the 2-weekly improvement cycle."""
+    __tablename__ = "feedback"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    rating: Mapped[int] = mapped_column(Integer)                     # 1..5
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    platform: Mapped[str | None] = mapped_column(String(20), nullable=True)   # ios | android | web
+    app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)

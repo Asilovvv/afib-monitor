@@ -97,7 +97,53 @@ export default function Overview({ me }: { me: User }) {
           </div>
         )}
       </section>
+
+      <QualityCard />
     </div>
+  )
+}
+
+type Metrics = {
+  days: number; mode: string; patients: number; patient_days: number; alerts: number
+  alerts_per_patient_day: number | null; reviewed: number; confirmed: number; false_alarms: number
+  ppv: number | null; false_alarms_per_patient_day: number | null; acked: number; ack_median_min: number | null
+  ack_within_15_min: number | null; family_acks: number; feedback_count: number; feedback_avg: number | null
+  feedback: { ts: string; rating: number; text: string | null; who: string; platform: string | null }[]
+}
+
+/** Product quality over 30 days: alert load, how many alerts were real (doctor verdicts), how fast they were seen. */
+function QualityCard() {
+  const f = useFmt()
+  const [m] = useLive<Metrics>('/api/metrics?days=30')
+  if (!m) return null
+  const num = (v: number | null, d = 1) => (v == null ? '—' : v.toFixed(d).replace('.', f.lang === 'en' ? '.' : ','))
+  const tiles: [string, string, string][] = [
+    [f.tr('Тревог на пациента в день', 'Alerts per patient-day', 'Бейтапка күнүнө эскертүү'), num(m.alerts_per_patient_day, 2), `${m.alerts} · ${num(m.patient_days, 1)} ${f.tr('пациенто-дней', 'patient-days', 'бейтап-күн')}`],
+    [f.tr('Подтверждено врачом', 'Confirmed by doctor', 'Дарыгер ырастады'), m.ppv == null ? '—' : f.pct(m.ppv), `${m.confirmed} ${f.tr('из', 'of', '/')} ${m.reviewed} ${f.tr('размеченных', 'reviewed', 'белгиленген')}`],
+    [f.tr('Ложных на пациента в день', 'False alarms per patient-day', 'Бейтапка күнүнө жалган'), num(m.false_alarms_per_patient_day, 2), `${m.false_alarms} ${f.tr('отмечено', 'marked', 'белгиленди')}`],
+    [f.tr('Медиана до «Принять»', 'Median time to accept', '«Кабыл алууга» чейин медиана'), m.ack_median_min == null ? '—' : f.dur(m.ack_median_min * 60), `${m.ack_within_15_min == null ? '—' : f.pct(m.ack_within_15_min)} ${f.tr('за 15 мин', 'within 15 min', '15 мүн ичинде')}`],
+    [f.tr('Отзывы', 'Feedback', 'Пикирлер'), m.feedback_avg == null ? '—' : `★ ${num(m.feedback_avg, 1)}`, `${m.feedback_count} ${f.tr('за', 'in', '')} ${m.days} ${f.tr('дн.', 'days', 'күн')}`],
+  ]
+  return (
+    <section className="card quality">
+      <div className="card-head">
+        <h2>{f.tr('Качество системы', 'System quality', 'Системанын сапаты')} · {m.days} {f.tr('дней', 'days', 'күн')}</h2>
+        {m.mode === 'wellness' && <span className="pill st-wait">{f.tr('Режим без диагностики', 'No-diagnosis mode', 'Диагностикасыз режим')}</span>}
+      </div>
+      <div className="q-tiles">
+        {tiles.map(([l, v, sub]) => <div key={l}><span className="kpi-l">{l}</span><b>{v}</b><small>{sub}</small></div>)}
+      </div>
+      {m.feedback.length > 0 && <div className="q-fb">
+        {m.feedback.slice(0, 3).map((x, i) => (
+          <blockquote key={i}><span className="q-stars">{'★'.repeat(x.rating)}{'☆'.repeat(5 - x.rating)}</span> {x.text ?? ''}
+            <small> — {x.who}, {f.dt(x.ts)}</small></blockquote>
+        ))}
+      </div>}
+      <p className="fine">{f.tr(
+        '«Подтверждено врачом» — доля размеченных эпизодов, которые врач подтвердил как ФП. Размечайте эпизоды на вкладке «Эпизоды», чтобы видеть реальную точность у ваших пациентов.',
+        '“Confirmed by doctor” is the share of reviewed episodes the doctor confirmed as AF. Review episodes to see real-world accuracy for your patients.',
+        '«Дарыгер ырастады» — белгиленген эпизоддордун ичинен ФП деп ырасталгандардын үлүшү.')}</p>
+    </section>
   )
 }
 

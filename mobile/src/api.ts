@@ -86,6 +86,9 @@ export const api = {
   ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),
   ecgGet: (id: number) => call<EcgMeta & { samples: number[] }>(`/api/ecg/${id}`),
   health: () => call<{ ok: boolean; version: string }>('/api/health', {}, WAKE),
+  config: () => call<{ mode: 'research' | 'wellness'; version: string; telegram_bot: string | null }>('/api/config', {}, WAKE),
+  feedback: (b: { rating: number; text?: string; platform?: string; app_version?: string }) =>
+    call<{ ok: boolean }>('/api/feedback', { method: 'POST', body: JSON.stringify(b) }),
   telegram: () => call<{ enabled: boolean; bot: string | null; links: TgLink[] }>('/api/telegram'),
   telegramLink: () => call<{ code: string; url: string | null }>('/api/telegram/link', { method: 'POST' }),
   telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),

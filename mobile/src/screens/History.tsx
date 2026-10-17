@@ -49,7 +49,8 @@ function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => voi
 }
 
 export default function History() {
-  const { theme: tm, t, user, episodes: local, dataVersion, lang } = useApp()
+  const { theme: tm, t, user, episodes: local, dataVersion, lang, mode } = useApp()
+  const wellness = mode === 'wellness'
   const [hours, setHours] = useState(24)
   const [rep, setRep] = useState<Report | null>(null)
   const [loading, setLoading] = useState(false)
@@ -95,7 +96,7 @@ export default function History() {
         {err ? <T v="small" c={tm.af}>{err}</T> : null}
         {!rep ? <ActivityIndicator style={{ marginTop: 40 }} /> : (
           <>
-            <Card>
+            {!wellness && <Card>
               <Row gap={14}>
                 <Stat label={t('burden')} value={`${(st!.af_burden * 100).toFixed(st!.af_burden < 0.1 ? 1 : 0)}%`} color={st!.af_burden > 0.05 ? tm.af : undefined} />
                 <Stat label={t('episodes')} value={String(st!.episodes_count)} sub={st!.longest_episode_s ? `${t('longest')} ${fmtDur(t, st!.longest_episode_s)}` : undefined} />
@@ -105,9 +106,13 @@ export default function History() {
                 <Stat label={t('pulse')} value={st!.hr_mean ? String(Math.round(st!.hr_mean)) : '—'} sub={st!.hr_min ? `${Math.round(st!.hr_min)}–${Math.round(st!.hr_max!)}` : undefined} />
                 <Stat label={t('monitored')} value={fmtDur(t, st!.monitored_minutes * 60)} />
               </Row>
-            </Card>
+            </Card>}
+            {wellness && <Card><Row gap={14}>
+              <Stat label={t('pulse')} value={st!.hr_mean ? String(Math.round(st!.hr_mean)) : '—'} sub={st!.hr_min ? `${Math.round(st!.hr_min)}–${Math.round(st!.hr_max!)}` : undefined} />
+              <Stat label={t('monitored')} value={fmtDur(t, st!.monitored_minutes * 60)} />
+            </Row></Card>}
 
-            <Card>
+            {!wellness && <Card>
               <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
                 <T v="h3">{t('af_minutes')}</T>
                 <Row gap={10}>
@@ -116,14 +121,14 @@ export default function History() {
                 </Row>
               </Row>
               <HourBars data={rep.hourly} />
-            </Card>
+            </Card>}
 
             <Card>
               <T v="h3" style={{ marginBottom: 12 }}>{t('pulse')}, {t('bpm')}</T>
               <HrLine data={rep.hourly} />
             </Card>
 
-            <Card>
+            {!wellness && <Card>
               <T v="h3" style={{ marginBottom: 6 }}>{t('episodes')}</T>
               {rep.episodes.length === 0 ? <Empty icon="heart" text={t('no_episodes')} /> : rep.episodes.map((e, i) => {
                 const strip = e.ecg_id ? rep.ecg.find(x => x.id === e.ecg_id) ?? null : null
@@ -143,7 +148,7 @@ export default function History() {
                   </Row>
                 )
               })}
-            </Card>
+            </Card>}
 
             <Card>
               <T v="h3" style={{ marginBottom: 6 }}>{t('ecg_records')}</T>

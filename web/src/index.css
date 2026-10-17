@@ -609,3 +609,14 @@ a.kpi:hover { transform: translateY(-2px); }
 .legal-body li { margin: 6px 0; color: #d6d3de; }
 .legal-body a, .l-foot a { color: #38f2b0; }
 .legal-foot { margin-top: 40px; border-top: 1px solid var(--l-line); padding-top: 16px; color: var(--l-mute); font-size: 14px; }
+
+/* ---------------------------------------------------------------- product quality card */
+.quality .q-tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 4px 0 12px; }
+.quality .q-tiles > div { background: var(--bg); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.quality .q-tiles b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.quality .q-tiles small { color: var(--ink-3); font-size: 12px; }
+.q-fb { display: grid; gap: 8px; margin-bottom: 8px; }
+.q-fb blockquote { margin: 0; padding: 10px 14px; border-left: 3px solid var(--line); background: var(--hover); border-radius: 0 10px 10px 0; font-size: 14px; }
+.q-fb small { color: var(--ink-3); }
+.q-stars { color: var(--warn); letter-spacing: 1px; }
+@media (max-width: 1100px) { .quality .q-tiles { grid-template-columns: repeat(2, 1fr); } }

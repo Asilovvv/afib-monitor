@@ -287,3 +287,34 @@ def test_privacy_consent_export_delete():
     assert c.post("/api/auth/login", json={"email": "patp@x.kg", "password": "secret1"}).status_code == 401
     # the doctor can delete their account too; patients stay, just unlinked
     assert c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=auth(dt)).json() == {"deleted": True}
+
+
+def test_feedback_metrics_and_wellness_mode():
+    from app import main as m
+    d = c.post("/api/auth/register", json={"email": "docm@x.kg", "password": "secret1", "name": "Dr M", "role": "doctor"}).json()
+    p = c.post("/api/auth/register", json={"email": "patm@x.kg", "password": "secret1", "name": "Pat M", "role": "patient",
+                                           "doctor_code": d["user"]["invite_code"]}).json()
+    dt, pt, pid = d["token"], p["token"], p["user"]["id"]
+    assert c.get("/api/config").json()["mode"] == "research"
+    assert c.post("/api/feedback", json={"rating": 5, "text": "  Удобно  ", "platform": "ios"}, headers=auth(pt)).json() == {"ok": True}
+    assert c.post("/api/feedback", json={"rating": 9}, headers=auth(pt)).status_code == 422
+    now = time.time()
+    rs = [{"ts": now - 3000 + i * 5, "state": 2 if 100 <= i < 140 or 400 <= i < 440 else 1, "prob": .9, "bpm": 90} for i in range(600)]
+    assert c.post("/api/readings", json={"readings": rs}, headers=auth(pt)).json()["alerts"] == 2
+    al = c.get("/api/alerts?status=new", headers=auth(dt)).json()
+    c.post(f"/api/alerts/{al[0]['id']}/ack", headers=auth(dt))
+    eps = c.get(f"/api/patients/{pid}/report?hours=2", headers=auth(dt)).json()["episodes"]
+    c.post(f"/api/patients/{pid}/episodes/review", json={"episode_start": eps[0]["start"], "verdict": "confirmed"}, headers=auth(dt))
+    c.post(f"/api/patients/{pid}/episodes/review", json={"episode_start": eps[1]["start"], "verdict": "false_alarm"}, headers=auth(dt))
+    mt = c.get("/api/metrics?days=1", headers=auth(dt)).json()
+    assert mt["alerts"] == 2 and mt["acked"] == 1 and mt["ppv"] == 0.5 and mt["false_alarms"] == 1
+    assert mt["feedback_avg"] == 5 and mt["feedback"][0]["text"] == "Удобно" and mt["patient_days"] > 0
+    assert c.get("/api/metrics", headers=auth(pt)).status_code == 403
+    # wellness mode: rhythm is stored, but no AF alert is raised
+    m.PRODUCT_MODE = "wellness"
+    try:
+        assert c.get("/api/config").json()["mode"] == "wellness"
+        rs = [{"ts": now + 10 + i * 5, "state": 2 if i > 5 else 1, "prob": .9, "bpm": 100} for i in range(20)]
+        assert c.post("/api/readings", json={"readings": rs}, headers=auth(pt)).json() == {"saved": 20, "alerts": 0}
+    finally:
+        m.PRODUCT_MODE = "research"

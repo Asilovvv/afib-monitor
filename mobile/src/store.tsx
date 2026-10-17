@@ -57,6 +57,7 @@ type Ctx = {
   // prefs
   ready: boolean
   lang: Lang; setLang: (l: Lang) => void
+  mode: 'research' | 'wellness'   // wellness = no rhythm verdicts, no AF alerts (before medical-device registration)
   themePref: ThemePref; setThemePref: (p: ThemePref) => void
   theme: Theme
   t: (k: Key | string, vars?: Record<string, string | number>) => string
@@ -100,7 +101,7 @@ const C = createContext<Ctx | null>(null)
 export const useApp = () => useContext(C)!
 
 const K = { queue: 'afib.queue', ecgQueue: 'afib.ecgq', symQueue: 'afib.symq', lang: 'afib.lang', theme: 'afib.theme',
-  onboarded: 'afib.onboarded', offline: 'afib.offline', symptoms: 'afib.symptoms', episodes: 'afib.episodes' }
+  onboarded: 'afib.onboarded', mode: 'afib.mode', offline: 'afib.offline', symptoms: 'afib.symptoms', episodes: 'afib.episodes' }
 const HISTORY_MS = 3 * 3600e3
 const SYNC_MS = 20e3
 const ECG_SECONDS = 10
@@ -109,6 +110,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scheme = useColorScheme()
   const [ready, setReady] = useState(false)
   const [lang, setLangS] = useState<Lang>('ru')
+  const [mode, setMode] = useState<'research' | 'wellness'>('research')
+  const modeRef = useRef<'research' | 'wellness'>('research')
   const [themePref, setThemePrefS] = useState<ThemePref>('system')
   const [onboarded, setOnboarded] = useState(false)
   const [offline, setOfflineS] = useState(false)
@@ -220,7 +223,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (s.battery != null) setBattery(s.battery)
     setHistory(h => [...h.filter(x => s.at - x.at < HISTORY_MS), s])
 
-    if (s.state === RhythmState.AFib) {
+    if (s.state === RhythmState.AFib && modeRef.current === 'research') {
       setEpisodes(eps => {
         const last = eps[eps.length - 1]
         const next = last && s.at - last.end < 60e3
@@ -302,6 +305,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [captureLast, persist, syncNow])
 
   // ------------------------------------------------ prefs + start-up
+  const loadConfig = useCallback(() => {
+    api.config().then(c => {
+      const m = c.mode === 'wellness' ? 'wellness' : 'research'
+      setMode(m); modeRef.current = m; AsyncStorage.setItem(K.mode, m).catch(() => undefined)
+    }).catch(() => undefined)
+  }, [])
   const setLang = useCallback((l: Lang) => { setLangS(l); langRef.current = l; AsyncStorage.setItem(K.lang, l).catch(() => undefined) }, [])
   const setThemePref = useCallback((p: ThemePref) => { setThemePrefS(p); AsyncStorage.setItem(K.theme, p).catch(() => undefined) }, [])
   const finishOnboarding = useCallback(() => { setOnboarded(true); AsyncStorage.setItem(K.onboarded, '1').catch(() => undefined) }, [])
@@ -318,24 +327,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSymptoms(j(K.symptoms, [])); setEpisodes(j(K.episodes, []))
         if (kv[K.lang] === 'en' || kv[K.lang] === 'ru' || kv[K.lang] === 'ky') { setLangS(kv[K.lang] as Lang); langRef.current = kv[K.lang] as Lang }
         if (kv[K.theme]) setThemePrefS(kv[K.theme] as ThemePref)
+        if (kv[K.mode] === 'wellness') { setMode('wellness'); modeRef.current = 'wellness' }
         setOnboarded(kv[K.onboarded] === '1'); setOfflineS(kv[K.offline] === '1')
         if (Platform.OS !== 'web') Notifications.requestPermissionsAsync().catch(() => undefined)
         if (settings.token && settings.server) {
           try { setUser(await api.me()) } catch { /* offline: keep token */ }
         }
+        if (settings.server) loadConfig()
       } finally { setReady(true) }
     })()
   }, [])
 
   const signIn = useCallback(async (u: User, token: string) => {
-    await settings.setToken(token); setUser(u); setOffline(false); syncNow()
+    await settings.setToken(token); setUser(u); setOffline(false); syncNow(); loadConfig()
   }, [setOffline, syncNow])
   const signOut = useCallback(async () => {
     await settings.setToken(''); setUser(null)
   }, [])
 
   const value: Ctx = {
-    ready, lang, setLang, themePref, setThemePref, theme, t, onboarded, finishOnboarding,
+    ready, lang, setLang, mode, themePref, setThemePref, theme, t, onboarded, finishOnboarding,
     user, offline, setOffline, signIn, signOut, setUser,
     source, link, status, battery, rssi, ecg, history, episodes, startDevice, startSimulator, stop, connectedAt,
     recording, recordEcg, symptoms, addSymptom,

@@ -2,7 +2,7 @@
   "expo": {
     "name": "AFib Monitor",
     "slug": "afib-monitor",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -37,7 +37,7 @@
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ],
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"

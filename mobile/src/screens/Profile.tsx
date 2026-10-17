@@ -1,6 +1,6 @@
 import { locOf } from '../i18n'
 import { useEffect, useState } from 'react'
-import { Linking, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native'
+import { Linking, Pressable, ScrollView, Share, StyleSheet, TextInput, View, Platform } from 'react-native'
 import { api, settings, type Risk, type TgLink } from '../api'
 import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
@@ -81,6 +81,7 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
       {user && <FamilyCard />}
       {user && <RiskCard />}
       {user && <MyDataCard />}
+      {user && <FeedbackCard />}
 
       <Card style={{ paddingVertical: 6 }}>
         <Item icon="bt" title={t('device')} sub={source === 'none' ? '—' : source === 'simulator' ? t('source_sim') : t('source_dev')} onPress={() => setDev(true)} />
@@ -98,7 +99,7 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
       {user && <Button title={t('sign_out')} kind="ghost" icon="logout" onPress={signOut} />}
 
       <View style={{ alignItems: 'center', gap: 6, marginTop: 6 }}>
-        <Row gap={6}><Icon name="pulse" size={16} color={tm.af} /><T style={{ fontFamily: F.displayBold }}>AFib Monitor</T><T v="mono">v2.1</T></Row>
+        <Row gap={6}><Icon name="pulse" size={16} color={tm.af} /><T style={{ fontFamily: F.displayBold }}>AFib Monitor</T><T v="mono">v2.2</T></Row>
         <T v="small" style={{ textAlign: 'center', paddingHorizontal: 20 }}>{t('disclaimer')}</T>
       </View>
       <DeviceSheet open={dev} onClose={() => setDev(false)} />
@@ -157,6 +158,39 @@ function RiskCard() {
           <T v="small" style={{ flex: 1 }}>CHA₂DS₂-VA {r.cha2ds2_va}{r.annual_stroke_risk_pct != null ? ` · ~${r.annual_stroke_risk_pct}% ${t('per_year')}` : ''}</T>
         </Row>
       )}
+    </Card>
+  )
+}
+
+function FeedbackCard() {
+  const { theme: tm, t, toast } = useApp()
+  const [open, setOpen] = useState(false)
+  const [stars, setStars] = useState(0)
+  const [text, setText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const send = async () => {
+    setBusy(true)
+    try {
+      await api.feedback({ rating: stars, text: text.trim() || undefined, platform: Platform.OS, app_version: '2.2.0' })
+      toast(t('thanks'), 'ok'); setOpen(false); setStars(0); setText('')
+    } catch (e) { toast((e as Error).message, 'af') }
+    setBusy(false)
+  }
+  return (
+    <Card style={{ paddingVertical: 6 }}>
+      <Item icon="heart" title={t('rate_app')} sub={t('rate_sub')} onPress={() => setOpen(true)} />
+      <Sheet open={open} onClose={() => setOpen(false)} title={t('rate_app')}>
+        <Row gap={10} style={{ justifyContent: 'center', marginVertical: 8 }}>
+          {[1, 2, 3, 4, 5].map(n => (
+            <Pressable key={n} onPress={() => setStars(n)} accessibilityLabel={`${n}`} hitSlop={6}>
+              <T style={{ fontSize: 36, color: n <= stars ? tm.warn : tm.line }}>★</T>
+            </Pressable>
+          ))}
+        </Row>
+        <TextInput value={text} onChangeText={setText} placeholder={t('rate_ph')} placeholderTextColor={tm.ink3} multiline
+          style={[s.input, { height: 110, paddingTop: 14, textAlignVertical: 'top', color: tm.ink, backgroundColor: tm.bg2, borderColor: tm.line, letterSpacing: 0, fontFamily: F.body, fontSize: 15 }]} />
+        <Button title={t('send')} onPress={send} loading={busy} disabled={!stars} style={{ marginTop: 14, marginBottom: 20 }} />
+      </Sheet>
     </Card>
   )
 }

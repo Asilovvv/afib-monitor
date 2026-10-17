@@ -63,12 +63,18 @@ function Halo({ color }: { color: string }) {
 
 export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
   const { theme: tm, t, user, source, link, status, battery, ecg, episodes, history, startDevice, startSimulator,
-    recording, recordEcg, lang } = useApp()
+    recording, recordEcg, lang, mode } = useApp()
   const now = useNow()
   const [devOpen, setDevOpen] = useState(false)
   const [symOpen, setSymOpen] = useState(false)
   const stale = !!status && now - status.at > 15000
-  const tone = stateTone(tm, stale ? RhythmState.NoSignal : status?.state)
+  const wellness = mode === 'wellness'
+  const rhythmKnown = status?.state === RhythmState.Normal || status?.state === RhythmState.AFib
+  // no-diagnosis mode: the device still measures, but the app shows no rhythm verdict
+  const tone = wellness && rhythmKnown && !stale
+    ? { fg: tm.accent, soft: tm.accentSoft, key: 'st_recording' as const }
+    : stateTone(tm, stale ? RhythmState.NoSignal : status?.state)
+  const showAf = !wellness && status?.state === RhythmState.AFib
   const busy = link.state === 'scanning' || link.state === 'connecting'
   const first = user?.name.split(' ')[0]
   const live = useLiveAnalysis(ecg)
@@ -121,8 +127,8 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
               ) : (
                 <>
                   <View style={s.ringWrap}>
-                    {status?.state === RhythmState.AFib && !stale && <Halo color={tm.af} />}
-                    <Ring size={220} stroke={12} progress={status?.state === RhythmState.Collecting ? ((now / 40) % 100) / 100 : status?.prob ?? 0}
+                    {showAf && !stale && <Halo color={tm.af} />}
+                    <Ring size={220} stroke={12} progress={status?.state === RhythmState.Collecting ? ((now / 40) % 100) / 100 : wellness ? 1 : status?.prob ?? 0}
                       color={tone.fg} track={tm.dark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.06)'} />
                     <BeatingHeart bpm={status?.bpm || 60} color={tone.fg} size={40} />
                     <T style={s.bpm}>{status && status.bpm > 0 && !stale ? Math.round(status.bpm) : '—'}</T>
@@ -134,7 +140,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                   <T v="small" style={{ textAlign: 'center', marginTop: 4, paddingHorizontal: 10 }}>
                     {status && !stale ? t(`${tone.key}_sub`) : t('st_nosignal_sub')}
                   </T>
-                  {status && status.state !== RhythmState.Collecting && !stale && (
+                  {status && status.state !== RhythmState.Collecting && !stale && !wellness && (
                     <Row style={{ justifyContent: 'center', marginTop: 12 }}>
                       <Pill text={`${Math.round(status.prob * 100)}% · ${t('confidence')}`} fg={tm.ink2} bg={tm.dark ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.7)'} dot={false} />
                     </Row>
@@ -152,7 +158,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                 </Row>
                 <T v="mono">25 mm/s · 125 Hz</T>
               </Row>
-              <EcgLive bus={ecg} color={status?.state === RhythmState.AFib ? tm.af : tm.trace} />
+              <EcgLive bus={ecg} color={showAf ? tm.af : tm.trace} />
               {live && <Row style={{ marginTop: 10 }}><QualityPill q={live.quality} /></Row>}
               <Pressable onPress={recordEcg} disabled={recording !== null}
                 style={({ pressed }) => [s.rec, { backgroundColor: tm.bg2, opacity: pressed ? 0.8 : 1 }]}>
@@ -162,7 +168,8 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
               </Pressable>
             </Card>
 
-            <PoincareCard a={live} af={status?.state === RhythmState.AFib} />
+            {!wellness && <PoincareCard a={live} af={showAf} />}
+            {wellness && <T v="small" style={{ marginTop: 12, paddingHorizontal: 6, lineHeight: 19 }}>{t('wellness_note')}</T>}
 
             {/* today */}
             <Card style={{ marginTop: 14 }}>
