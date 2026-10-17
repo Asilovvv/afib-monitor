@@ -1,3 +1,4 @@
+import { locOf } from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { api, type Symptom } from '../api'
@@ -26,7 +27,7 @@ export default function Diary() {
   ].sort((a, b) => b.ts - a.ts)
 
   const sevColor = [tm.ok, tm.warn, tm.af]
-  const loc = lang === 'en' ? 'en-GB' : 'ru-RU'
+  const loc = locOf(lang)
   let lastDay = ''
 
   return (

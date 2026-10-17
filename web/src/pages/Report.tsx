@@ -28,7 +28,7 @@ export default function Report({ me }: { me: User }) {
         <h1>{f.t('Отчёт пациента')}</h1>
         <table className="r-id"><tbody>
           <tr><th>{f.t('Пациент')}</th><td>{p.name}</td><th>{f.t('Период')}</th><td>{f.dt(rep.range.from)} — {f.dt(rep.range.to)}</td></tr>
-          <tr><th>{f.lang === 'en' ? 'Age' : 'Возраст'}</th><td>{f.age(p.birth_year)}</td><th>{f.t('Врач')}</th><td>{me.name}{me.clinic ? `, ${me.clinic}` : ''}</td></tr>
+          <tr><th>{f.tr('Возраст', 'Age', 'Жашы')}</th><td>{f.age(p.birth_year)}</td><th>{f.t('Врач')}</th><td>{me.name}{me.clinic ? `, ${me.clinic}` : ''}</td></tr>
         </tbody></table>
         <div className="r-stats">
           {[[f.t('Нагрузка ФП'), f.pct(s.af_burden)], [f.t('Эпизоды'), String(s.episodes_count)], [f.t('Подтверждённые'), String(s.confirmed_episodes)],
@@ -38,7 +38,7 @@ export default function Report({ me }: { me: User }) {
         <h2>{f.t('Пульс и эпизоды фибрилляции')}</h2>
         <LineChart width={720} height={220} data={data} margin={{ top: 6, right: 6, bottom: 0, left: -18 }}>
           <CartesianGrid stroke="#ddd" vertical={false} />
-          <XAxis dataKey="ts" type="number" domain={dom} scale="time" tickFormatter={v => new Date(v).toLocaleDateString(f.lang === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' })} fontSize={10} />
+          <XAxis dataKey="ts" type="number" domain={dom} scale="time" tickFormatter={v => new Date(v).toLocaleDateString(f.loc, { day: 'numeric', month: 'short' })} fontSize={10} />
           <YAxis domain={[40, 170]} fontSize={10} />
           {rep.episodes.map(e => <ReferenceArea key={e.start} x1={new Date(e.start).getTime()} x2={new Date(e.end).getTime() + 60e3} fill="#d33" fillOpacity={0.2} strokeOpacity={0} />)}
           <Line dataKey="bpm" stroke="#1d4ed8" dot={false} strokeWidth={1} isAnimationActive={false} />
@@ -55,7 +55,7 @@ export default function Report({ me }: { me: User }) {
           <h2>{f.t('Заметки')}</h2>
           {rep.notes!.map(n => <p key={n.id} className="r-note"><b>{f.dt(n.ts)}</b> — {n.text}</p>)}
         </>}
-        <footer>{f.t('Не является медицинским изделием.')} {f.lang === 'en' ? 'Last state' : 'Последнее состояние'}: {rep.last ? f.t(STATE[rep.last.state].label) : '—'}</footer>
+        <footer>{f.t('Не является медицинским изделием.')} {f.tr('Последнее состояние', 'Last state', 'Акыркы абалы')}: {rep.last ? f.t(STATE[rep.last.state].label) : '—'}</footer>
       </article>
     </div>
   )

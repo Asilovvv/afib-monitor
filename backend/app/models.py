@@ -1,6 +1,6 @@
 """Tables: users, readings from the device, alerts, ECG strips, symptoms, doctor notes, episode reviews."""
 from datetime import datetime
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, Index, Text
+from sqlalchemy import BigInteger, String, Integer, Float, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -97,4 +97,58 @@ class EpisodeReview(Base):
     episode_start: Mapped[datetime] = mapped_column(DateTime, index=True)
     verdict: Mapped[str] = mapped_column(String(20))                 # "confirmed" | "false_alarm"
     reviewer_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TelegramLink(Base):
+    """A Telegram chat that receives AF alerts: the doctor (all his patients) or a relative (one patient)."""
+    __tablename__ = "telegram_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, index=True)
+    kind: Mapped[str] = mapped_column(String(10))                    # "doctor" | "family"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)   # doctor, or the patient for family
+    name: Mapped[str] = mapped_column(String(200), default="")       # Telegram display name
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TelegramCode(Base):
+    """One-time code for t.me/<bot>?start=<code>; valid for 24 h."""
+    __tablename__ = "telegram_codes"
+    code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TelegramMessage(Base):
+    """Alert messages sent, so the "Accept" button can update every copy."""
+    __tablename__ = "telegram_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), index=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger)
+    message_id: Mapped[int] = mapped_column(Integer)
+    has_photo: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class RiskProfile(Base):
+    """CHA2DS2-VASc inputs that are not in the user profile (age and sex come from the profile)."""
+    __tablename__ = "risk_profiles"
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    chf: Mapped[int] = mapped_column(Integer, default=0)             # congestive heart failure / LV dysfunction
+    hypertension: Mapped[int] = mapped_column(Integer, default=0)
+    diabetes: Mapped[int] = mapped_column(Integer, default=0)
+    stroke: Mapped[int] = mapped_column(Integer, default=0)          # stroke / TIA / thromboembolism
+    vascular: Mapped[int] = mapped_column(Integer, default=0)        # MI, PAD, aortic plaque
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AlertAck(Base):
+    """Who pressed "Accept" on an alert (doctor in the portal or in Telegram, or a relative in Telegram)."""
+    __tablename__ = "alert_acks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    alert_id: Mapped[int] = mapped_column(ForeignKey("alerts.id"), index=True)
+    who: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(10))                    # "doctor" | "family"
+    chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

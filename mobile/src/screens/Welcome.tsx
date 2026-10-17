@@ -1,3 +1,4 @@
+import { nextLang } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import {
   Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View,
@@ -76,7 +77,7 @@ export function Onboarding() {
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8 }}>
         <Row gap={6}><Icon name="pulse" size={20} color={tm.af} /><T style={{ fontFamily: F.displayBold, fontSize: 16 }}>AFib<T c={tm.af} style={{ fontFamily: F.displayBold, fontSize: 16 }}>Monitor</T></T></Row>
         <Row gap={14}>
-          <Pressable onPress={() => setLang(lang === 'ru' ? 'en' : 'ru')}><T v="mono" c={tm.ink2}>{lang === 'ru' ? 'EN' : 'RU'}</T></Pressable>
+          <Pressable onPress={() => setLang(nextLang(lang))}><T v="mono" c={tm.ink2}>{nextLang(lang).toUpperCase()}</T></Pressable>
           <Pressable onPress={finishOnboarding}><T v="small" c={tm.ink2}>{t('skip')}</T></Pressable>
         </Row>
       </Row>

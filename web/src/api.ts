@@ -27,7 +27,18 @@ export type Point = { t: string; bpm: number | null; prob: number; afib: boolean
 export type Hour = { t: string; monitored_min: number; af_min: number; bpm: number | null }
 export type Symptom = { id: number; ts: string; kinds: string[]; severity: number; note: string | null }
 export type EcgMeta = { id: number; ts: string; fs: number; duration_s: number; state: number; prob: number; bpm: number; reason: string }
-export type EcgStrip = EcgMeta & { samples: number[] }
+export type Quality = { sqi: number; level: 'good' | 'fair' | 'poor'; reasons: string[] }
+export type PcStats = { sd1: number | null; sd2: number | null; ratio: number | null }
+export type EcgStrip = EcgMeta & {
+  samples: number[]; r_peaks: number[]; rr: number[]; irregularity: number | null; quality: Quality
+  poincare: PcStats & { points: number[][] }
+}
+export type RiskItem = { key: string; points: number; label: string; on: boolean; auto: boolean }
+export type Risk = {
+  age: number | null; sex: 'm' | 'f' | null; items: RiskItem[]; cha2ds2_vasc: number; cha2ds2_va: number
+  annual_stroke_risk_pct: number | null; recommendation: string; level: 'low' | 'moderate' | 'high'
+  missing_age: boolean; note: string; updated_at: string | null
+}
 export type Note = { id: number; ts: string; text: string; author: string }
 export type Report = {
   patient: User
@@ -46,6 +57,7 @@ export type Report = {
   ecg: EcgMeta[]
   notes?: Note[]
   alerts?: Alert[]
+  poincare: { af: number[][]; normal: number[][]; af_stats: PcStats; normal_stats: PcStats; strips: number; mean_sqi: number | null }
 }
 
 const KEY = 'afib_token'

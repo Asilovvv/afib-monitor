@@ -1,7 +1,11 @@
 import os, time
-os.environ["DATABASE_URL"] = "sqlite:///./test_afib.db"
+os.environ["DATABASE_URL"] = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_afib.db")
 if os.path.exists("test_afib.db"):
     os.remove("test_afib.db")
+if os.environ["DATABASE_URL"].startswith("postgres"):      # CI: start from an empty PostgreSQL database
+    from app.db import Base, engine
+    import app.models  # noqa: F401
+    Base.metadata.drop_all(engine)
 
 from fastapi.testclient import TestClient
 from app.main import app
@@ -134,3 +138,104 @@ def test_stream_requires_doctor():
     p = c.post("/api/auth/register", json={"email": "p9@x.kg", "password": "secret1", "name": "P9", "role": "patient"}).json()
     assert c.get(f"/api/stream?token={p['token']}").status_code == 403
     assert c.get("/api/stream?token=bad").status_code == 401
+
+
+def _pair(tag):
+    d = c.post("/api/auth/register", json={"email": f"doc{tag}@x.kg", "password": "secret1", "name": f"Dr {tag}",
+                                           "role": "doctor"}).json()
+    p = c.post("/api/auth/register", json={"email": f"pat{tag}@x.kg", "password": "secret1", "name": f"Pat {tag}",
+                                           "role": "patient", "doctor_code": d["user"]["invite_code"],
+                                           "birth_year": 1950, "sex": "f"}).json()
+    return d["token"], p["token"], p["user"]["id"]
+
+
+def test_ecg_analysis_and_poincare():
+    from app.ecgsynth import synth_ecg
+    from app import ecgtools
+    for af in (False, True):
+        a = ecgtools.analyze(synth_ecg(10, afib=af, bpm=75, seed=1))
+        assert 10 <= len(a["r_peaks"]) <= 16
+        assert a["quality"]["level"] == "good"
+        assert (a["irregularity"] > 0.1) == af            # AF is irregularly irregular
+    assert ecgtools.quality([0.0] * 1250)["level"] == "poor"
+    assert ecgtools.png(synth_ecg(10, seed=2))[:4] == b"\x89PNG"
+
+    dt, pt, pid = _pair("e")
+    now = time.time()
+    e = c.post("/api/ecg", json={"ts": now - 60, "samples": synth_ecg(10, afib=True, seed=4), "state": 2,
+                                 "prob": 0.9, "bpm": 100, "reason": "manual"}, headers=auth(pt)).json()
+    s = c.get(f"/api/ecg/{e['id']}", headers=auth(dt)).json()
+    assert len(s["rr"]) == len(s["r_peaks"]) - 1 and s["poincare"]["sd1"] > 50
+    rep = c.get(f"/api/patients/{pid}/report?hours=1", headers=auth(dt)).json()
+    assert rep["poincare"]["strips"] == 1 and len(rep["poincare"]["af"]) >= 8 and rep["poincare"]["normal"] == []
+
+
+def test_cha2ds2_vasc():
+    from app.risk import score
+    assert score(None, "m", {})["cha2ds2_vasc"] == 0
+    r = score(1950, "f", {"hypertension": 1, "diabetes": 1})       # 76 y: age 2 + female 1 + H + D
+    assert r["cha2ds2_vasc"] == 5 and r["cha2ds2_va"] == 4 and r["level"] == "high"
+    dt, pt, pid = _pair("r")
+    r = c.put(f"/api/patients/{pid}/risk", json={"stroke": True}, headers=auth(dt)).json()
+    assert r["points"]["stroke"] == 2 and r["points"]["age75"] == 2 and r["cha2ds2_vasc"] == 5
+    assert c.get("/api/me/risk", headers=auth(pt)).json()["cha2ds2_vasc"] == 5
+    assert c.put(f"/api/patients/{pid}/risk", json={}, headers=auth(_pair("r2")[0])).status_code == 404
+
+
+def test_telegram_flow():
+    import asyncio
+    from app import telegram
+    from app.ecgsynth import synth_ecg
+    sent = []
+
+    async def fake(method, data=None, files=None):
+        sent.append((method, data or {}, bool(files)))
+        return {"ok": True, "result": {"message_id": len(sent), "username": "afib_test_bot"}}
+
+    telegram._call, telegram.TOKEN, telegram.ECG_WAIT_S = fake, "123:abc", 0
+    telegram.bot_username = "afib_test_bot"
+    run = lambda coro: asyncio.run(coro)
+    dt, pt, pid = _pair("t")
+    assert c.get("/api/telegram", headers=auth(dt)).json()["enabled"] is True
+    link = c.post("/api/telegram/link", headers=auth(dt)).json()
+    assert link["url"].startswith("https://t.me/afib_test_bot?start=")
+    fam = c.post("/api/telegram/link", headers=auth(pt)).json()
+    msg = lambda chat, text: {"message": {"chat": {"id": chat}, "from": {"first_name": "Aida"}, "text": text}}
+    run(telegram.handle_update(msg(111, "/start " + link["code"])))
+    run(telegram.handle_update(msg(222, "/start " + fam["code"])))
+    run(telegram.handle_update(msg(333, "/start " + fam["code"])))           # one-time code
+    assert "Готово" in sent[0][1]["text"] and "Готово" in sent[1][1]["text"] and "устарела" in sent[2][1]["text"]
+    assert len(c.get("/api/telegram", headers=auth(pt)).json()["links"]) == 1
+
+    now = time.time()
+    c.post("/api/readings", json={"readings": [{"ts": now - 20 + i * 4, "state": 2, "prob": 0.97, "bpm": 120}
+                                               for i in range(5)]}, headers=auth(pt))
+    c.post("/api/ecg", json={"ts": now - 15, "samples": synth_ecg(10, afib=True, seed=9), "state": 2,
+                             "prob": 0.97, "bpm": 120, "reason": "afib_onset"}, headers=auth(pt))
+    aid = c.get("/api/alerts?status=new", headers=auth(dt)).json()[0]["id"]
+    sent.clear()
+    run(telegram._send_alert(aid))
+    photos = [s for s in sent if s[0] == "sendPhoto"]
+    assert len(photos) == 2 and all(s[2] for s in photos)                    # doctor + relative, with the ECG
+    assert "ack:" in photos[0][1]["reply_markup"] and "Фибрилляция" in photos[0][1]["caption"]
+
+    sent.clear()
+    run(telegram.handle_update({"callback_query": {"id": "q1", "data": f"ack:{aid}", "from": {"first_name": "Aida"},
+                                                   "message": {"chat": {"id": 222}}}}))
+    assert sent[0][1]["text"].startswith("Принято")
+    assert any(s[0] == "editMessageCaption" and "Aida (близкий)" in s[1]["caption"] for s in sent)
+    assert c.get("/api/alerts?status=new", headers=auth(dt)).json()[0]["id"] == aid  # family does not close it
+    run(telegram.handle_update({"callback_query": {"id": "q2", "data": f"ack:{aid}", "from": {"first_name": "X"},
+                                                   "message": {"chat": {"id": 999}}}}))
+    assert any(s[1].get("text") == "Нет доступа к этому пациенту" for s in sent)
+    run(telegram.handle_update({"callback_query": {"id": "q3", "data": f"ack:{aid}", "from": {"first_name": "D"},
+                                                   "message": {"chat": {"id": 111}}}}))
+    assert c.get("/api/alerts?status=new", headers=auth(dt)).json() == []      # doctor closes it
+
+    sent.clear()
+    run(telegram.handle_update(msg(111, "/status")))
+    assert "Pat t" in sent[0][1]["text"] and "ФП" in sent[0][1]["text"]
+    run(telegram.handle_update(msg(222, "/stop")))
+    assert c.get("/api/telegram", headers=auth(pt)).json()["links"] == []
+    assert c.post("/api/telegram/webhook", json={}).status_code == 403
+    telegram.TOKEN = ""

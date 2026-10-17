@@ -28,6 +28,9 @@ export type Report = {
 export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
 export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' }
 
+export type TgLink = { id: number; name: string; kind: string; created_at: string }
+export type Risk = { cha2ds2_vasc: number; cha2ds2_va: number; annual_stroke_risk_pct: number | null; level: 'low' | 'moderate' | 'high'; updated_at: string | null }
+
 const WAKE = 75000   // a free cloud server can take ~1 min to wake up
 
 const K_URL = 'afib.server', K_TOKEN = 'afib.token'
@@ -83,4 +86,8 @@ export const api = {
   ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),
   ecgGet: (id: number) => call<EcgMeta & { samples: number[] }>(`/api/ecg/${id}`),
   health: () => call<{ ok: boolean; version: string }>('/api/health', {}, WAKE),
+  telegram: () => call<{ enabled: boolean; bot: string | null; links: TgLink[] }>('/api/telegram'),
+  telegramLink: () => call<{ code: string; url: string | null }>('/api/telegram/link', { method: 'POST' }),
+  telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),
+  risk: () => call<Risk>('/api/me/risk'),
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/ui'
-import { useT } from '../i18n'
+import { LANG_LABEL, nextLang, useT } from '../i18n'
 
 const TXT = {
   ru: {
@@ -28,12 +28,12 @@ const TXT = {
     sens: 'Чувствительность', spec: 'Специфичность',
     quantTitle: 'Сжатие модели', quantLead: 'Чувствительность при уменьшении разрядности весов',
     resTitle: 'Результаты',
-    res: [['96,7%', 'чувствительность на новых пациентах'], ['94,6%', 'специфичность'], ['0,98', 'ROC-AUC'], ['27 КБ', 'модель int8 во флеш-памяти'], ['2,8 КБ', 'веса при 4 битах (97,2% чувствит.)'], ['5 665', 'параметров сети']],
+    res: [['96,6%', 'чувствительность int8 на новых пациентах'], ['94,6%', 'специфичность'], ['0,98', 'ROC-AUC'], ['27 КБ', 'модель int8 во флеш-памяти'], ['2,8 КБ', 'веса при 4 битах (97,2% чувствит.)'], ['5 665', 'параметров сети']],
     appTitle: 'Приложение пациента',
     appLead: 'Живая ЭКГ, мгновенное предупреждение, кнопка SOS, дневник симптомов и история — в одном приложении для Android и iPhone.',
-    appFeat: ['Живая ЭКГ по Bluetooth', 'Уведомление при начале ФП', 'Автозапись ЭКГ приступа', 'Дневник симптомов', 'SOS — звонок 103', 'Тёмная тема, RU / EN'],
+    appFeat: ['Живая ЭКГ по Bluetooth', 'Уведомление при начале ФП', 'Автозапись ЭКГ приступа', 'Дневник симптомов', 'SOS — звонок 103', 'Близкие получают тревогу в Telegram', 'RU / KY / EN, тёмная тема'],
     docTitle: 'Кабинет врача',
-    docFeat: ['Тревоги в реальном времени', 'Нагрузка ФП и эпизоды', 'ЭКГ на миллиметровке', 'Разметка «ФП / ложная тревога»', 'Заметки и симптомы', 'Печатный отчёт'],
+    docFeat: ['Тревоги в реальном времени', 'Нагрузка ФП и эпизоды', 'ЭКГ на миллиметровке', 'Разметка «ФП / ложная тревога»', 'График Пуанкаре и CHA₂DS₂-VASc', 'Тревоги в Telegram с ЭКГ', 'Печатный отчёт'],
     ctaTitle: 'Посмотрите кабинет на демо-данных', ctaText: 'Пять пациентов, неделя мониторинга, реальные сценарии пароксизмальной и персистирующей ФП.',
     demo: 'Демо: doctor@demo.kg / demo1234',
     foot: 'Бектур Асилов · COMSE-23 · Ala-Too International University, Бишкек',
@@ -63,16 +63,51 @@ const TXT = {
     sens: 'Sensitivity', spec: 'Specificity',
     quantTitle: 'Model compression', quantLead: 'Sensitivity as weight bit-width goes down',
     resTitle: 'Results',
-    res: [['96.7%', 'sensitivity on unseen patients'], ['94.6%', 'specificity'], ['0.98', 'ROC-AUC'], ['27 KB', 'int8 model in flash'], ['2.8 KB', 'weights at 4 bits (97.2% sens.)'], ['5,665', 'network parameters']],
+    res: [['96.6%', 'int8 sensitivity on unseen patients'], ['94.6%', 'specificity'], ['0.98', 'ROC-AUC'], ['27 KB', 'int8 model in flash'], ['2.8 KB', 'weights at 4 bits (97.2% sens.)'], ['5,665', 'network parameters']],
     appTitle: 'Patient app',
     appLead: 'Live ECG, instant warning, SOS button, symptom diary and history — one app for Android and iPhone.',
-    appFeat: ['Live ECG over Bluetooth', 'Alert at AF onset', 'Auto-recorded episode ECG', 'Symptom diary', 'SOS — call 103', 'Dark mode, RU / EN'],
+    appFeat: ['Live ECG over Bluetooth', 'Alert at AF onset', 'Auto-recorded episode ECG', 'Symptom diary', 'SOS — call 103', 'Relatives get the alert in Telegram', 'RU / KY / EN, dark mode'],
     docTitle: 'Doctor portal',
-    docFeat: ['Real-time alerts', 'AF burden and episodes', 'ECG on grid paper', 'Mark "AF / false alarm"', 'Notes and symptoms', 'Printable report'],
+    docFeat: ['Real-time alerts', 'AF burden and episodes', 'ECG on grid paper', 'Mark "AF / false alarm"', 'Poincaré plot and CHA₂DS₂-VASc', 'Telegram alerts with ECG', 'Printable report'],
     ctaTitle: 'Explore the portal with demo data', ctaText: 'Five patients, a week of monitoring, realistic paroxysmal and persistent AF scenarios.',
     demo: 'Demo: doctor@demo.kg / demo1234',
     foot: 'Bektur Asilov · COMSE-23 · Ala-Too International University, Bishkek',
     disc: 'Educational research project. Not a medical device and not a substitute for medical advice.',
+  },
+  ky: {
+    nav: ['Кантип иштейт', 'Технология', 'Жыйынтыктар', 'Тиркеме'],
+    login: 'Дарыгердин кабинети',
+    kicker: 'Дипломдук долбоор · Ala-Too International University',
+    h1a: 'Жүрөк', h1b: 'көзөмөлдө.', h1c: 'Нейротармак — сенсордун ичинде.',
+    lead: 'Жүрөктүн дирилдөөсүн (фибрилляциясын) өзү тааныган кийилүүчү ЭКГ монитору: 8 битке чейин кысылган нейротармак ESP32-S3 микроконтроллеринде түз иштейт, телефон бейтапты дароо эскертет, дарыгер эпизоддорду онлайн көрөт.',
+    cta1: 'Дарыгердин кабинетин ачуу', cta2: 'Кантип иштейт',
+    mon: { normal: 'КАЛЫПТУУ РИТМ', af: 'ЖҮРӨКТҮН ДИРИЛДӨӨСҮ', bpm: 'сог/мүн', prob: 'ФП ыктымалдыгы', model: 'int8 TCN · чипте' },
+    why: 'Эмне үчүн маанилүү',
+    whyText: 'Жүрөктүн дирилдөөсү (ФП) — эң көп кездешкен аритмия жана инсульттун негизги себептеринин бири. Эпизоддор көбүнчө кыска жана белгисиз өтөт, ошондуктан кабинеттеги кадимки ЭКГ аларды байкабай калат. Үзгүлтүксүз мониторинг керек — арзан, автономдуу жана булутсуз.',
+    whyStats: [['×5', 'ФПда инсульт коркунучу жогору'], ['3төн 1и', 'эпизод белгисиз өтөт'], ['24/7', 'булуттук эсептөөсүз мониторинг']],
+    howTitle: 'Кантип иштейт',
+    how: [
+      ['ЭКГ сенсору', 'AD8232 үч электроддон сигналды секундасына 250 жолу алат.'],
+      ['Чиптеги нейротармак', 'ESP32-S3 жүрөктүн согууларын таап, 32 аралыкты int8 TCN модели менен талдайт.'],
+      ['Телефон', 'Тиркеме ритмди жана жандуу ЭКГны Bluetooth аркылуу алып, эскертет жана талмадагы ЭКГны жазат.'],
+      ['Дарыгер', 'Кабинет эскертүүлөрдү реалдуу убакытта, эпизоддорду, ФП жүгүн жана ЭКГ жазууларын көрсөтөт.'],
+    ],
+    techTitle: 'Технология',
+    techLead: 'Эки ыкманы MIT-BIH AF Database базасынын 23 бейтабында салыштырдык (модель көрбөгөн 5 бейтапта текшерилди).',
+    cmpA: 'Чийки ЭКГдагы TCN', cmpB: 'RR-аралыктардагы TCN',
+    sens: 'Сезгичтик', spec: 'Өзгөчөлүк',
+    quantTitle: 'Моделди кысуу', quantLead: 'Салмактардын разряддуулугун азайтканда сезгичтик',
+    resTitle: 'Жыйынтыктар',
+    res: [['96,6%', 'жаңы бейтаптардагы int8 сезгичтиги'], ['94,6%', 'өзгөчөлүк'], ['0,98', 'ROC-AUC'], ['27 КБ', 'флеш-эстутумдагы int8 модели'], ['2,8 КБ', '4 биттеги салмактар (97,2% сезгичтик)'], ['5 665', 'тармактын параметрлери']],
+    appTitle: 'Бейтаптын тиркемеси',
+    appLead: 'Жандуу ЭКГ, дароо эскертүү, SOS баскычы, белгилер күндөлүгү жана тарых — Android жана iPhone үчүн бир тиркемеде.',
+    appFeat: ['Bluetooth аркылуу жандуу ЭКГ', 'ФП башталганда эскертүү', 'Талманын ЭКГсын автожазуу', 'Белгилер күндөлүгү', 'SOS — 103 чалуу', 'Жакындар Telegramдан эскертүү алат', 'RU / KY / EN, караңгы тема'],
+    docTitle: 'Дарыгердин кабинети',
+    docFeat: ['Реалдуу убакыттагы эскертүүлөр', 'ФП жүгү жана эпизоддор', 'Миллиметровкадагы ЭКГ', '«ФП / жалган эскертүү» белгилөө', 'Пуанкаре графиги жана CHA₂DS₂-VASc', 'Telegramдагы эскертүүлөр ЭКГ менен', 'Басып чыгаруучу отчёт'],
+    ctaTitle: 'Кабинетти демо-маалыматтар менен көрүңүз', ctaText: 'Беш бейтап, бир жумалык мониторинг, пароксизмдик жана туруктуу ФПнын реалдуу сценарийлери.',
+    demo: 'Демо: doctor@demo.kg / demo1234',
+    foot: 'Бектур Асилов · COMSE-23 · Ala-Too International University, Бишкек',
+    disc: 'Окуу-изилдөө долбоору. Медициналык буюм эмес жана дарыгердин кеңешин алмаштырбайт.',
   },
 }
 
@@ -181,7 +216,7 @@ export default function Landing() {
           {['how', 'tech', 'results', 'app'].map((id, i) => <a key={id} href={`#${id}`}>{L.nav[i]}</a>)}
         </nav>
         <div className="l-nav-right">
-          <button className="lang" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang === 'ru' ? 'EN' : 'RU'}</button>
+          <button className="lang" onClick={() => setLang(nextLang(lang))}>{LANG_LABEL[nextLang(lang)]}</button>
           <Link to="/login" className="l-btn small">{L.login}</Link>
         </div>
       </header>
@@ -233,7 +268,7 @@ export default function Landing() {
                   <div className="bar-row" key={String(k)}>
                     <span>{k}</span>
                     <span className="bar-track"><span style={{ width: `${v}%` }} /></span>
-                    <b>{String(v).replace('.', lang === 'ru' ? ',' : '.')}%</b>
+                    <b>{String(v).replace('.', lang === 'en' ? '.' : ',')}%</b>
                   </div>
                 ))}
               </div>
@@ -244,7 +279,7 @@ export default function Landing() {
             <div className="quant">
               {quant.map(([b, v]) => (
                 <div key={b} className={`q ${v >= 97 ? 'ok' : v < 90 ? 'bad' : ''}`}>
-                  <span className="q-bar" style={{ height: `${(v - 80) * 5}%` }}><i>{String(v).replace('.', lang === 'ru' ? ',' : '.')}</i></span>
+                  <span className="q-bar" style={{ height: `${(v - 80) * 5}%` }}><i>{String(v).replace('.', lang === 'en' ? '.' : ',')}</i></span>
                   <span className="q-b">{b === '32' ? 'fp32' : `${b}-bit`}</span>
                 </div>
               ))}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { post, setToken, type User } from '../api'
 import { Icon } from '../components/ui'
-import { useT } from '../i18n'
+import { LANG_LABEL, nextLang, useT } from '../i18n'
 
 export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const { t, lang, setLang } = useT()
@@ -33,12 +33,12 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
           <svg viewBox="0 0 400 80" className="auth-ecg" aria-hidden>
             <path d="M0 50 H70 l8 -6 8 6 H110 l6 6 8 -46 8 52 6 -12 H170 q14 -14 28 0 H240 l8 -6 8 6 H280 l6 6 8 -46 8 52 6 -12 H350 q14 -14 28 0 H400" />
           </svg>
-          <p>{lang === 'ru' ? 'Каждый эпизод фибрилляции — на вашем экране, в момент когда он начался.' : 'Every AF episode on your screen — the moment it starts.'}</p>
+          <p>{lang === 'en' ? 'Every AF episode on your screen — the moment it starts.' : lang === 'ky' ? 'Фибрилляциянын ар бир эпизоду — башталган замат экраныңызда.' : 'Каждый эпизод фибрилляции — на вашем экране, в момент когда он начался.'}</p>
         </div>
         <small>Ala-Too International University · 2026</small>
       </aside>
       <main className="auth-main">
-        <button className="lang abs" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}>{lang === 'ru' ? 'EN' : 'RU'}</button>
+        <button className="lang abs" onClick={() => setLang(nextLang(lang))}>{LANG_LABEL[nextLang(lang)]}</button>
         <form className="auth-form" onSubmit={submit}>
           <h1>{mode === 'login' ? t('Кабинет врача') : t('Создать аккаунт')}</h1>
           {mode === 'register' && <>

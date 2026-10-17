@@ -13,7 +13,7 @@ export default function Alerts() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><p className="eyebrow">{f.t('Фибрилляция')} · {f.lang === 'en' ? 'onset of each episode' : 'начало каждого эпизода'}</p><h1>{f.t('Тревоги')}</h1></div>
+        <div><p className="eyebrow">{f.t('Фибрилляция')} · {f.tr('начало каждого эпизода', 'onset of each episode', 'ар бир эпизоддун башталышы')}</p><h1>{f.t('Тревоги')}</h1></div>
         <div className="head-tools">
           <Seg value={flt} onChange={setFlt} items={[['new', f.t('Новые')], ['all', f.t('Все')]]} />
           <button className="btn ghost" onClick={ackAll}>{Icon.check()} {f.t('Отметить всё прочитанным')}</button>

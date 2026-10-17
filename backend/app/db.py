@@ -4,12 +4,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./afib.db")
-if DATABASE_URL.startswith("postgres://"):            # Render/Heroku style URL
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+for _p in ("postgres://", "postgresql://"):            # Render/Neon/Heroku URLs -> psycopg 3 driver
+    if DATABASE_URL.startswith(_p):
+        DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len(_p):]
 
 engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
+    pool_pre_ping=True,                                # cloud databases drop idle connections
 )
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 

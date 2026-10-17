@@ -1,4 +1,4 @@
-export type Lang = 'ru' | 'en'
+export type Lang = 'ru' | 'en' | 'ky'
 
 const ru = {
   // tabs
@@ -49,6 +49,13 @@ const ru = {
   account: 'Аккаунт', sign_out: 'Выйти', not_signed: 'Вы не вошли', sign_in_cta: 'Войти или зарегистрироваться',
   about: 'О приложении', disclaimer: 'Учебный исследовательский проект. Не является медицинским изделием и не заменяет консультацию врача.',
   phone: 'Телефон', edit: 'Изменить', years: 'лет', error: 'Ошибка',
+  // v2.1
+  sqi: 'Качество сигнала', sqi_good: 'хорошее', sqi_fair: 'среднее', sqi_poor: 'плохое',
+  poincare: 'График Пуанкаре', poincare_sub: 'Каждая точка — два соседних интервала между ударами. Ровный ритм — точки кучкой на диагонали, ФП — широкое облако.',
+  irregularity: 'Нерегулярность RR', irregularity_hint: '> 0,10 — типично для ФП',
+  family_tg: 'Близкие в Telegram', family_tg_sub: 'Родные получат тревогу с ЭКГ, если начнётся приступ, и смогут нажать «Принять».',
+  family_add: 'Пригласить близкого', family_share: 'Подключись к моим уведомлениям о сердце AFib Monitor: {url}', tg_off: 'Telegram-бот на сервере не настроен',
+  remove: 'Убрать', risk_title: 'Риск инсульта (CHA₂DS₂-VASc)', risk_none: 'Врач ещё не заполнил шкалу', per_year: 'в год',
 }
 export type Key = keyof typeof ru
 
@@ -93,9 +100,64 @@ const en: Record<Key, string> = {
   account: 'Account', sign_out: 'Sign out', not_signed: 'You are not signed in', sign_in_cta: 'Sign in or sign up',
   about: 'About', disclaimer: 'Educational research project. Not a medical device and not a substitute for medical advice.',
   phone: 'Phone', edit: 'Edit', years: 'y', error: 'Error',
+  sqi: 'Signal quality', sqi_good: 'good', sqi_fair: 'fair', sqi_poor: 'poor',
+  poincare: 'Poincaré plot', poincare_sub: 'Each dot is two neighbouring beat intervals. A regular rhythm clusters on the diagonal, AF forms a wide cloud.',
+  irregularity: 'RR irregularity', irregularity_hint: '> 0.10 is typical for AF',
+  family_tg: 'Family in Telegram', family_tg_sub: 'Your relatives get an alert with the ECG if an episode starts, and can press "Accept".',
+  family_add: 'Invite a relative', family_share: 'Join my AFib Monitor heart alerts: {url}', tg_off: 'The Telegram bot is not configured on the server',
+  remove: 'Remove', risk_title: 'Stroke risk (CHA₂DS₂-VASc)', risk_none: 'Your doctor has not filled in the score yet', per_year: 'per year',
 }
 
-export const DICT: Record<Lang, Record<Key, string>> = { ru, en }
+const ky: Record<Key, string> = {
+  tab_monitor: 'Монитор', tab_history: 'Тарых', tab_diary: 'Күндөлүк', tab_profile: 'Профиль',
+  ob1_t: 'Жүрөк көзөмөлдө', ob1_b: 'Кийилүүчү ЭКГ монитору жүрөктүн дирилдөөсүн (ФП) өзү тааныйт — нейротармак сенсордун ичинде иштейт.',
+  ob2_t: 'Дароо эскертүү', ob2_b: 'Телефон ритмди Bluetooth аркылуу алат, талма башталганда дирилдейт жана дарыгер үчүн ЭКГны өзү жазат.',
+  ob3_t: 'Дарыгер дайыма кабардар', ob3_b: 'Эпизоддор, пульс жана белгилериңиз дарыгердин кабинетине реалдуу убакытта жетет.',
+  next: 'Кийинки', start: 'Баштоо', skip: 'Өткөрүү',
+  welcome: 'Кош келиңиз', signin: 'Кирүү', signup: 'Катталуу', email: 'Email', password: 'Сырсөз',
+  name: 'Аты-жөнү', doctor_code: 'Дарыгердин коду (милдеттүү эмес)', birth_year: 'Туулган жылы',
+  server: 'Сервердин дареги', server_hint: 'Мисалы http://192.168.1.5:8000 — ошол эле Wi-Fi тармагындагы сервер иштеген компьютер',
+  sign_in_btn: 'Кирүү', sign_up_btn: 'Аккаунт түзүү', no_account: 'Аккаунт жокпу? Катталуу', have_account: 'Аккаунт барбы? Кирүү',
+  demo_login: 'Демо-бейтап', offline_mode: 'Серверсиз улантуу', check: 'Текшерүү', server_waking: 'Туташууда… акысыз сервер бир мүнөткө чейин ойгонушу мүмкүн', server_ok: 'Сервер жеткиликтүү', server_bad: 'Сервер жеткиликсиз',
+  hello: 'Саламатсызбы', connect_title: 'Мониторду туташтырыңыз', connect_text: 'CoreS3 SEни күйгүзүп, электроддорду тагыңыз: кызылы — оң көкүрөк сөөгүнүн астына, сарысы — сол жагына, жашылы — ичтин сол төмөн жагына.',
+  connect_device: 'Түзмөктү туташтыруу', demo_mode: 'Түзмөксүз демо-режим',
+  scanning: 'Түзмөк изделүүдө…', connecting: 'Туташууда…', reconnecting: 'Байланыш үзүлдү, кайра туташууда…',
+  not_found: 'Түзмөк табылган жок. Ал күйүкпү жана жакынбы?', no_permission: 'Bluetoothка уруксат жок',
+  st_collecting: 'Маалымат чогултулууда', st_normal: 'Калыптуу ритм', st_afib: 'Фибрилляция', st_nosignal: 'Сигнал жок',
+  st_collecting_sub: '32 согуу керек — болжол менен 30 секунд', st_normal_sub: 'Ритм бир калыпта', st_afib_sub: 'Отуруп эс алыңыз. ЭКГ дарыгер үчүн жазылды.',
+  st_nosignal_sub: 'Электроддорду жана зымдарды текшериңиз', waiting: 'Маалымат күтүлүүдө…', stale: 'Маалымат жок',
+  bpm: 'сог/мүн', confidence: 'ФП ыктымалдыгы', today: 'Бүгүн', episodes: 'Эпизоддор', burden: 'ФП жүгү', monitored: 'Мониторинг',
+  live_ecg: 'Жандуу ЭКГ', record_ecg: 'ЭКГ жазуу', recording: 'Жазылууда…', ecg_saved: 'ЭКГ сакталды жана дарыгерге жөнөтүлдү',
+  ecg_saved_local: 'ЭКГ сакталды, байланыш болгондо жөнөтөбүз', how_feel: 'Абалыңыз кандай?', add_symptom: 'Белги кошуу',
+  sos: 'SOS', sos_title: 'Шашылыш чакыруу', sos_text: 'Тез жардамга (103) чалуубу?', call: 'Чалуу', call_doctor: 'Дарыгерге чалуу',
+  cancel: 'Жокко чыгаруу', stop: 'Ажыратуу', device: 'Түзмөк',
+  af_notif_t: 'Жүрөктүн дирилдөөсү аныкталды', af_notif_b: 'Пульс {bpm} сог/мүн. Отуруп эс алыңыз; абалыңыз начарласа 103кө чалыңыз.',
+  battery: 'Батарея', signal: 'Сигнал', inference: 'Чиптеги инференс', uptime: 'Иштөө убактысы', model: 'Модель', firmware: 'Микропрограмма',
+  source_sim: 'Симулятор', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ЭКГ-пакеттер', sync: 'Синхрондоо',
+  pending: 'кезекте', synced: 'синхрондолду', never: 'азырынча жок', sync_now: 'Синхрондоо',
+  h24: '24 саат', d7: '7 күн', d30: '30 күн', af_minutes: 'ФП мүнөттөрү', pulse: 'Пульс', no_episodes: 'Фибрилляция эпизоддору болгон жок',
+  longest: 'эң узуну', ecg_records: 'ЭКГ жазуулары', auto_rec: 'ФПда автожазуу', manual_rec: 'сиз жаздыңыз', symptom_rec: 'белги учурунда',
+  verdict_confirmed: 'Дарыгер ырастады', verdict_false: 'Жалган эскертүү', on_phone: 'Бул телефондо', login_needed: 'Сервердеги тарыхты көрүү үчүн кириңиз',
+  min: 'мүн', h: 'саат', s: 'сек', ago: 'мурун', now: 'азыр',
+  diary_title: 'Белгилер күндөлүгү', diary_sub: 'Абалыңызды белгилеңиз — дарыгер муну ЭКГнын жанынан көрөт.',
+  severity: 'Канчалык катуу', sev1: 'Жеңил', sev2: 'Орточо', sev3: 'Катуу', note: 'Түшүндүрмө', note_ph: 'Эмне кылып жаттыңыз, канча убакытка созулду…',
+  save: 'Сактоо', saved: 'Сакталды', choose_symptom: 'Жок дегенде бир белгини тандаңыз', no_symptoms: 'Азырынча жазуулар жок',
+  palpitations: 'Жүрөктүн катуу согушу', dizziness: 'Баш айлануу', shortness_of_breath: 'Ентигүү', chest_pain: 'Көкүрөктөгү оору',
+  fatigue: 'Алсыздык', anxiety: 'Тынчсыздануу', other: 'Башка', attach_ecg: 'Акыркы 10 секунддун ЭКГсын тиркөө',
+  profile: 'Профиль', my_doctor: 'Менин дарыгерим', no_doctor: 'Дарыгер туташтырылган эмес', link: 'Туташтыруу', doctor_linked: 'Дарыгер туташтырылды',
+  appearance: 'Көрүнүш', theme: 'Тема', th_system: 'Системалык', th_light: 'Жарык', th_dark: 'Караңгы', language: 'Тил',
+  account: 'Аккаунт', sign_out: 'Чыгуу', not_signed: 'Сиз кире элексиз', sign_in_cta: 'Кирүү же катталуу',
+  about: 'Тиркеме жөнүндө', disclaimer: 'Окуу-изилдөө долбоору. Медициналык буюм эмес жана дарыгердин кеңешин алмаштырбайт.',
+  phone: 'Телефон', edit: 'Өзгөртүү', years: 'жаш', error: 'Ката',
+  sqi: 'Сигналдын сапаты', sqi_good: 'жакшы', sqi_fair: 'орточо', sqi_poor: 'начар',
+  poincare: 'Пуанкаре графиги', poincare_sub: 'Ар бир чекит — согуулардын ортосундагы эки коңшу аралык. Бир калыптагы ритмде чекиттер диагоналда топтолот, ФПда — кең булут.',
+  irregularity: 'RR туруксуздугу', irregularity_hint: '> 0,10 — ФП үчүн мүнөздүү',
+  family_tg: 'Жакындар Telegramда', family_tg_sub: 'Талма башталса, туугандарыңыз ЭКГ менен эскертүү алышат жана «Кабыл алуу» баса алышат.',
+  family_add: 'Жакынды чакыруу', family_share: 'AFib Monitor жүрөк эскертүүлөрүмө кошул: {url}', tg_off: 'Сервердеги Telegram-бот жөндөлгөн эмес',
+  remove: 'Алып салуу', risk_title: 'Инсульт коркунучу (CHA₂DS₂-VASc)', risk_none: 'Дарыгер шкаланы азырынча толтура элек', per_year: 'жылына',
+}
+
+export const DICT: Record<Lang, Record<Key, string>> = { ru, en, ky }
 export const SYMPTOMS = ['palpitations', 'dizziness', 'shortness_of_breath', 'chest_pain', 'fatigue', 'anxiety', 'other'] as const
 
 export function translate(lang: Lang, k: Key | string, vars?: Record<string, string | number>): string {
@@ -103,3 +165,7 @@ export function translate(lang: Lang, k: Key | string, vars?: Record<string, str
   if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace(`{${a}}`, String(b))
   return s
 }
+
+/** Locale for dates; Kyrgyz month names where the OS has them. */
+export const locOf = (l: Lang | string) => (l === 'en' ? 'en-GB' : l === 'ky' ? 'ky-KG' : 'ru-RU')
+export const nextLang = (l: Lang): Lang => (l === 'ru' ? 'ky' : l === 'ky' ? 'en' : 'ru')

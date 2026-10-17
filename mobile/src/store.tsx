@@ -26,7 +26,7 @@ export type Toast = { id: number; text: string; tone: 'ok' | 'af' | 'info' }
 
 /** Live ECG ring buffer, read by the waveform view without re-rendering the whole app. */
 export class EcgBus {
-  readonly size = ECG_FS * 16
+  readonly size = ECG_FS * 64          // 64 s: live trace, 10-s recordings and the 60-s Poincaré plot
   buf = new Float32Array(this.size)
   total = 0                 // samples received since start
   packets = 0
@@ -316,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         queue.current = j(K.queue, []); ecgQueue.current = j(K.ecgQueue, []); symQueue.current = j(K.symQueue, [])
         setPending(queue.current.length + ecgQueue.current.length + symQueue.current.length)
         setSymptoms(j(K.symptoms, [])); setEpisodes(j(K.episodes, []))
-        if (kv[K.lang] === 'en' || kv[K.lang] === 'ru') { setLangS(kv[K.lang] as Lang); langRef.current = kv[K.lang] as Lang }
+        if (kv[K.lang] === 'en' || kv[K.lang] === 'ru' || kv[K.lang] === 'ky') { setLangS(kv[K.lang] as Lang); langRef.current = kv[K.lang] as Lang }
         if (kv[K.theme]) setThemePrefS(kv[K.theme] as ThemePref)
         setOnboarded(kv[K.onboarded] === '1'); setOfflineS(kv[K.offline] === '1')
         if (Platform.OS !== 'web') Notifications.requestPermissionsAsync().catch(() => undefined)

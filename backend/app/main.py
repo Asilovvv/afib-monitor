@@ -13,13 +13,13 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from . import analytics
+from . import analytics, ecgtools, risk, telegram
 from .auth import (check_password, current_user, hash_password, make_token, new_invite_code,
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
-from .models import (STATE_AFIB, SYMPTOMS, Alert, EcgStrip, EpisodeReview, Note, Reading, Symptom,
-                     User)
+from .models import (STATE_AFIB, SYMPTOMS, Alert, EcgStrip, EpisodeReview, Note, Reading, RiskProfile, Symptom,
+                     TelegramLink, User)
 
 Base.metadata.create_all(engine)
 
@@ -27,7 +27,7 @@ if os.getenv("SEED_DEMO") == "1":          # demo doctor + patients (idempotent)
     from .seed import run as _seed_demo
     _seed_demo()
 
-app = FastAPI(title="AFib Monitor API", version="2.0",
+app = FastAPI(title="AFib Monitor API", version="2.1",
               description="Readings, alerts, ECG strips and symptoms from the ESP32-S3 AFib monitor.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -53,6 +53,7 @@ async def _startup():
     if os.getenv("DEMO_LIVE", os.getenv("SEED_DEMO", "0")) == "1":   # keep demo patients "online"
         from .demo_live import run_forever
         asyncio.get_running_loop().create_task(run_forever(ingest))
+    asyncio.get_running_loop().create_task(telegram._guard(telegram.start()))
 
 
 # ---------------------------------------------------------------- schemas
@@ -247,6 +248,7 @@ def ingest(db: Session, user: User, items: list) -> tuple[int, int]:
     for a in alerts:
         broker.publish(user.doctor_id, "alert", {"id": a.id, "patient_id": user.id, "patient_name": user.name,
                                                  "ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm})
+        telegram.notify_alert(a.id)
     return len(rows), len(alerts)
 
 
@@ -276,6 +278,7 @@ def add_ecg(body: EcgIn, user: User = Depends(require_role("patient")), db: Sess
     db.commit()
     broker.publish(user.doctor_id, "ecg", {"patient_id": user.id, "patient_name": user.name, "id": e.id,
                                            "reason": e.reason})
+    telegram.notify_ecg(e.id)
     return ecg_meta(e)
 
 
@@ -297,7 +300,26 @@ def get_ecg(ecg_id: int, user: User = Depends(current_user), db: Session = Depen
     p = db.get(User, e.patient_id)
     if not (user.id == p.id or (user.role == "doctor" and p.doctor_id == user.id)):
         raise HTTPException(404, "ECG not found")
-    return {**ecg_meta(e), "samples": json.loads(e.samples)}
+    x = json.loads(e.samples)
+    return {**ecg_meta(e), "samples": x, **ecgtools.analyze(x, e.fs)}
+
+
+def strips_poincare(strips: list[EcgStrip]) -> dict:
+    """Poincaré points from the recorded ECG strips of the period, split by the rhythm the device reported."""
+    out = {"af": [], "normal": []}
+    q = []
+    for e in strips[:60]:
+        a = ecgtools.analyze(json.loads(e.samples), e.fs)
+        key = "af" if e.state == STATE_AFIB else "normal"
+        out[key] += a["poincare"]["points"]
+        q.append(a["quality"]["sqi"])
+    for key in ("af", "normal"):
+        st = ecgtools.poincare_points(out[key])
+        st.pop("points")
+        out[key + "_stats"] = st
+    out["strips"] = min(len(strips), 60)
+    out["mean_sqi"] = round(sum(q) / len(q), 2) if q else None
+    return out
 
 
 # ---------------------------------------------------------------- reports
@@ -341,6 +363,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
         "hourly": analytics.hourly(rows, since, until),
         "symptoms": [symptom_out(s) for s in symptoms],
         "ecg": [ecg_meta(e) for e in ecgs],
+        "poincare": strips_poincare(ecgs),
     }
 
 
@@ -424,8 +447,8 @@ def ack_alert(alert_id: int, doctor: User = Depends(require_role("doctor")), db:
     if not a:
         raise HTTPException(404, "Alert not found")
     own_patient(db, doctor, a.patient_id)
-    a.status, a.ack_by, a.ack_at = "ack", doctor.id, utcnow()
-    db.commit()
+    telegram.record_ack(db, a, doctor.name, "doctor", None, doctor.id)
+    telegram.notify_ack(a.id)
     return {"ok": True}
 
 
@@ -433,10 +456,10 @@ def ack_alert(alert_id: int, doctor: User = Depends(require_role("doctor")), db:
 def ack_all(doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
     ids = [p.id for p in db.scalars(select(User).where(User.doctor_id == doctor.id))] or [-1]
     n = 0
-    for a in db.scalars(select(Alert).where(Alert.patient_id.in_(ids), Alert.status == "new")):
-        a.status, a.ack_by, a.ack_at = "ack", doctor.id, utcnow()
+    for a in list(db.scalars(select(Alert).where(Alert.patient_id.in_(ids), Alert.status == "new"))):
+        telegram.record_ack(db, a, doctor.name, "doctor", None, doctor.id)
+        telegram.notify_ack(a.id)
         n += 1
-    db.commit()
     return {"acknowledged": n}
 
 
@@ -490,6 +513,81 @@ def review_episode(patient_id: int, body: ReviewIn, doctor: User = Depends(requi
         db.add(EpisodeReview(patient_id=patient_id, episode_start=start, verdict=body.verdict,
                              reviewer_id=doctor.id, ts=utcnow()))
     db.commit()
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- stroke risk (CHA2DS2-VASc)
+class RiskIn(BaseModel):
+    chf: bool = False
+    hypertension: bool = False
+    diabetes: bool = False
+    stroke: bool = False
+    vascular: bool = False
+    birth_year: int | None = Field(default=None, ge=1900, le=2030)
+    sex: str | None = Field(default=None, pattern="^(m|f)$")
+
+
+def risk_of(db: Session, p: User) -> dict:
+    r = db.get(RiskProfile, p.id)
+    f = {k: getattr(r, k) for k in ("chf", "hypertension", "diabetes", "stroke", "vascular")} if r else {}
+    out = risk.score(p.birth_year, p.sex, f)
+    out["updated_at"] = iso(r.updated_at) if r else None
+    return out
+
+
+@app.get("/api/patients/{patient_id}/risk")
+def get_risk(patient_id: int, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    return risk_of(db, own_patient(db, doctor, patient_id))
+
+
+@app.put("/api/patients/{patient_id}/risk")
+def put_risk(patient_id: int, body: RiskIn, doctor: User = Depends(require_role("doctor")),
+             db: Session = Depends(get_db)):
+    p = own_patient(db, doctor, patient_id)
+    r = db.get(RiskProfile, p.id) or RiskProfile(patient_id=p.id)
+    for k in ("chf", "hypertension", "diabetes", "stroke", "vascular"):
+        setattr(r, k, int(getattr(body, k)))
+    if body.birth_year is not None:
+        p.birth_year = body.birth_year
+    if body.sex is not None:
+        p.sex = body.sex
+    r.updated_by, r.updated_at = doctor.id, utcnow()
+    db.add(r)
+    db.commit()
+    return risk_of(db, p)
+
+
+@app.get("/api/me/risk")
+def my_risk(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    return risk_of(db, user)
+
+
+# ---------------------------------------------------------------- Telegram
+@app.get("/api/telegram")
+def telegram_info(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {"enabled": telegram.enabled(), "bot": telegram.bot_username, "links": telegram.links_of(db, user)}
+
+
+@app.post("/api/telegram/link")
+def telegram_link(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if not telegram.enabled():
+        raise HTTPException(503, "Telegram bot is not configured on this server")
+    code = telegram.new_code(db, user)
+    return {"code": code, "url": telegram.link_url(code), "bot": telegram.bot_username, "expires_h": 24}
+
+
+@app.delete("/api/telegram/links/{link_id}")
+def telegram_unlink(link_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    db.execute(delete(TelegramLink).where(TelegramLink.id == link_id, TelegramLink.user_id == user.id))
+    db.commit()
+    return telegram.links_of(db, user)
+
+
+@app.post("/api/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(request: Request):
+    if not telegram.enabled() or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != telegram.SECRET:
+        raise HTTPException(403, "Forbidden")
+    asyncio.get_running_loop().create_task(telegram._guard(telegram.handle_update(await request.json())))
     return {"ok": True}
 
 

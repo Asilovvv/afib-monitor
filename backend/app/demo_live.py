@@ -115,3 +115,5 @@ def _tick(ingest, ids: list[int], sims: dict[int, Sim]) -> None:
                 db.commit()
                 broker.publish(p.doctor_id, "ecg", {"patient_id": pid, "patient_name": p.name, "id": e.id,
                                                     "reason": e.reason})
+                from . import telegram
+                telegram.notify_ecg(e.id)

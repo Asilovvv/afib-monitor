@@ -1,7 +1,9 @@
+import { locOf } from '../i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Animated, Easing, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { EcgLive } from '../components/Ecg'
+import { PoincareCard, QualityPill, useLiveAnalysis } from '../components/Poincare'
 import { Battery, Button, Card, Icon, Pill, Ring, Row, Stat, T } from '../components/ui'
 import { RhythmState } from '../protocol'
 import { useApp } from '../store'
@@ -69,6 +71,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
   const tone = stateTone(tm, stale ? RhythmState.NoSignal : status?.state)
   const busy = link.state === 'scanning' || link.state === 'connecting'
   const first = user?.name.split(' ')[0]
+  const live = useLiveAnalysis(ecg)
 
   const today = useMemo(() => {
     const d0 = new Date(); d0.setHours(0, 0, 0, 0)
@@ -78,7 +81,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
     return { eps: eps.length, burden: h.length ? af / h.length : 0, minutes: h.length ? (h[h.length - 1].at - h[0].at) / 60000 : 0 }
   }, [episodes, history])
 
-  const dateStr = new Date(now).toLocaleDateString(lang === 'en' ? 'en-GB' : 'ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
+  const dateStr = new Date(now).toLocaleDateString(locOf(lang), { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <View style={{ flex: 1 }}>
@@ -150,6 +153,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                 <T v="mono">25 mm/s · 125 Hz</T>
               </Row>
               <EcgLive bus={ecg} color={status?.state === RhythmState.AFib ? tm.af : tm.trace} />
+              {live && <Row style={{ marginTop: 10 }}><QualityPill q={live.quality} /></Row>}
               <Pressable onPress={recordEcg} disabled={recording !== null}
                 style={({ pressed }) => [s.rec, { backgroundColor: tm.bg2, opacity: pressed ? 0.8 : 1 }]}>
                 {recording !== null && <View style={[s.recFill, { backgroundColor: tm.afSoft, width: `${recording * 100}%` }]} />}
@@ -157,6 +161,8 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                 <T v="h3" style={{ fontSize: 14.5 }}>{recording !== null ? `${t('recording')} ${Math.round(recording * 10)}/10 ${t('s')}` : `${t('record_ecg')} · 10 ${t('s')}`}</T>
               </Pressable>
             </Card>
+
+            <PoincareCard a={live} af={status?.state === RhythmState.AFib} />
 
             {/* today */}
             <Card style={{ marginTop: 14 }}>

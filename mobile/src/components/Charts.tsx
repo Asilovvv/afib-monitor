@@ -1,3 +1,4 @@
+import { locOf } from '../i18n'
 import { useState } from 'react'
 import { View } from 'react-native'
 import Svg, { G, Path, Rect, Text as SvgText } from 'react-native-svg'
@@ -7,7 +8,7 @@ import { F } from '../theme'
 
 const label = (iso: string, daily: boolean, lang: string) => {
   const d = new Date(iso)
-  return daily ? d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short' }).replace('.', '')
+  return daily ? d.toLocaleDateString(locOf(lang), { day: 'numeric', month: 'short' }).replace('.', '')
     : `${String(d.getHours()).padStart(2, '0')}:00`
 }
 

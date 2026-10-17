@@ -22,16 +22,15 @@ export default function Overview({ me }: { me: User }) {
   const [ov] = useLive<Ov>('/api/overview')
   const [rows] = useLive<PatientRow[]>('/api/patients')
   const hour = new Date().getHours()
-  const hello = f.lang === 'en'
-    ? (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening')
-    : (hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер')
+  const hello = hour < 12 ? f.tr('Доброе утро', 'Good morning', 'Кутман таң')
+    : hour < 18 ? f.tr('Добрый день', 'Good afternoon', 'Кутман күн') : f.tr('Добрый вечер', 'Good evening', 'Кутман кеч')
   const attention = rows?.filter(r => r.alert || r.new_alerts > 0) ?? []
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
-          <p className="eyebrow">{new Date().toLocaleDateString(f.lang === 'en' ? 'en-GB' : 'ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="eyebrow">{new Date().toLocaleDateString(f.loc, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
           <h1>{hello}, {me.name.replace(/^Др\.\s*/, '').split(' ')[0]}</h1>
         </div>
       </div>

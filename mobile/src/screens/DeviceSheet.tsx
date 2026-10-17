@@ -1,3 +1,4 @@
+import { locOf } from '../i18n'
 import { StyleSheet, View } from 'react-native'
 import { Battery, Button, Icon, Row, Sheet, T, type IconName } from '../components/ui'
 import { useApp } from '../store'
@@ -39,7 +40,7 @@ export function DeviceSheet({ open, onClose }: { open: boolean; onClose: () => v
       <Line icon="wave" label={t('packets')} value={`${ecg.packets}${ecg.lost ? ` · −${ecg.lost}` : ''}`} />
       <Line icon="clock" label={t('uptime')} value={connectedAt ? fmtDur(t, (now - connectedAt) / 1000) : '—'} />
       <Line icon="pulse" label={t('model')} value="TCN int8 · 27 KB" />
-      <Line icon="sync" label={t('sync')} value={user ? (pending ? `${pending} ${t('pending')}` : lastSync ? new Date(lastSync).toLocaleTimeString(lang === 'en' ? 'en-GB' : 'ru-RU', { hour: '2-digit', minute: '2-digit' }) : t('never')) : '—'} />
+      <Line icon="sync" label={t('sync')} value={user ? (pending ? `${pending} ${t('pending')}` : lastSync ? new Date(lastSync).toLocaleTimeString(locOf(lang), { hour: '2-digit', minute: '2-digit' }) : t('never')) : '—'} />
       <Row style={{ marginTop: 16 }} gap={10}>
         {user && <Button title={t('sync_now')} kind="soft" icon="sync" onPress={syncNow} style={{ flex: 1 }} />}
         {source !== 'none' && <Button title={t('stop')} kind="ghost" icon="x" onPress={() => { stop(); onClose() }} style={{ flex: 1 }} />}

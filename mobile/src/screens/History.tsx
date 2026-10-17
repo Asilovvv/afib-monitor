@@ -1,8 +1,11 @@
+import { locOf } from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { api, type EcgMeta, type Report } from '../api'
 import { HourBars, HrLine } from '../components/Charts'
 import { EcgStatic } from '../components/Ecg'
+import { PoincarePlot, QualityPill } from '../components/Poincare'
+import { analyze } from '../rr'
 import { Card, Empty, Icon, Pill, Row, Seg, Sheet, Stat, T } from '../components/ui'
 import { useApp } from '../store'
 import { fmtDur } from './Monitor'
@@ -16,7 +19,7 @@ function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => voi
   }, [meta])
   const af = meta?.state === 2
   return (
-    <Sheet open={!!meta} onClose={onClose} title={meta ? new Date(meta.ts).toLocaleString(lang === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}>
+    <Sheet open={!!meta} onClose={onClose} title={meta ? new Date(meta.ts).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}>
       {meta && (
         <View style={{ gap: 14 }}>
           <Row gap={8}>
@@ -25,6 +28,19 @@ function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => voi
           </Row>
           {samples == null ? <ActivityIndicator style={{ height: 160 }} /> :
             <EcgStatic samples={samples} fs={meta.fs} color={af ? tm.afInk : tm.ink} height={170} />}
+          {samples && samples.length > 250 && (() => {
+            const a = analyze(samples, meta.fs)
+            return (
+              <Row gap={14} style={{ alignItems: 'center' }}>
+                <PoincarePlot points={a.poincare.points} color={af ? tm.af : tm.ok} size={150} />
+                <View style={{ flex: 1, gap: 8 }}>
+                  <QualityPill q={a.quality} />
+                  <T v="small">SD1/SD2 {a.poincare.sd1 ?? '—'}/{a.poincare.sd2 ?? '—'} ms</T>
+                  <T v="small" c={a.irregularity != null && a.irregularity > 0.1 ? tm.af : undefined}>{t('irregularity')}: {a.irregularity?.toFixed(2) ?? '—'}</T>
+                </View>
+              </Row>
+            )
+          })()}
           <T v="small">{t(meta.reason === 'afib_onset' ? 'auto_rec' : meta.reason === 'symptom' ? 'symptom_rec' : 'manual_rec')}</T>
         </View>
       )}
@@ -39,7 +55,7 @@ export default function History() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [ecg, setEcg] = useState<EcgMeta | null>(null)
-  const loc = lang === 'en' ? 'en-GB' : 'ru-RU'
+  const loc = locOf(lang)
 
   const load = useCallback(async () => {
     if (!user) return

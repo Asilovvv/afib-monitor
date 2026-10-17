@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { api, emitRefresh, getToken, REFRESH, type PatientRow, type User } from '../api'
 import { Avatar, Icon } from '../components/ui'
-import { useT } from '../i18n'
+import { nextLang, useT } from '../i18n'
 import { applyTheme, getTheme, type ThemePref } from '../theme'
 
 type Toast = { id: number; kind: 'alert' | 'info'; title: string; body: string; href?: string }
@@ -131,7 +131,7 @@ export default function Shell({ me, onLogout, children }: { me: User; onLogout: 
             )}
           </div>
           <div className="top-actions">
-            <button className="icon-btn" onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} title={t('Язык')}><b className="lang-t">{lang.toUpperCase()}</b></button>
+            <button className="icon-btn" onClick={() => setLang(nextLang(lang))} title={t('Язык')}><b className="lang-t">{lang.toUpperCase()}</b></button>
             <button className="icon-btn" onClick={cycleTheme} title={t('Тема')}>{theme === 'dark' ? Icon.moon() : theme === 'light' ? Icon.sun() : <span className="auto-t">A</span>}</button>
             <div className="me" onClick={() => setMenu(!menu)}>
               <Avatar name={me.name} size={34} />

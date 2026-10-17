@@ -27,6 +27,8 @@ export const Icon = {
   doctor: (s = 20) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><circle cx="12" cy="7" r="4" /><path d="M4 21c.6-4 3.8-6.5 8-6.5s7.4 2.5 8 6.5" /><path d="M9 16v2.5a1.5 1.5 0 0 0 3 0" /><circle cx="15.5" cy="18.5" r="1.3" /></svg>,
   bolt: (s = 20) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><path d="M13 2 4 14h7l-1 8 9-12h-7z" /></svg>,
   shield: (s = 20) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" /><path d="m9 12 2 2 4-4" /></svg>,
+  send: (s = 18) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><path d="M21.5 3.5 2.8 10.7c-.9.4-.9 1.6.1 1.9l4.6 1.4 1.8 5.6c.3.8 1.3 1 1.9.4l2.6-2.5 4.7 3.5c.7.5 1.7.1 1.9-.7l3-15.4c.2-.9-.7-1.6-1.6-1.2z" /><path d="m7.5 14 9-6.5-6.5 8" /></svg>,
+  scatter: (s = 18) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><path d="M3 3v18h18" /><circle cx="8" cy="15" r="1.2" /><circle cx="11" cy="11" r="1.2" /><circle cx="15" cy="13" r="1.2" /><circle cx="17" cy="7" r="1.2" /></svg>,
   note: (s = 18) => <svg width={s} height={s} viewBox="0 0 24 24" {...P}><path d="M5 3h10l4 4v14H5z" /><path d="M15 3v4h4M8 12h8M8 16h6" /></svg>,
 }
 
@@ -43,11 +45,15 @@ export const SYMPTOM_LABEL: Record<string, string> = {
   fatigue: 'Слабость', anxiety: 'Тревожность', other: 'Другое',
 }
 
+// Some browsers ship no Kyrgyz date names: fall back to Russian month names then
+const KY_OK = (() => { try { return Intl.DateTimeFormat.supportedLocalesOf(['ky']).length > 0 } catch { return false } })()
+
 export function useFmt() {
   const { t, lang } = useT()
-  const loc = lang === 'en' ? 'en-GB' : 'ru-RU'
+  const loc = lang === 'en' ? 'en-GB' : lang === 'ky' && KY_OK ? 'ky-KG' : 'ru-RU'
+  const tr = (ru: string, en: string, ky: string) => (lang === 'en' ? en : lang === 'ky' ? ky : ru)
   return {
-    t, lang,
+    t, lang, loc, tr,
     ago(iso: string | null) {
       if (!iso) return t('нет данных')
       const s = (Date.now() - new Date(iso).getTime()) / 1000
@@ -57,11 +63,11 @@ export function useFmt() {
       return `${Math.round(s / 86400)} ${t('дн назад')}`
     },
     dur(sec: number) {
-      const en = lang === 'en'
-      if (sec < 60) return `${Math.round(sec)} ${en ? 's' : 'с'}`
+      const u = lang === 'en' ? ['s', 'min', 'h'] : lang === 'ky' ? ['сек', 'мүн', 'саат'] : ['с', 'мин', 'ч']
+      if (sec < 60) return `${Math.round(sec)} ${u[0]}`
       const m = Math.round(sec / 60)
-      if (m < 60) return `${m} ${en ? 'min' : 'мин'}`
-      return `${Math.floor(m / 60)} ${en ? 'h' : 'ч'} ${m % 60} ${en ? 'min' : 'мин'}`
+      if (m < 60) return `${m} ${u[1]}`
+      return `${Math.floor(m / 60)} ${u[2]} ${m % 60} ${u[1]}`
     },
     pct: (x: number) => `${(x * 100).toFixed(x > 0 && x < 0.1 ? 1 : 0)}%`,
     time: (iso: string) => new Date(iso).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' }),
