@@ -596,3 +596,16 @@ a.kpi:hover { transform: translateY(-2px); }
   .risk-score { grid-template-columns: 1fr 1fr; }
   .risk-score > div:last-child { grid-column: span 2; }
 }
+
+/* ---------------------------------------------------------------- privacy policy / terms */
+.legal { min-height: 100vh; background: #070a12; color: #ecebf2; --l-line: #1d2230; --l-mute: #8f8c9b; }
+.legal .l-nav { max-width: 760px; margin: 0 auto; padding: 18px 24px; display: flex; justify-content: space-between; align-items: center; }
+.legal-body { max-width: 760px; margin: 0 auto; padding: 24px 24px 64px; line-height: 1.6; }
+.legal-body h1 { font-family: Unbounded, sans-serif; font-size: clamp(28px, 5vw, 40px); margin: 6px 0 12px; }
+.legal-body h2 { font-size: 19px; margin: 32px 0 8px; }
+.legal-body .lead { color: #c9c6d4; font-size: 17px; }
+.legal-body .kicker { color: #38f2b0; font-size: 13px; letter-spacing: .04em; margin: 0; }
+.legal-body ul { padding-left: 20px; margin: 0; }
+.legal-body li { margin: 6px 0; color: #d6d3de; }
+.legal-body a, .l-foot a { color: #38f2b0; }
+.legal-foot { margin-top: 40px; border-top: 1px solid var(--l-line); padding-top: 16px; color: var(--l-mute); font-size: 14px; }

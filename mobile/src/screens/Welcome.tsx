@@ -2,8 +2,7 @@ import { nextLang } from '../i18n'
 import { useEffect, useRef, useState } from 'react'
 import {
   Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View,
-  type NativeScrollEvent, type NativeSyntheticEvent,
-} from 'react-native'
+  type NativeScrollEvent, type NativeSyntheticEvent, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import Svg, { Circle, Path, Rect } from 'react-native-svg'
 import { api, settings } from '../api'
@@ -113,6 +112,9 @@ export function Auth({ onDone }: { onDone?: () => void }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [srv, setSrv] = useState<'ok' | 'bad' | 'wait' | null>(null)
+  const [agree, setAgree] = useState(false)          // terms + data processing (required to sign up)
+  const [research, setResearch] = useState(false)    // optional: de-identified data for research
+  const openDoc = (path: string) => Linking.openURL((server || 'https://afib-monitor.onrender.com').replace(/\/+$/, '') + path).catch(() => undefined)
 
   const check = async () => {
     await settings.setServer(server)
@@ -126,7 +128,7 @@ export function Auth({ onDone }: { onDone?: () => void }) {
       await settings.setServer(server)
       const r = mode === 'in'
         ? await api.login(email.trim(), password)
-        : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined })
+        : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined, consents: ['terms', 'data', ...(research ? ['research'] : [])] })
       setSrv('ok')
       await signIn(r.user, r.token)
       onDone?.()
@@ -168,9 +170,22 @@ export function Auth({ onDone }: { onDone?: () => void }) {
           </Row>
           <T v="small" c={srv === 'ok' ? tm.ok : srv === 'bad' ? tm.af : undefined}>{srv === 'ok' ? `● ${t('server_ok')}` : srv === 'bad' ? `● ${t('server_bad')}` : srv === 'wait' ? t('server_waking') : t('server_hint')}</T>
 
+          {mode === 'up' && (
+            <View style={{ gap: 10, marginTop: 4 }}>
+              <Check on={agree} onPress={() => setAgree(!agree)}>
+                <T v="small">{t('consent_terms_a')} <T v="small" c={tm.accent} style={{ textDecorationLine: 'underline' }}>{t('consent_terms_link')}</T> {t('consent_terms_b')}</T>
+              </Check>
+              <Row gap={14} style={{ paddingLeft: 34 }}>
+                <Pressable onPress={() => openDoc('/terms')}><T v="small" c={tm.accent}>{t('terms')}</T></Pressable>
+                <Pressable onPress={() => openDoc('/privacy')}><T v="small" c={tm.accent}>{t('privacy')}</T></Pressable>
+              </Row>
+              <Check on={research} onPress={() => setResearch(!research)}><T v="small">{t('consent_research')}</T></Check>
+            </View>
+          )}
+
           {err ? <View style={[s.err, { backgroundColor: tm.afSoft }]}><T c={tm.afInk} v="small">{err}</T></View> : null}
           <Button title={mode === 'in' ? t('sign_in_btn') : t('sign_up_btn')} onPress={submit} loading={busy}
-            disabled={!email || password.length < 6 || (mode === 'up' && !name)} style={{ marginTop: 6 }} />
+            disabled={!email || password.length < 6 || (mode === 'up' && (!name || !agree))} style={{ marginTop: 6 }} />
 
           {mode === 'in' && (
             <Pressable onPress={() => { setEmail('aibek@demo.kg'); setPassword('demo1234') }} style={[s.demo, { borderColor: tm.line }]}>
@@ -186,7 +201,20 @@ export function Auth({ onDone }: { onDone?: () => void }) {
   )
 }
 
+function Check({ on, onPress, children }: { on: boolean; onPress: () => void; children: React.ReactNode }) {
+  const { theme: tm } = useApp()
+  return (
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }} accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
+      <View style={[s.box, { borderColor: on ? tm.accent : tm.ink3, backgroundColor: on ? tm.accent : 'transparent' }]}>
+        {on && <Icon name="check" size={14} color="#fff" width={2.4} />}
+      </View>
+      <View style={{ flex: 1 }}>{children}</View>
+    </Pressable>
+  )
+}
+
 const s = StyleSheet.create({
+  box: { width: 22, height: 22, borderRadius: 7, borderWidth: 1.6, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   blob: { position: 'absolute', width: 260, height: 260, borderRadius: 130 },
   logo: { width: 60, height: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   input: { height: 54, borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, fontFamily: F.body, fontSize: 16 },

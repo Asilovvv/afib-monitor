@@ -56,6 +56,11 @@ const ru = {
   family_tg: 'Близкие в Telegram', family_tg_sub: 'Родные получат тревогу с ЭКГ, если начнётся приступ, и смогут нажать «Принять».',
   family_add: 'Пригласить близкого', family_share: 'Подключись к моим уведомлениям о сердце AFib Monitor: {url}', tg_off: 'Telegram-бот на сервере не настроен',
   remove: 'Убрать', risk_title: 'Риск инсульта (CHA₂DS₂-VASc)', risk_none: 'Врач ещё не заполнил шкалу', per_year: 'в год',
+  consent_terms_a: 'Я принимаю', consent_terms_link: 'условия и политику конфиденциальности', consent_terms_b: 'и согласен на обработку моих медицинских данных.', terms: 'Условия', privacy: 'Конфиденциальность',
+  consent_research: 'Разрешаю использовать мои обезличенные данные ритма для улучшения алгоритма (по желанию).',
+  my_data: 'Мои данные', export_data: 'Скачать мои данные', export_sub: 'Один JSON-файл: профиль, ритм, ЭКГ, симптомы', who_viewed: 'Кто смотрел мои данные', nobody_viewed: 'Пока никто', research_toggle: 'Участие в исследовании',
+  delete_account: 'Удалить аккаунт', delete_title: 'Удалить аккаунт навсегда?', delete_text: 'Будут удалены профиль, ритм, ЭКГ, симптомы и подключения Telegram. Это нельзя отменить. Введите пароль для подтверждения.', delete_btn: 'Удалить навсегда', deleted: 'Аккаунт удалён',
+  act_report: 'открыл отчёт', act_ecg: 'смотрел ЭКГ', act_risk_edit: 'изменил шкалу риска',
 }
 export type Key = keyof typeof ru
 
@@ -106,6 +111,11 @@ const en: Record<Key, string> = {
   family_tg: 'Family in Telegram', family_tg_sub: 'Your relatives get an alert with the ECG if an episode starts, and can press "Accept".',
   family_add: 'Invite a relative', family_share: 'Join my AFib Monitor heart alerts: {url}', tg_off: 'The Telegram bot is not configured on the server',
   remove: 'Remove', risk_title: 'Stroke risk (CHA₂DS₂-VASc)', risk_none: 'Your doctor has not filled in the score yet', per_year: 'per year',
+  consent_terms_a: 'I accept the', consent_terms_link: 'terms and privacy policy', consent_terms_b: 'and agree to the processing of my health data.', terms: 'Terms', privacy: 'Privacy',
+  consent_research: 'Allow my de-identified rhythm data to be used to improve the algorithm (optional).',
+  my_data: 'My data', export_data: 'Download my data', export_sub: 'One JSON file: profile, rhythm, ECG, symptoms', who_viewed: 'Who viewed my data', nobody_viewed: 'Nobody yet', research_toggle: 'Research participation',
+  delete_account: 'Delete account', delete_title: 'Delete your account forever?', delete_text: 'Your profile, rhythm, ECG, symptoms and Telegram connections will be deleted. This cannot be undone. Enter your password to confirm.', delete_btn: 'Delete forever', deleted: 'Account deleted',
+  act_report: 'opened the report', act_ecg: 'viewed an ECG', act_risk_edit: 'edited the risk score',
 }
 
 const ky: Record<Key, string> = {
@@ -155,6 +165,11 @@ const ky: Record<Key, string> = {
   family_tg: 'Жакындар Telegramда', family_tg_sub: 'Талма башталса, туугандарыңыз ЭКГ менен эскертүү алышат жана «Кабыл алуу» баса алышат.',
   family_add: 'Жакынды чакыруу', family_share: 'AFib Monitor жүрөк эскертүүлөрүмө кошул: {url}', tg_off: 'Сервердеги Telegram-бот жөндөлгөн эмес',
   remove: 'Алып салуу', risk_title: 'Инсульт коркунучу (CHA₂DS₂-VASc)', risk_none: 'Дарыгер шкаланы азырынча толтура элек', per_year: 'жылына',
+  consent_terms_a: 'Мен', consent_terms_link: 'шарттарды жана купуялуулук саясатын', consent_terms_b: 'кабыл алам жана медициналык маалыматтарымды иштетүүгө макулмун.', terms: 'Шарттар', privacy: 'Купуялуулук',
+  consent_research: 'Ритмдин жашыруун маалыматтарын алгоритмди жакшыртуу үчүн колдонууга уруксат берем (каалоо боюнча).',
+  my_data: 'Менин маалыматтарым', export_data: 'Маалыматымды жүктөө', export_sub: 'Бир JSON файл: профиль, ритм, ЭКГ, белгилер', who_viewed: 'Маалыматымды ким көрдү', nobody_viewed: 'Азырынча эч ким', research_toggle: 'Изилдөөгө катышуу',
+  delete_account: 'Аккаунтту өчүрүү', delete_title: 'Аккаунтту биротоло өчүрөсүзбү?', delete_text: 'Профиль, ритм, ЭКГ, белгилер жана Telegram туташуулары өчүрүлөт. Муну кайтаруу мүмкүн эмес. Ырастоо үчүн сырсөздү киргизиңиз.', delete_btn: 'Биротоло өчүрүү', deleted: 'Аккаунт өчүрүлдү',
+  act_report: 'отчётту ачты', act_ecg: 'ЭКГны карады', act_risk_edit: 'тобокелдик шкаласын өзгөрттү',
 }
 
 export const DICT: Record<Lang, Record<Key, string>> = { ru, en, ky }

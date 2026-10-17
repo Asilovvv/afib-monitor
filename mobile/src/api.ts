@@ -74,7 +74,7 @@ async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 20000):
 export const api = {
   login: (email: string, password: string) =>
     call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, WAKE),
-  register: (b: { email: string; password: string; name: string; doctor_code?: string; birth_year?: number; sex?: string }) =>
+  register: (b: { email: string; password: string; name: string; doctor_code?: string; birth_year?: number; sex?: string; consents?: string[] }) =>
     call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...b, role: 'patient' }) }, WAKE),
   me: () => call<User>('/api/me', {}, WAKE),
   updateMe: (b: Partial<Pick<User, 'name' | 'birth_year' | 'sex' | 'phone'>>) => call<User>('/api/me', { method: 'PUT', body: JSON.stringify(b) }),
@@ -90,4 +90,9 @@ export const api = {
   telegramLink: () => call<{ code: string; url: string | null }>('/api/telegram/link', { method: 'POST' }),
   telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),
   risk: () => call<Risk>('/api/me/risk'),
+  accessLog: () => call<{ ts: string; who: string; action: string }[]>('/api/me/access-log'),
+  consents: () => call<{ version: string; consents: { kind: string; ts: string; withdrawn_at: string | null }[] }>('/api/me/consents'),
+  setConsent: (kind: string, given: boolean) => call<{ consents: { kind: string; withdrawn_at: string | null }[] }>('/api/me/consents', { method: 'POST', body: JSON.stringify({ kind, given }) }),
+  exportLink: () => call<{ url: string }>('/api/me/export-link', { method: 'POST' }),
+  deleteMe: (password: string) => call<{ deleted: boolean }>('/api/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
 }

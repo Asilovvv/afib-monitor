@@ -12,6 +12,7 @@ import { I18nProvider } from './i18n'
 import './index.css'
 import Alerts from './pages/Alerts'
 import Landing from './pages/Landing'
+import Legal from './pages/Legal'
 import Login from './pages/Login'
 import Overview from './pages/Overview'
 import PatientPage from './pages/Patient'
@@ -39,6 +40,8 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/privacy" element={<Legal kind="privacy" />} />
+      <Route path="/terms" element={<Legal kind="terms" />} />
       <Route path="/login" element={doctor ? <Navigate to="/app" replace /> : <Login onLogin={setMe} />} />
       <Route path="/app" element={app(doctor && <Overview me={me} />)} />
       <Route path="/app/patients" element={app(doctor && <Patients me={me} />)} />

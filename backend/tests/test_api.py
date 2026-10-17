@@ -252,3 +252,38 @@ def test_telegram_flow():
     assert c.get("/api/telegram", headers=auth(pt)).json()["links"] == []
     assert c.post("/api/telegram/webhook", json={}).status_code == 403
     telegram.TOKEN = ""
+
+
+def test_privacy_consent_export_delete():
+    d = c.post("/api/auth/register", json={"email": "docp@x.kg", "password": "secret1", "name": "Dr P", "role": "doctor"}).json()
+    p = c.post("/api/auth/register", json={"email": "patp@x.kg", "password": "secret1", "name": "Pat P", "role": "patient",
+                                           "doctor_code": d["user"]["invite_code"], "consents": ["terms", "data", "research", "bogus"]}).json()
+    dt, pt, pid = d["token"], p["token"], p["user"]["id"]
+    cons = c.get("/api/me/consents", headers=auth(pt)).json()
+    assert sorted(x["kind"] for x in cons["consents"]) == ["data", "research", "terms"]
+    cons = c.post("/api/me/consents", json={"kind": "research", "given": False}, headers=auth(pt)).json()
+    assert [x for x in cons["consents"] if x["kind"] == "research"][0]["withdrawn_at"]
+
+    now = time.time()
+    c.post("/api/readings", json={"readings": [{"ts": now - 60 + i * 4, "state": 2, "prob": .9, "bpm": 100} for i in range(10)]}, headers=auth(pt))
+    c.post("/api/ecg", json={"ts": now - 30, "samples": [0.1] * 1250, "state": 2, "reason": "manual"}, headers=auth(pt))
+    c.post("/api/symptoms", json={"kinds": ["fatigue"]}, headers=auth(pt))
+    c.get(f"/api/patients/{pid}/report", headers=auth(dt))
+    log = c.get("/api/me/access-log", headers=auth(pt)).json()
+    assert log[0]["who"] == "Dr P" and log[0]["action"] == "report"
+
+    link = c.post("/api/me/export-link", headers=auth(pt)).json()["url"]
+    path = link[link.index("/api/export/"):]
+    ex = c.get(path)
+    assert ex.status_code == 200 and "attachment" in ex.headers["content-disposition"]
+    data = ex.json()
+    assert len(data["readings"]) == 10 and len(data["ecg"]) == 1 and len(data["symptoms"]) == 1
+    assert c.get(path).status_code == 404                                    # one-time link
+
+    assert c.request("DELETE", "/api/me", json={"password": "bad"}, headers=auth(pt)).status_code == 403
+    assert c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=auth(pt)).json() == {"deleted": True}
+    assert c.get("/api/me", headers=auth(pt)).status_code == 401
+    assert c.get("/api/patients", headers=auth(dt)).json() == []
+    assert c.post("/api/auth/login", json={"email": "patp@x.kg", "password": "secret1"}).status_code == 401
+    # the doctor can delete their account too; patients stay, just unlinked
+    assert c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=auth(dt)).json() == {"deleted": True}

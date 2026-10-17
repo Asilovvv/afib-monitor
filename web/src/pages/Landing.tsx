@@ -319,6 +319,7 @@ export default function Landing() {
         <span className="l-brand">{Icon.pulse(18)}<span>AFib<b>Monitor</b></span></span>
         <p>{L.foot}</p>
         <p className="disc">{L.disc}</p>
+        <p className="disc"><Link to="/privacy">{lang === 'en' ? 'Privacy policy' : lang === 'ky' ? 'Купуялуулук саясаты' : 'Политика конфиденциальности'}</Link> · <Link to="/terms">{lang === 'en' ? 'Terms of use' : lang === 'ky' ? 'Колдонуу шарттары' : 'Условия использования'}</Link></p>
       </footer>
     </div>
   )

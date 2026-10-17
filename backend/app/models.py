@@ -152,3 +152,32 @@ class AlertAck(Base):
     kind: Mapped[str] = mapped_column(String(10))                    # "doctor" | "family"
     chat_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Consent(Base):
+    """What the user agreed to and which version of the text (terms, data processing, research participation)."""
+    __tablename__ = "consents"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))                    # "terms" | "data" | "research"
+    version: Mapped[str] = mapped_column(String(20))
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    withdrawn_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class AccessLog(Base):
+    """Every time a doctor opens a patient's data — the patient can see who and when."""
+    __tablename__ = "access_log"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    actor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(20))                  # "report" | "ecg" | "risk" | "risk_edit"
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class ExportToken(Base):
+    """One-time, 10-minute link to download all of a user's data (opened in the phone's browser)."""
+    __tablename__ = "export_tokens"
+    token: Mapped[str] = mapped_column(String(48), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -18,8 +18,8 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
-from .models import (STATE_AFIB, SYMPTOMS, Alert, EcgStrip, EpisodeReview, Note, Reading, RiskProfile, Symptom,
-                     TelegramLink, User)
+from .models import (STATE_AFIB, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
+                     Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
 
@@ -32,6 +32,13 @@ app = FastAPI(title="AFib Monitor API", version="2.1",
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 ALERT_WINDOW = timedelta(minutes=10)
+CONSENT_KINDS = ("terms", "data", "research")
+CONSENT_VERSION = "2026-10"          # bump when the privacy policy / terms text changes
+
+
+def log_access(db: Session, patient_id: int, actor: User, action: str):
+    db.add(AccessLog(patient_id=patient_id, actor_id=actor.id, action=action, ts=utcnow()))
+    db.commit()
 ONLINE_WINDOW = timedelta(minutes=2)
 
 
@@ -67,6 +74,7 @@ class RegisterIn(BaseModel):
     sex: str | None = Field(default=None, pattern="^(m|f)$")
     clinic: str | None = Field(default=None, max_length=200)
     specialty: str | None = Field(default=None, max_length=100)
+    consents: list[str] = Field(default_factory=list, description="terms, data, research")
 
 
 class LoginIn(BaseModel):
@@ -172,6 +180,9 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
             raise HTTPException(404, "Doctor code not found")
         u.doctor_id = doc.id
     db.add(u)
+    db.commit()
+    for k in set(body.consents) & set(CONSENT_KINDS):
+        db.add(Consent(user_id=u.id, kind=k, version=CONSENT_VERSION, ts=utcnow()))
     db.commit()
     return {"token": make_token(u), "user": user_out(u)}
 
@@ -300,6 +311,8 @@ def get_ecg(ecg_id: int, user: User = Depends(current_user), db: Session = Depen
     p = db.get(User, e.patient_id)
     if not (user.id == p.id or (user.role == "doctor" and p.doctor_id == user.id)):
         raise HTTPException(404, "ECG not found")
+    if user.id != p.id:
+        log_access(db, p.id, user, "ecg")
     x = json.loads(e.samples)
     return {**ecg_meta(e), "samples": x, **ecgtools.analyze(x, e.fs)}
 
@@ -467,6 +480,7 @@ def ack_all(doctor: User = Depends(require_role("doctor")), db: Session = Depend
 def doctor_patient_report(patient_id: int, hours: float = Query(24, gt=0, le=24 * 31),
                           doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
     p = own_patient(db, doctor, patient_id)
+    log_access(db, p.id, doctor, "report")
     rep = patient_report(db, p, hours)
     rep["notes"] = notes_of(db, p.id)
     rep["alerts"] = [alert_out(a, {p.id: p.name}) for a in db.scalars(
@@ -516,6 +530,127 @@ def review_episode(patient_id: int, body: ReviewIn, doctor: User = Depends(requi
     return {"ok": True}
 
 
+# ---------------------------------------------------------------- privacy: consents, access log, export, deletion
+class ConsentIn(BaseModel):
+    kind: str = Field(pattern="^(terms|data|research)$")
+    given: bool = True
+
+
+class DeleteIn(BaseModel):
+    password: str
+
+
+def consents_of(db: Session, u: User) -> list[dict]:
+    return [{"kind": c.kind, "version": c.version, "ts": iso(c.ts), "withdrawn_at": iso(c.withdrawn_at)}
+            for c in db.scalars(select(Consent).where(Consent.user_id == u.id).order_by(Consent.ts))]
+
+
+@app.get("/api/me/consents")
+def my_consents(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return {"version": CONSENT_VERSION, "consents": consents_of(db, user)}
+
+
+@app.post("/api/me/consents")
+def set_consent(body: ConsentIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    if body.given:
+        db.add(Consent(user_id=user.id, kind=body.kind, version=CONSENT_VERSION, ts=utcnow()))
+    else:
+        for c in db.scalars(select(Consent).where(Consent.user_id == user.id, Consent.kind == body.kind,
+                                                  Consent.withdrawn_at.is_(None))):
+            c.withdrawn_at = utcnow()
+    db.commit()
+    return {"version": CONSENT_VERSION, "consents": consents_of(db, user)}
+
+
+@app.get("/api/me/access-log")
+def my_access_log(limit: int = Query(100, le=500), user: User = Depends(require_role("patient")),
+                  db: Session = Depends(get_db)):
+    names: dict[int, str] = {}
+    out = []
+    for a in db.scalars(select(AccessLog).where(AccessLog.patient_id == user.id).order_by(AccessLog.ts.desc()).limit(limit)):
+        if a.actor_id not in names:
+            actor = db.get(User, a.actor_id)
+            names[a.actor_id] = actor.name if actor else "—"
+        out.append({"ts": iso(a.ts), "who": names[a.actor_id], "action": a.action})
+    return out
+
+
+def export_data(db: Session, u: User) -> dict:
+    q = lambda m, col: db.scalars(select(m).where(col == u.id))
+    return {
+        "exported_at": iso(utcnow()), "format": "afib-monitor-export/1",
+        "profile": user_out(u), "consents": consents_of(db, u),
+        "readings": [[iso(r.ts), r.state, r.prob, r.bpm, r.battery] for r in q(Reading, Reading.patient_id)],
+        "readings_columns": ["ts", "state(0 collecting,1 normal,2 AF,3 no signal)", "af_probability", "bpm", "battery"],
+        "alerts": [{"ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm, "status": a.status} for a in q(Alert, Alert.patient_id)],
+        "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
+        "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
+        "doctor_notes": notes_of(db, u.id) if u.role == "patient" else [],
+        "access_log": [{"ts": iso(a.ts), "actor_id": a.actor_id, "action": a.action} for a in q(AccessLog, AccessLog.patient_id)],
+    }
+
+
+@app.post("/api/me/export-link")
+def export_link(request: Request, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    import secrets
+    db.execute(delete(ExportToken).where(ExportToken.created_at < utcnow() - timedelta(minutes=10)))
+    t = secrets.token_urlsafe(32)
+    db.add(ExportToken(token=t, user_id=user.id, created_at=utcnow()))
+    db.commit()
+    base = os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or str(request.base_url).rstrip("/")
+    return {"url": f"{base.rstrip('/')}/api/export/{t}", "expires_min": 10}
+
+
+@app.get("/api/export/{token}", include_in_schema=False)
+def export_download(token: str, db: Session = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    et = db.get(ExportToken, token)
+    if et is None or utcnow() - et.created_at > timedelta(minutes=10):
+        raise HTTPException(404, "Link expired")
+    u = db.get(User, et.user_id)
+    db.delete(et)                                         # one-time link
+    db.commit()
+    return JSONResponse(export_data(db, u), headers={
+        "Content-Disposition": f'attachment; filename="afib-monitor-{u.id}-{utcnow():%Y%m%d}.json"'})
+
+
+@app.get("/api/me/export")
+def export_me(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return export_data(db, user)
+
+
+@app.delete("/api/me")
+def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Delete the account and every record about the user (App Store rule 5.1.1(v)). Irreversible."""
+    if not check_password(body.password, user.password_hash):
+        raise HTTPException(403, "Wrong password")
+    uid = user.id
+    alert_ids = select(Alert.id).where(Alert.patient_id == uid)
+    for stmt in (
+        delete(TelegramMessage).where(TelegramMessage.alert_id.in_(alert_ids)),
+        delete(AlertAck).where(AlertAck.alert_id.in_(alert_ids)),
+        delete(Alert).where(Alert.patient_id == uid),
+        delete(Reading).where(Reading.patient_id == uid),
+        delete(EcgStrip).where(EcgStrip.patient_id == uid),
+        delete(Symptom).where(Symptom.patient_id == uid),
+        delete(Note).where((Note.patient_id == uid) | (Note.author_id == uid)),
+        delete(EpisodeReview).where((EpisodeReview.patient_id == uid) | (EpisodeReview.reviewer_id == uid)),
+        delete(RiskProfile).where(RiskProfile.patient_id == uid),
+        delete(TelegramLink).where(TelegramLink.user_id == uid),
+        delete(TelegramCode).where(TelegramCode.user_id == uid),
+        delete(Consent).where(Consent.user_id == uid),
+        delete(AccessLog).where((AccessLog.patient_id == uid) | (AccessLog.actor_id == uid)),
+        delete(ExportToken).where(ExportToken.user_id == uid),
+    ):
+        db.execute(stmt)
+    db.execute(Alert.__table__.update().where(Alert.ack_by == uid).values(ack_by=None))
+    db.execute(RiskProfile.__table__.update().where(RiskProfile.updated_by == uid).values(updated_by=None))
+    db.execute(User.__table__.update().where(User.doctor_id == uid).values(doctor_id=None))
+    db.execute(delete(User).where(User.id == uid))
+    db.commit()
+    return {"deleted": True}
+
+
 # ---------------------------------------------------------------- stroke risk (CHA2DS2-VASc)
 class RiskIn(BaseModel):
     chf: bool = False
@@ -544,6 +679,7 @@ def get_risk(patient_id: int, doctor: User = Depends(require_role("doctor")), db
 def put_risk(patient_id: int, body: RiskIn, doctor: User = Depends(require_role("doctor")),
              db: Session = Depends(get_db)):
     p = own_patient(db, doctor, patient_id)
+    log_access(db, p.id, doctor, "risk_edit")
     r = db.get(RiskProfile, p.id) or RiskProfile(patient_id=p.id)
     for k in ("chf", "hypertension", "diabetes", "stroke", "vascular"):
         setattr(r, k, int(getattr(body, k)))

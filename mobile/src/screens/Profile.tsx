@@ -1,7 +1,8 @@
+import { locOf } from '../i18n'
 import { useEffect, useState } from 'react'
 import { Linking, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native'
 import { api, settings, type Risk, type TgLink } from '../api'
-import { Button, Card, Icon, Row, Seg, T, type IconName } from '../components/ui'
+import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
 import { F } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
@@ -69,8 +70,8 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
               <T v="small" style={{ marginBottom: 10 }}>{t('no_doctor')}</T>
               <Row gap={8}>
                 <TextInput value={code} onChangeText={x => setCode(x.toUpperCase())} placeholder="DEMO42" autoCapitalize="characters" placeholderTextColor={tm.ink3}
-                  style={[s.input, { color: tm.ink, backgroundColor: tm.bg2, borderColor: tm.line, flex: 1 }]} />
-                <Button title={t('link')} onPress={link} loading={busy} disabled={code.length < 4} />
+                  style={[s.input, { color: tm.ink, backgroundColor: tm.bg2, borderColor: tm.line, flex: 1, minWidth: 0 }]} />
+                <Button title={t('link')} onPress={link} loading={busy} disabled={code.length < 4} style={{ paddingHorizontal: 14 }} />
               </Row>
             </>
           )}
@@ -79,6 +80,7 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
 
       {user && <FamilyCard />}
       {user && <RiskCard />}
+      {user && <MyDataCard />}
 
       <Card style={{ paddingVertical: 6 }}>
         <Item icon="bt" title={t('device')} sub={source === 'none' ? '—' : source === 'simulator' ? t('source_sim') : t('source_dev')} onPress={() => setDev(true)} />
@@ -159,7 +161,62 @@ function RiskCard() {
   )
 }
 
+function MyDataCard() {
+  const { theme: tm, t, toast, signOut, lang } = useApp()
+  const [log, setLog] = useState<{ ts: string; who: string; action: string }[] | null>(null)
+  const [showLog, setShowLog] = useState(false)
+  const [research, setResearch] = useState<boolean | null>(null)
+  const [del, setDel] = useState(false)
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    api.accessLog().then(setLog).catch(() => setLog([]))
+    api.consents().then(c => setResearch(c.consents.some(x => x.kind === 'research' && !x.withdrawn_at))).catch(() => undefined)
+  }, [])
+  const exportData = async () => {
+    try { const r = await api.exportLink(); await Linking.openURL(r.url) } catch (e) { toast((e as Error).message, 'af') }
+  }
+  const toggleResearch = async () => {
+    const next = !research
+    try {
+      const r = await api.setConsent('research', next)
+      setResearch(r.consents.some(x => x.kind === 'research' && !x.withdrawn_at))
+    } catch (e) { toast((e as Error).message, 'af') }
+  }
+  const remove = async () => {
+    setBusy(true)
+    try { await api.deleteMe(pw); setDel(false); toast(t('deleted'), 'ok'); await signOut() }
+    catch (e) { toast((e as Error).message, 'af') }
+    setBusy(false)
+  }
+  const when = (iso: string) => new Date(iso).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  return (
+    <Card style={{ paddingVertical: 6 }}>
+      <T v="label" style={{ marginTop: 10, marginBottom: 2 }}>{t('my_data')}</T>
+      <Item icon="sync" title={t('export_data')} sub={t('export_sub')} onPress={exportData} />
+      <Item icon="user" title={t('who_viewed')} sub={log == null ? '…' : log.length ? `${log[0].who} · ${when(log[0].ts)}` : t('nobody_viewed')}
+        onPress={log && log.length ? () => setShowLog(!showLog) : undefined} />
+      {showLog && log && log.slice(0, 20).map((a, i) => (
+        <Row key={i} gap={8} style={{ paddingVertical: 6, paddingLeft: 48 }}>
+          <T v="small" style={{ flex: 1 }}>{a.who} — {t(`act_${a.action}`)}</T><T v="mono">{when(a.ts)}</T>
+        </Row>
+      ))}
+      <Item icon="book" title={t('research_toggle')} sub={t('consent_research')} onPress={research == null ? undefined : toggleResearch}
+        right={<View style={[s.toggle, { backgroundColor: research ? tm.ok : tm.bg2 }]}><View style={[s.knob, { alignSelf: research ? 'flex-end' : 'flex-start' }]} /></View>} />
+      <Pressable onPress={() => setDel(true)} style={{ paddingVertical: 14 }}><T c={tm.af} style={{ fontFamily: F.semi }}>{t('delete_account')}</T></Pressable>
+      <Sheet open={del} onClose={() => { setDel(false); setPw('') }} title={t('delete_title')}>
+        <T v="small" style={{ marginBottom: 12, lineHeight: 20 }}>{t('delete_text')}</T>
+        <TextInput value={pw} onChangeText={setPw} secureTextEntry placeholder={t('password')} placeholderTextColor={tm.ink3}
+          style={[s.input, { color: tm.ink, backgroundColor: tm.bg2, borderColor: tm.line, letterSpacing: 0, fontFamily: F.body }]} />
+        <Button title={t('delete_btn')} kind="danger" onPress={remove} loading={busy} disabled={pw.length < 6} style={{ marginTop: 14, marginBottom: 20 }} />
+      </Sheet>
+    </Card>
+  )
+}
+
 const s = StyleSheet.create({
+  toggle: { width: 44, height: 26, borderRadius: 13, padding: 3, justifyContent: 'center' },
+  knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff' },
   dot: { width: 8, height: 8, borderRadius: 4 },
   score: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatar: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center' },
