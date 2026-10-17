@@ -1,0 +1,35 @@
+name: Firmware
+on:
+  push:
+    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+  workflow_dispatch:
+
+# Compiles the M5Stack CoreS3 SE firmware exactly as the README tells a person to do in Arduino IDE
+# (esp32 core 3.x + M5Unified), so that the day the board arrives only flashing is left.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install esp32 core and M5Unified
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+          arduino-cli lib install M5Unified
+          arduino-cli core list
+          arduino-cli board listall | grep -i cores3 || true
+      - name: Compile
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:m5stack_cores3:CDCOnBoot=cdc \
+            --output-dir build --warnings default firmware/AFibMonitor 2>&1 | tee compile.log
+      - name: Size report
+        if: always()
+        run: grep -E "Sketch uses|Global variables" compile.log || true
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: afib-monitor-firmware
+          path: build/*.bin
