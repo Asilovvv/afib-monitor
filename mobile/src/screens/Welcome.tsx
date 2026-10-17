@@ -103,7 +103,7 @@ export function Onboarding() {
 export function Auth({ onDone }: { onDone?: () => void }) {
   const { theme: tm, t, signIn, setOffline } = useApp()
   const [mode, setMode] = useState<'in' | 'up'>('in')
-  const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'http://192.168.1.5:8000'))
+  const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'https://afib-monitor.onrender.com'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -111,24 +111,27 @@ export function Auth({ onDone }: { onDone?: () => void }) {
   const [year, setYear] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const [srv, setSrv] = useState<'ok' | 'bad' | null>(null)
+  const [srv, setSrv] = useState<'ok' | 'bad' | 'wait' | null>(null)
 
   const check = async () => {
     await settings.setServer(server)
+    setSrv('wait')
     try { await api.health(); setSrv('ok') } catch { setSrv('bad') }
   }
 
   const submit = async () => {
-    setBusy(true); setErr('')
+    setBusy(true); setErr(''); setSrv('wait')
     try {
       await settings.setServer(server)
       const r = mode === 'in'
         ? await api.login(email.trim(), password)
         : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined })
+      setSrv('ok')
       await signIn(r.user, r.token)
       onDone?.()
     } catch (e) {
       const m = (e as Error).message
+      setSrv(null)
       setErr(m === 'no_server' ? t('server_bad') : /abort|network|fetch/i.test(m) ? t('server_bad') : m)
     }
     setBusy(false)
@@ -160,9 +163,9 @@ export function Auth({ onDone }: { onDone?: () => void }) {
           <T v="label" style={{ marginTop: 6 }}>{t('server')}</T>
           <Row gap={8}>
             <View style={{ flex: 1 }}>{input(server, x => { setServer(x); setSrv(null) }, 'http://…', { keyboardType: 'url' })}</View>
-            <Button title={t('check')} kind="soft" onPress={check} />
+            <Button title={t('check')} kind="soft" onPress={check} loading={srv === 'wait'} />
           </Row>
-          <T v="small" c={srv === 'ok' ? tm.ok : srv === 'bad' ? tm.af : undefined}>{srv === 'ok' ? `● ${t('server_ok')}` : srv === 'bad' ? `● ${t('server_bad')}` : t('server_hint')}</T>
+          <T v="small" c={srv === 'ok' ? tm.ok : srv === 'bad' ? tm.af : undefined}>{srv === 'ok' ? `● ${t('server_ok')}` : srv === 'bad' ? `● ${t('server_bad')}` : srv === 'wait' ? t('server_waking') : t('server_hint')}</T>
 
           {err ? <View style={[s.err, { backgroundColor: tm.afSoft }]}><T c={tm.afInk} v="small">{err}</T></View> : null}
           <Button title={mode === 'in' ? t('sign_in_btn') : t('sign_up_btn')} onPress={submit} loading={busy}

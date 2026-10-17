@@ -13,7 +13,7 @@ const ru = {
   name: 'Имя и фамилия', doctor_code: 'Код врача (необязательно)', birth_year: 'Год рождения',
   server: 'Адрес сервера', server_hint: 'Например http://192.168.1.5:8000 — адрес компьютера с сервером в той же Wi-Fi сети',
   sign_in_btn: 'Войти', sign_up_btn: 'Создать аккаунт', no_account: 'Нет аккаунта? Регистрация', have_account: 'Уже есть аккаунт? Войти',
-  demo_login: 'Демо-пациент', offline_mode: 'Продолжить без сервера', check: 'Проверить', server_ok: 'Сервер доступен', server_bad: 'Сервер недоступен',
+  demo_login: 'Демо-пациент', offline_mode: 'Продолжить без сервера', check: 'Проверить', server_waking: 'Подключаюсь… бесплатный сервер может просыпаться до минуты', server_ok: 'Сервер доступен', server_bad: 'Сервер недоступен',
   // monitor
   hello: 'Здравствуйте', connect_title: 'Подключите монитор', connect_text: 'Включите CoreS3 SE и наденьте электроды: красный — под правую ключицу, жёлтый — под левую, зелёный — слева внизу живота.',
   connect_device: 'Подключить устройство', demo_mode: 'Демо-режим без устройства',
@@ -62,7 +62,7 @@ const en: Record<Key, string> = {
   name: 'Full name', doctor_code: 'Doctor code (optional)', birth_year: 'Year of birth',
   server: 'Server address', server_hint: 'For example http://192.168.1.5:8000 — the computer running the server on the same Wi-Fi',
   sign_in_btn: 'Sign in', sign_up_btn: 'Create account', no_account: 'No account? Sign up', have_account: 'Have an account? Sign in',
-  demo_login: 'Demo patient', offline_mode: 'Continue without a server', check: 'Check', server_ok: 'Server reachable', server_bad: 'Server unreachable',
+  demo_login: 'Demo patient', offline_mode: 'Continue without a server', check: 'Check', server_waking: 'Connecting… a free server can take up to a minute to wake up', server_ok: 'Server reachable', server_bad: 'Server unreachable',
   hello: 'Hello', connect_title: 'Connect your monitor', connect_text: 'Turn on the CoreS3 SE and attach the electrodes: red under the right collarbone, yellow under the left, green on the lower left abdomen.',
   connect_device: 'Connect device', demo_mode: 'Demo mode without a device',
   scanning: 'Looking for the device…', connecting: 'Connecting…', reconnecting: 'Connection lost, reconnecting…',

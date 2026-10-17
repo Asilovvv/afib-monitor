@@ -28,6 +28,8 @@ export type Report = {
 export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
 export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' }
 
+const WAKE = 75000   // a free cloud server can take ~1 min to wake up
+
 const K_URL = 'afib.server', K_TOKEN = 'afib.token'
 
 export const settings = {
@@ -49,12 +51,12 @@ export const settings = {
   },
 }
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
   if (!settings.server) throw new Error('no_server')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (settings.token) headers.Authorization = `Bearer ${settings.token}`
   const ctl = new AbortController()
-  const to = setTimeout(() => ctl.abort(), 15000)
+  const to = setTimeout(() => ctl.abort(), timeoutMs)
   try {
     const r = await fetch(settings.server + path, { ...init, headers, signal: ctl.signal })
     if (!r.ok) {
@@ -68,17 +70,17 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (email: string, password: string) =>
-    call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, WAKE),
   register: (b: { email: string; password: string; name: string; doctor_code?: string; birth_year?: number; sex?: string }) =>
-    call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...b, role: 'patient' }) }),
-  me: () => call<User>('/api/me'),
+    call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...b, role: 'patient' }) }, WAKE),
+  me: () => call<User>('/api/me', {}, WAKE),
   updateMe: (b: Partial<Pick<User, 'name' | 'birth_year' | 'sex' | 'phone'>>) => call<User>('/api/me', { method: 'PUT', body: JSON.stringify(b) }),
   linkDoctor: (code: string) => call<User>('/api/me/doctor', { method: 'PUT', body: JSON.stringify({ doctor_code: code }) }),
   upload: (readings: ReadingOut[]) => call<{ saved: number; alerts: number }>('/api/readings', { method: 'POST', body: JSON.stringify({ readings }) }),
-  report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`),
+  report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`, {}, WAKE),
   symptom: (b: { kinds: string[]; severity: number; note?: string; ts?: number }) =>
     call<Symptom>('/api/symptoms', { method: 'POST', body: JSON.stringify(b) }),
   ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),
   ecgGet: (id: number) => call<EcgMeta & { samples: number[] }>(`/api/ecg/${id}`),
-  health: () => call<{ ok: boolean; version: string }>('/api/health'),
+  health: () => call<{ ok: boolean; version: string }>('/api/health', {}, WAKE),
 }
