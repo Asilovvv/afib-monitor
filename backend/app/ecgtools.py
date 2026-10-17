@@ -148,6 +148,23 @@ def analyze(x: list[float], fs: int = 125) -> dict:
             "quality": q, "pauses": pauses(p, fs) if q["sqi"] >= 0.4 else []}
 
 
+# "Check me in 30 seconds" (wellness wording): rules fixed before validation, see ml/CHECK30_CINC2017.md
+CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR = 16, 0.4, 0.10
+
+
+def check(x: list[float], fs: int = 125) -> dict:
+    """Verdict for a 30-s spot check: "regular", "irregular" (show a doctor) or "no_verdict" (repeat)."""
+    a = analyze(x, fs)
+    n, sqi, irr = len(a["r_peaks"]), a["quality"]["sqi"], a["irregularity"]
+    if n < CHECK_MIN_BEATS or sqi < CHECK_MIN_SQI or irr is None:
+        verdict = "no_verdict"
+    else:
+        verdict = "irregular" if irr > CHECK_IRR else "regular"
+    bpm = round(len(a["r_peaks"]) / (len(x) / fs) * 60) if x else None
+    return {"verdict": verdict, "beats": n, "sqi": sqi, "irregularity": irr, "bpm": bpm,
+            "reasons": a["quality"]["reasons"]}
+
+
 def png(x: list[float], fs: int = 125, peaks: list[int] | None = None, title: str = "", subtitle: str = "",
         af: bool = False) -> bytes:
     """ECG on standard paper (25 mm/s, 10 mm/mV) as a PNG, R-peaks marked, RR in ms above the beats."""
