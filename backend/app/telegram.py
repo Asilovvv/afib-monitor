@@ -30,7 +30,7 @@ TZ = timezone(timedelta(hours=float(os.getenv("TZ_OFFSET_HOURS", "6"))))     # A
 SECRET = hashlib.sha256(("afib:" + TOKEN).encode()).hexdigest()[:32]
 ECG_WAIT_S = float(os.getenv("TELEGRAM_ECG_WAIT_S", "20"))   # wait this long for the onset ECG before sending
 # Alert only for AF that lasts >= 30 s (clinical definition of an episode). On MIT-BIH (leave-one-patient-out)
-# this rule cuts false alarms from ~4.6 to the rate in ml/afib_lopo.ipynb ("sustained_30s_alarm").
+# this rule cuts false alarms from 4.6 to 0.91 per hour, but only 205 of 226 episodes then alert (ml/LOPO_RESULTS.md).
 CONFIRM_S = float(os.getenv("TELEGRAM_CONFIRM_S", "30"))
 MAX_AGE = timedelta(minutes=10)                                  # do not page anyone about old, synced-later alerts
 COOLDOWN = timedelta(minutes=float(os.getenv("TELEGRAM_COOLDOWN_MIN", "15")))  # per patient per chat
