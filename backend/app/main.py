@@ -389,6 +389,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
                   "online": until - last.ts <= ONLINE_WINDOW} if last else None),
         "battery": battery,
         "episodes": eps,
+        "hr_events": [{**e, "start": iso(e["start"]), "end": iso(e["end"])} for e in analytics.hr_events(rows)],
         "series": analytics.series(rows),
         "hourly": analytics.hourly(rows, since, until),
         "symptoms": [symptom_out(s) for s in symptoms],

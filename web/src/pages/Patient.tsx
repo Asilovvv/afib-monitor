@@ -113,6 +113,21 @@ function OverviewTab({ rep, hours, onEcg }: { rep: Report; hours: number; onEcg:
         </ResponsiveContainer>
       </section>
 
+      {!!rep.hr_events?.length && (
+        <section className="card hr-events">
+          <div className="card-head"><h2>{f.tr('Пульс вне обычных границ', 'Heart rate outside usual limits', 'Пульс адаттагы чектен тышкары')}</h2>
+            <span className="muted">{f.tr('< 40 или > 150 уд/мин дольше минуты · не диагноз', '< 40 or > 150 bpm for over a minute · not a diagnosis', '1 мүнөттөн ашык < 40 же > 150 · диагноз эмес')}</span></div>
+          <ul className="hr-list">
+            {rep.hr_events.slice(-8).reverse().map(e => (
+              <li key={e.start} className={e.kind}>
+                <b>{e.kind === 'low' ? f.tr('Редкий пульс', 'Slow heart rate', 'Сейрек пульс') : f.tr('Частый пульс', 'Fast heart rate', 'Тез пульс')} · {e.bpm} {f.t('уд/мин')}</b>
+                <span>{f.dt(e.start)} · {f.dur(e.duration_s)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="grid-2">
         <section className="card chart">
           <div className="card-head"><h2>{hours <= 48 ? f.t('Минуты ФП по часам') : f.t('Минуты ФП по дням')}</h2></div>

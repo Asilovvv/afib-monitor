@@ -318,3 +318,28 @@ def test_feedback_metrics_and_wellness_mode():
         assert c.post("/api/readings", json={"readings": rs}, headers=auth(pt)).json() == {"saved": 20, "alerts": 0}
     finally:
         m.PRODUCT_MODE = "research"
+
+
+def test_heart_rate_events_and_pauses():
+    from datetime import datetime, timedelta
+    from app import analytics, ecgtools
+    from app.analytics import R
+    from app.models import STATE_NORMAL, STATE_NO_SIGNAL
+    t0 = datetime(2026, 10, 18, 8, 0, 0)
+    rows = [R(t0 + timedelta(seconds=6 * i), STATE_NORMAL, 0.05, 70) for i in range(10)]          # 1 min normal
+    rows += [R(t0 + timedelta(seconds=60 + 6 * i), STATE_NORMAL, 0.05, 36) for i in range(15)]    # 90 s at 36 bpm
+    rows += [R(t0 + timedelta(seconds=150 + 6 * i), STATE_NORMAL, 0.05, 165) for i in range(5)]   # 30 s at 165: too short
+    rows += [R(t0 + timedelta(seconds=180 + 6 * i), STATE_NO_SIGNAL, 0, 20) for i in range(20)]   # no signal: ignored
+    ev = analytics.hr_events(rows)
+    assert [(e["kind"], e["bpm"]) for e in ev] == [("low", 36)]
+    assert ev[0]["duration_s"] == 84
+    # a 3.6 s gap between beats on an otherwise clean strip is reported as a pause
+    fs = 125
+    beat = [0.0] * 6 + [0.4, 1.0, 0.4] + [0.0] * 6
+    x, t = [0.0] * (10 * fs), 0
+    for at in [0.5, 1.3, 2.1, 2.9, 6.5, 7.3, 8.1, 8.9]:
+        i = int(at * fs)
+        for k, v in enumerate(beat):
+            x[i + k] += v
+    p = ecgtools.r_peaks(x, fs)
+    assert any(abs(q["rr_s"] - 3.6) < 0.1 for q in ecgtools.pauses(p, fs))

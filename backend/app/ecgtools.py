@@ -131,11 +131,21 @@ def quality(x: list[float], fs: int = 125, peaks: list[int] | None = None) -> di
     return {"sqi": sqi, "level": "good" if sqi >= 0.7 else "fair" if sqi >= 0.4 else "poor", "reasons": reasons}
 
 
+PAUSE_S = 3.0   # an RR gap of 3 s or more is a pause worth showing to a doctor
+
+
+def pauses(peaks: list[int], fs: int = 125) -> list[dict]:
+    return [{"at_s": round(a / fs, 2), "rr_s": round((b - a) / fs, 2)}
+            for a, b in zip(peaks, peaks[1:]) if (b - a) / fs >= PAUSE_S]
+
+
 def analyze(x: list[float], fs: int = 125) -> dict:
     p = r_peaks(x, fs)
     rr = rr_intervals(p, fs)
+    q = quality(x, fs, p)
+    # a pause only counts when the rest of the strip is clean; otherwise it is more likely a lost electrode
     return {"r_peaks": p, "rr": rr, "poincare": poincare(rr), "irregularity": irregularity(rr),
-            "quality": quality(x, fs, p)}
+            "quality": q, "pauses": pauses(p, fs) if q["sqi"] >= 0.4 else []}
 
 
 def png(x: list[float], fs: int = 125, peaks: list[int] | None = None, title: str = "", subtitle: str = "",

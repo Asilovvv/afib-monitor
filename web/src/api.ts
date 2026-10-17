@@ -51,6 +51,7 @@ export type Report = {
   last: { ts: string; state: number; prob: number; bpm: number; online: boolean } | null
   battery: number | null
   episodes: Episode[]
+  hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
   series: Point[]
   hourly: Hour[]
   symptoms: Symptom[]

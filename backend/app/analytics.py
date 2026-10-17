@@ -42,6 +42,35 @@ def episodes(rows: list[R]) -> list[dict]:
     return out
 
 
+LOW_BPM, HIGH_BPM = 40, 150          # wellness thresholds: "show this to your doctor", not a diagnosis
+MIN_HR_EVENT = timedelta(seconds=60)
+
+
+def hr_events(rows: list[R]) -> list[dict]:
+    """Runs of at least 60 s with heart rate < 40 or > 150 bpm while the signal was valid (normal or AF rhythm)."""
+    out = []
+    for kind, test in (("low", lambda b: 0 < b < LOW_BPM), ("high", lambda b: b > HIGH_BPM)):
+        start = last = None
+        vals: list[float] = []
+
+        def close():
+            if start is not None and last - start >= MIN_HR_EVENT:
+                out.append({"kind": kind, "start": start, "end": last,
+                            "duration_s": round((last - start).total_seconds()),
+                            "bpm": round(min(vals) if kind == "low" else max(vals))})
+
+        for r in rows:
+            ok = r.state in (STATE_NORMAL, STATE_AFIB) and test(r.bpm)
+            if ok and start is not None and r.ts - last <= GAP:
+                last = r.ts; vals.append(r.bpm)
+            elif ok:
+                close(); start = last = r.ts; vals = [r.bpm]
+            else:
+                close(); start = None
+        close()
+    return sorted(out, key=lambda e: e["start"])
+
+
 def monitored_seconds(rows: list[R]) -> float:
     total = 0.0
     for a, b in zip(rows, rows[1:]):

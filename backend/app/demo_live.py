@@ -61,8 +61,11 @@ class Sim:
             return Item(now.replace(tzinfo=timezone.utc).timestamp(), STATE_AFIB,
                         round(min(1, 0.82 + rng.random() * 0.18), 3), round(108 + circ + rng.gauss(0, 13), 1),
                         int(self.battery))
+        bpm = 68 + circ + rng.gauss(0, 3)
+        if self.pattern == "normal" and hour == 3 and now.minute < 3:     # demo: short slow-rate stretch at night
+            bpm = 37 + rng.gauss(0, 1)
         return Item(now.replace(tzinfo=timezone.utc).timestamp(), STATE_NORMAL, round(rng.random() * 0.12, 3),
-                    round(68 + circ + rng.gauss(0, 3), 1), int(self.battery))
+                    round(bpm, 1), int(self.battery))
 
 
 def backfill(db, patients: list[User], sims: dict[int, Sim]) -> None:

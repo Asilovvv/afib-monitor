@@ -20,6 +20,7 @@ export type Report = {
     confirmed_episodes?: number; false_alarms?: number
   }
   episodes: Episode[]
+  hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
   hourly: Hour[]
   symptoms: Symptom[]
   ecg: EcgMeta[]

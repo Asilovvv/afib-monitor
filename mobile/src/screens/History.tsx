@@ -123,6 +123,20 @@ export default function History() {
               <HourBars data={rep.hourly} />
             </Card>}
 
+            {!!rep.hr_events?.length && <Card>
+              <T v="h3" style={{ marginBottom: 4 }}>{t('hr_events')}</T>
+              <T v="small" style={{ marginBottom: 10 }}>{t('hr_note')}</T>
+              {rep.hr_events.slice(-5).reverse().map(e => (
+                <Row key={e.start} gap={10} style={{ paddingVertical: 8 }}>
+                  <View style={[s.key, { backgroundColor: e.kind === 'low' ? '#5B8DEF' : tm.af, width: 10, height: 10, borderRadius: 5 }]} />
+                  <View style={{ flex: 1 }}>
+                    <T v="h3">{e.kind === 'low' ? t('hr_low') : t('hr_high')} · {e.bpm} {t('bpm')}</T>
+                    <T v="small">{new Date(e.start).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {fmtDur(t, e.duration_s)}</T>
+                  </View>
+                </Row>
+              ))}
+            </Card>}
+
             <Card>
               <T v="h3" style={{ marginBottom: 12 }}>{t('pulse')}, {t('bpm')}</T>
               <HrLine data={rep.hourly} />

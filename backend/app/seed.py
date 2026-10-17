@@ -75,6 +75,8 @@ def synth_readings(pattern: str, seed: int):
                 st, prob, bpm = STATE_AFIB, min(1, 0.82 + rng.random() * 0.18), 108 + circ + rng.gauss(0, 13)
             else:
                 st, prob, bpm = STATE_NORMAL, rng.random() * 0.12, 68 + circ + rng.gauss(0, 3)
+                if pattern == "normal" and hour == 3 and t.minute < 3:   # demo: short slow-rate stretch at night
+                    bpm = 37 + rng.gauss(0, 1)
             out.append(Reading(ts=t, state=st, prob=round(prob, 3), bpm=round(max(bpm, 35), 1), battery=int(battery)))
         t += timedelta(seconds=STEP_S)
     return out

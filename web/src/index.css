@@ -620,3 +620,11 @@ a.kpi:hover { transform: translateY(-2px); }
 .q-fb small { color: var(--ink-3); }
 .q-stars { color: var(--warn); letter-spacing: 1px; }
 @media (max-width: 1100px) { .quality .q-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* heart-rate events (slow / fast) */
+.hr-events .card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.hr-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:8px}
+.hr-list li{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:10px;background:var(--bg-2, rgba(0,0,0,.03));border-left:3px solid var(--accent)}
+.hr-list li.low{border-left-color:#5B8DEF}
+.hr-list li.high{border-left-color:var(--af)}
+.hr-list li span{color:var(--ink-3);font-size:13px}
