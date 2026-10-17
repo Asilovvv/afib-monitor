@@ -114,7 +114,7 @@ type Metrics = {
 /** Product quality over 30 days: alert load, how many alerts were real (doctor verdicts), how fast they were seen. */
 function QualityCard() {
   const f = useFmt()
-  const [m] = useLive<Metrics>('/api/metrics?days=30', 300000)
+  const [m] = useLive<Metrics>('/api/metrics?days=30', 1800000)
   if (!m) return null
   const num = (v: number | null, d = 1) => (v == null ? '—' : v.toFixed(d).replace('.', f.lang === 'en' ? '.' : ','))
   const tiles: [string, string, string][] = [

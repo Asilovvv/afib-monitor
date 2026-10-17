@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import delete, func, select
+from sqlalchemy import text, delete, func, select
 from sqlalchemy.orm import Session
 
 from . import analytics, ecgtools, risk, telegram
@@ -19,7 +19,7 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
-from .models import (STATE_AFIB, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
+from .models import (STATE_AFIB, STATE_NORMAL, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
                      Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
@@ -784,8 +784,28 @@ def add_feedback(body: FeedbackIn, user: User = Depends(current_user), db: Sessi
     return {"ok": True}
 
 
+
+def monitored_seconds_sql(db: Session, ids: list[int], since: datetime, until: datetime) -> float:
+    """Same rule as analytics.monitored_seconds (gaps <= 60 s after a normal/AF reading), but summed inside
+    the database: loading every reading into Python froze the small server for tens of seconds."""
+    if not ids:
+        return 0.0
+    if db.bind.dialect.name == "sqlite":
+        diff = "(julianday(nts) - julianday(ts)) * 86400.0"
+    else:
+        diff = "EXTRACT(EPOCH FROM (nts - ts))"
+    sql = text(f"""
+        SELECT COALESCE(SUM(d), 0) FROM (
+          SELECT {diff} AS d, state FROM (
+            SELECT ts, state, LEAD(ts) OVER (PARTITION BY patient_id ORDER BY ts) AS nts
+            FROM readings WHERE patient_id IN ({",".join(str(int(i)) for i in ids)})
+              AND ts >= :since AND ts <= :until) w
+          WHERE nts IS NOT NULL) x
+        WHERE state IN ({STATE_NORMAL}, {STATE_AFIB}) AND d <= {analytics.GAP.total_seconds()}""")
+    return float(db.scalar(sql, {"since": since, "until": until}) or 0.0)
+
 _METRICS_CACHE: dict[tuple[int, int], tuple[datetime, dict]] = {}
-METRICS_TTL = timedelta(minutes=5)   # scans every reading of the period: heavy on a small server, so cache it
+METRICS_TTL = timedelta(minutes=30)  # sums every reading of the period: heavy on a small server, so cache it
 _METRICS_LOCK = threading.Lock()     # one computation at a time; concurrent callers then read the cache
 
 
@@ -806,10 +826,7 @@ def _compute_metrics(db: Session, doctor: User, days: int) -> dict:
     since = now - timedelta(days=days)
     pats = list(db.scalars(select(User).where(User.doctor_id == doctor.id)))
     ids = [p.id for p in pats] or [-1]
-    monitored_min = 0.0
-    for p in pats:
-        monitored_min += analytics.summary(load_rows(db, p.id, since, now))["monitored_minutes"]
-    patient_days = monitored_min / 60 / 24
+    patient_days = monitored_seconds_sql(db, [p.id for p in pats], since, now) / 86400
     alerts = list(db.scalars(select(Alert).where(Alert.patient_id.in_(ids), Alert.ts >= since)))
     acked = [a for a in alerts if a.ack_at]
     delays = sorted((a.ack_at - a.ts).total_seconds() / 60 for a in acked if a.ack_at >= a.ts)
@@ -847,7 +864,8 @@ def _compute_metrics(db: Session, doctor: User, days: int) -> dict:
 def health(db: Session = Depends(get_db)):
     # cheap on purpose: Render calls this every few seconds; COUNT(*) over all readings took seconds and piled up
     return {"ok": True, "version": app.version, "users": db.scalar(select(func.max(User.id))) or 0,
-            "readings": db.scalar(select(func.max(Reading.id))) or 0}
+            "readings": db.scalar(select(func.max(Reading.id))) or 0,
+            "db_pool": engine.pool.status() if hasattr(engine.pool, "status") else None}
 
 
 # ---------------------------------------------------------------- web (built React app)
