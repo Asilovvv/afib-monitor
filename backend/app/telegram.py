@@ -29,6 +29,10 @@ PUBLIC_URL = (os.getenv("PUBLIC_URL") or os.getenv("RENDER_EXTERNAL_URL") or "")
 TZ = timezone(timedelta(hours=float(os.getenv("TZ_OFFSET_HOURS", "6"))))     # Asia/Bishkek
 SECRET = hashlib.sha256(("afib:" + TOKEN).encode()).hexdigest()[:32]
 ECG_WAIT_S = float(os.getenv("TELEGRAM_ECG_WAIT_S", "20"))   # wait this long for the onset ECG before sending
+# Alert only for AF that lasts >= 30 s (clinical definition of an episode). On MIT-BIH (leave-one-patient-out)
+# this rule cuts false alarms from ~4.6 to the rate in ml/afib_lopo.ipynb ("sustained_30s_alarm").
+CONFIRM_S = float(os.getenv("TELEGRAM_CONFIRM_S", "30"))
+MAX_AGE = timedelta(minutes=10)                                  # do not page anyone about old, synced-later alerts
 COOLDOWN = timedelta(minutes=float(os.getenv("TELEGRAM_COOLDOWN_MIN", "15")))  # per patient per chat
 CODE_TTL = timedelta(hours=24)
 
@@ -199,8 +203,33 @@ def _ecg_png(strip: EcgStrip, p: User) -> bytes:
                         af=strip.state == STATE_AFIB)
 
 
+def _sustained(db, a: Alert) -> bool | None:
+    """True: still AF CONFIRM_S after onset; False: rhythm went back to normal; None: no data yet."""
+    end = a.ts + timedelta(seconds=CONFIRM_S)
+    rows = list(db.execute(select(Reading.ts, Reading.state).where(
+        Reading.patient_id == a.patient_id, Reading.ts >= a.ts).order_by(Reading.ts).limit(400)))
+    if any(st == STATE_NORMAL and ts <= end for ts, st in rows):
+        return False
+    return True if any(ts >= end for ts, _ in rows) else None
+
+
 async def _send_alert(alert_id: int):
-    # give the phone a moment to upload the onset ECG, so the first message already carries the picture
+    with SessionLocal() as db:
+        a = db.get(Alert, alert_id)
+        if a is None or utcnow() - a.ts > MAX_AGE:
+            return
+    # 1) confirm the episode: AF must last CONFIRM_S (waits up to CONFIRM_S + 60 s for the phone's uploads)
+    waited = 0.0
+    while CONFIRM_S > 0:
+        with SessionLocal() as db:
+            ok = _sustained(db, db.get(Alert, alert_id))
+        if ok is False:
+            return                                               # short run, not an episode: no page
+        if ok or waited >= CONFIRM_S + 60:
+            break                                                # confirmed, or data stopped: alert to be safe
+        await asyncio.sleep(3)
+        waited += 3
+    # 2) give the phone a moment to upload the onset ECG, so the first message already carries the picture
     waited = 0.0
     while True:
         with SessionLocal() as db:

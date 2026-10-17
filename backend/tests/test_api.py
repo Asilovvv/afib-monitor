@@ -192,7 +192,7 @@ def test_telegram_flow():
         sent.append((method, data or {}, bool(files)))
         return {"ok": True, "result": {"message_id": len(sent), "username": "afib_test_bot"}}
 
-    telegram._call, telegram.TOKEN, telegram.ECG_WAIT_S = fake, "123:abc", 0
+    telegram._call, telegram.TOKEN, telegram.ECG_WAIT_S, telegram.CONFIRM_S = fake, "123:abc", 0, 30
     telegram.bot_username = "afib_test_bot"
     run = lambda coro: asyncio.run(coro)
     dt, pt, pid = _pair("t")
@@ -212,6 +212,8 @@ def test_telegram_flow():
                                                for i in range(5)]}, headers=auth(pt))
     c.post("/api/ecg", json={"ts": now - 15, "samples": synth_ecg(10, afib=True, seed=9), "state": 2,
                              "prob": 0.97, "bpm": 120, "reason": "afib_onset"}, headers=auth(pt))
+    c.post("/api/readings", json={"readings": [{"ts": now + i * 4, "state": 2, "prob": 0.97, "bpm": 120}
+                                               for i in range(1, 6)]}, headers=auth(pt))   # AF lasts 40 s
     aid = c.get("/api/alerts?status=new", headers=auth(dt)).json()[0]["id"]
     sent.clear()
     run(telegram._send_alert(aid))
@@ -232,9 +234,20 @@ def test_telegram_flow():
                                                    "message": {"chat": {"id": 111}}}}))
     assert c.get("/api/alerts?status=new", headers=auth(dt)).json() == []      # doctor closes it
 
+    # a 12-s run of AF that goes back to normal is not an episode: nobody is paged
+    pt2 = c.post("/api/auth/login", json={"email": "patt@x.kg", "password": "secret1"}).json()["token"]
+    t1 = time.time() + 600
+    c.post("/api/readings", json={"readings": [{"ts": t1 + i * 4, "state": s, "prob": .9, "bpm": 110}
+                                               for i, s in enumerate([1, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1])]}, headers=auth(pt2))
+    short = [a for a in c.get("/api/alerts?status=new", headers=auth(dt)).json() if a["id"] != aid][0]["id"]
+    sent.clear()
+    telegram._last_sent.clear()
+    run(telegram._send_alert(short))
+    assert sent == []
+
     sent.clear()
     run(telegram.handle_update(msg(111, "/status")))
-    assert "Pat t" in sent[0][1]["text"] and "ФП" in sent[0][1]["text"]
+    assert "Pat t" in sent[0][1]["text"] and "уд/мин" in sent[0][1]["text"]
     run(telegram.handle_update(msg(222, "/stop")))
     assert c.get("/api/telegram", headers=auth(pt)).json()["links"] == []
     assert c.post("/api/telegram/webhook", json={}).status_code == 403
