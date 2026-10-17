@@ -52,6 +52,12 @@ export type Report = {
   battery: number | null
   episodes: Episode[]
   hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
+  triggers?: {
+    days: { day: string; tags: string[]; monitored_h: number; af_burden: number; episodes: number }[]
+    factors: { tag: string; days_with: number; days_without: number; burden_with: number | null; burden_without: number | null
+      episodes_per_day_with: number; episodes_per_day_without: number | null; enough: boolean }[]
+    min_days: number; min_monitored_h: number
+  }
   series: Point[]
   hourly: Hour[]
   symptoms: Symptom[]
