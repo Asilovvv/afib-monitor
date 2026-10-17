@@ -83,15 +83,31 @@ def backfill(db, patients: list[User], sims: dict[int, Sim]) -> None:
         db.commit()
 
 
-async def run_forever(ingest) -> None:
+IDLE_PAUSE_S = 15 * 60   # nobody used the API for 15 min -> stop writing (lets a serverless DB sleep)
+
+
+async def run_forever(ingest, seed: bool = False) -> None:
+    from . import activity
     await asyncio.sleep(2)
+    if seed:
+        from .seed import run as seed_demo
+        await asyncio.to_thread(seed_demo)
     with SessionLocal() as db:
         patients = db.scalars(select(User).where(User.email.like("%@demo.kg"), User.role == "patient")).all()
         sims = {p.id: Sim(PATTERN.get(p.email, "normal"), p.id) for p in patients}
         await asyncio.to_thread(backfill, db, patients, sims)
     ids = [p.id for p in patients]
+    paused = False
     while True:
+        if activity.idle_s() > IDLE_PAUSE_S:
+            paused = True
+            await asyncio.sleep(STEP_S)
+            continue
         try:
+            if paused:                                   # someone is back: fill the gap in one bulk insert
+                with SessionLocal() as db:
+                    await asyncio.to_thread(backfill, db, patients, sims)
+                paused = False
             await asyncio.to_thread(_tick, ingest, ids, sims)
         except Exception as e:  # never kill the server because of the demo
             print("demo_live:", e)

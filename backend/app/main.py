@@ -19,18 +19,26 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
+from . import activity
 from .models import (STATE_AFIB, STATE_NORMAL, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
                      Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
 
-if os.getenv("SEED_DEMO") == "1":          # demo doctor + patients (idempotent)
-    from .seed import run as _seed_demo
-    _seed_demo()
+_DEMO = os.getenv("SEED_DEMO") == "1"      # demo doctor + patients (idempotent); seeded after the port is open
 
 app = FastAPI(title="AFib Monitor API", version="2.1",
               description="Readings, alerts, ECG strips and symptoms from the ESP32-S3 AFib monitor.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def _track_activity(request: Request, call_next):
+    """Remember when a person last used the API (not Render's health pings): the demo simulator pauses when
+    nobody is looking, so a free serverless database (Neon) can sleep instead of burning its monthly hours."""
+    if request.url.path.startswith("/api/") and request.url.path != "/api/health":
+        activity.touch()
+    return await call_next(request)
 
 ALERT_WINDOW = timedelta(minutes=10)
 CONSENT_KINDS = ("terms", "data", "research")
@@ -65,7 +73,10 @@ async def _startup():
     broker.loop = asyncio.get_running_loop()
     if os.getenv("DEMO_LIVE", os.getenv("SEED_DEMO", "0")) == "1":   # keep demo patients "online"
         from .demo_live import run_forever
-        asyncio.get_running_loop().create_task(run_forever(ingest))
+        asyncio.get_running_loop().create_task(run_forever(ingest, seed=_DEMO))
+    elif _DEMO:
+        from .seed import run as _seed_demo
+        asyncio.get_running_loop().run_in_executor(None, _seed_demo)
     asyncio.get_running_loop().create_task(telegram._guard(telegram.start()))
 
 
@@ -861,11 +872,18 @@ def _compute_metrics(db: Session, doctor: User, days: int) -> dict:
 
 
 @app.get("/api/health")
-def health(db: Session = Depends(get_db)):
-    # cheap on purpose: Render calls this every few seconds; COUNT(*) over all readings took seconds and piled up
-    return {"ok": True, "version": app.version, "users": db.scalar(select(func.max(User.id))) or 0,
-            "readings": db.scalar(select(func.max(Reading.id))) or 0,
-            "db_pool": engine.pool.status() if hasattr(engine.pool, "status") else None}
+def health(deep: bool = False):
+    """Render calls this every few seconds, so by default it does not touch the database at all
+    (a COUNT over all readings once took seconds and piled up; a free Neon database must be allowed to sleep).
+    ?deep=1 also checks the database."""
+    out = {"ok": True, "version": app.version, "mode": PRODUCT_MODE,
+           "db": engine.dialect.name, "db_pool": engine.pool.status() if hasattr(engine.pool, "status") else None,
+           "idle_s": round(activity.idle_s())}
+    if deep:
+        with SessionLocal() as db:
+            out["users"] = db.scalar(select(func.max(User.id))) or 0
+            out["readings"] = db.scalar(select(func.max(Reading.id))) or 0
+    return out
 
 
 # ---------------------------------------------------------------- web (built React app)
