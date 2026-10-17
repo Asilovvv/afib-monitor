@@ -12,7 +12,7 @@ engine = create_engine(
     DATABASE_URL,
     connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
     pool_pre_ping=True,                                # cloud databases drop idle connections
-    pool_size=10, max_overflow=30,                     # >= the 40 worker threads, so a burst queues on the DB, not the pool
+    pool_size=10, max_overflow=30, pool_timeout=10,    # >= the 40 worker threads; fail fast instead of piling up
 )
 if DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
@@ -20,7 +20,7 @@ if DATABASE_URL.startswith("sqlite"):
         """WAL lets readers work while a writer commits; busy_timeout waits for the lock instead of failing."""
         cur = conn.cursor()
         cur.execute("PRAGMA journal_mode=WAL")
-        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA busy_timeout=5000")
         cur.execute("PRAGMA synchronous=NORMAL")
         cur.close()
 

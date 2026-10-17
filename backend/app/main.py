@@ -845,8 +845,9 @@ def _compute_metrics(db: Session, doctor: User, days: int) -> dict:
 
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)):
-    return {"ok": True, "version": app.version, "users": db.scalar(select(func.count(User.id))),
-            "readings": db.scalar(select(func.count(Reading.id)))}
+    # cheap on purpose: Render calls this every few seconds; COUNT(*) over all readings took seconds and piled up
+    return {"ok": True, "version": app.version, "users": db.scalar(select(func.max(User.id))) or 0,
+            "readings": db.scalar(select(func.max(Reading.id))) or 0}
 
 
 # ---------------------------------------------------------------- web (built React app)
