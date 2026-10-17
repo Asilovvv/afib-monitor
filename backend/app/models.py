@@ -7,6 +7,9 @@ from .db import Base
 # Rhythm states, same codes as the BLE packet of the device
 STATE_COLLECTING, STATE_NORMAL, STATE_AFIB, STATE_NO_SIGNAL = 0, 1, 2, 3
 
+# daily lifestyle factors the patient can tick in the diary (Apple "AFib History" uses similar ones)
+DAY_TAGS = ("alcohol", "caffeine", "poor_sleep", "stress", "exercise", "missed_meds", "heavy_meal")
+
 SYMPTOMS = ("palpitations", "dizziness", "shortness_of_breath", "chest_pain", "fatigue", "anxiety", "other")
 
 
@@ -193,3 +196,14 @@ class Feedback(Base):
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
     platform: Mapped[str | None] = mapped_column(String(20), nullable=True)   # ios | android | web
     app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class DayTag(Base):
+    """Patient's diary for one local calendar day: which lifestyle factors were present (empty = "nothing special")."""
+    __tablename__ = "day_tags"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    day: Mapped[str] = mapped_column(String(10))                     # YYYY-MM-DD, patient's local date
+    tags: Mapped[str] = mapped_column(String(200), default="")       # comma-separated DAY_TAGS
+
+    __table_args__ = (Index("ux_day_tags_patient_day", "patient_id", "day", unique=True),)

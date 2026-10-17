@@ -1,6 +1,6 @@
 """Turns raw readings into what a doctor needs: AFib episodes, AFib burden, heart-rate series."""
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from .models import STATE_AFIB, STATE_NORMAL
 
@@ -148,3 +148,40 @@ def hourly(rows: list[R], since: datetime, until: datetime) -> list[dict]:
     return [{"t": (since + timedelta(seconds=k * step)).isoformat() + "Z",
              "monitored_min": round(mon[k] / 60, 1), "af_min": round(af[k] / 60, 1),
              "bpm": round(sum(hr[k]) / len(hr[k]), 1) if hr[k] else None} for k in range(n)]
+
+
+TRIGGER_MIN_DAYS = 3                 # fewer days on either side -> no comparison is shown
+TRIGGER_MIN_MONITORED_H = 4          # a diary day counts only if the device was worn at least this long
+
+
+def day_window(day: str, tz_hours: float) -> tuple[datetime, datetime]:
+    """The diary day and the following night: 06:00 local of `day` to 06:00 local of the next day, in UTC."""
+    d = date.fromisoformat(day)
+    start = datetime(d.year, d.month, d.day, 6) - timedelta(hours=tz_hours)
+    return start, start + timedelta(days=1)
+
+
+def triggers(rows: list[R], diary: dict[str, set[str]], tags: tuple[str, ...], tz_hours: float = 6) -> dict:
+    """AF burden on diary days with a factor vs diary days without it (only days the patient filled in).
+    Descriptive only: an association in one person's diary, not a cause."""
+    days = []
+    for day, present in sorted(diary.items()):
+        a, b = day_window(day, tz_hours)
+        win = [r for r in rows if a <= r.ts < b]
+        mon, af = monitored_seconds(win), af_seconds(win)
+        if mon >= TRIGGER_MIN_MONITORED_H * 3600:
+            days.append({"day": day, "tags": sorted(present), "monitored_h": round(mon / 3600, 1),
+                         "af_burden": round(af / mon, 4), "episodes": len(episodes(win))})
+    out = []
+    for t in tags:
+        w = [d for d in days if t in d["tags"]]
+        wo = [d for d in days if t not in d["tags"]]
+        if not w:
+            continue
+        mean = lambda xs: round(sum(x["af_burden"] for x in xs) / len(xs), 4) if xs else None
+        out.append({"tag": t, "days_with": len(w), "days_without": len(wo),
+                    "burden_with": mean(w), "burden_without": mean(wo),
+                    "episodes_per_day_with": round(sum(x["episodes"] for x in w) / len(w), 2),
+                    "episodes_per_day_without": round(sum(x["episodes"] for x in wo) / len(wo), 2) if wo else None,
+                    "enough": len(w) >= TRIGGER_MIN_DAYS and len(wo) >= TRIGGER_MIN_DAYS})
+    return {"days": days, "factors": out, "min_days": TRIGGER_MIN_DAYS, "min_monitored_h": TRIGGER_MIN_MONITORED_H}

@@ -343,3 +343,48 @@ def test_heart_rate_events_and_pauses():
             x[i + k] += v
     p = ecgtools.r_peaks(x, fs)
     assert any(abs(q["rr_s"] - 3.6) < 0.1 for q in ecgtools.pauses(p, fs))
+
+
+def test_diary_factors_and_triggers():
+    from datetime import datetime, timedelta
+    from app import analytics
+    from app.analytics import R
+    from app.models import DAY_TAGS, STATE_AFIB, STATE_NORMAL
+    # 8 diary days, wearing all day; AF for 2 h on the 4 "alcohol" days only
+    rows, diary = [], {}
+    for d in range(8):
+        day = f"2026-10-{10 + d:02d}"
+        a, _ = analytics.day_window(day, 6)
+        alcohol = d % 2 == 0
+        diary[day] = {"alcohol", "caffeine"} if alcohol else {"caffeine"}
+        for i in range(0, 20 * 3600, 30):
+            af = alcohol and 3600 <= i < 3 * 3600
+            rows.append(R(a + timedelta(seconds=i), STATE_AFIB if af else STATE_NORMAL, 0.9 if af else 0.1, 70))
+    tr = analytics.triggers(rows, diary, DAY_TAGS, 6)
+    f = {x["tag"]: x for x in tr["factors"]}
+    assert f["alcohol"]["days_with"] == 4 and f["alcohol"]["days_without"] == 4 and f["alcohol"]["enough"]
+    assert 0.09 < f["alcohol"]["burden_with"] < 0.11 and f["alcohol"]["burden_without"] == 0
+    assert f["caffeine"]["days_without"] == 0 and not f["caffeine"]["enough"]     # nothing to compare with
+    assert "stress" not in f
+    # API: patient fills the diary, unknown factor rejected, report carries the comparison
+    r = c.post("/api/auth/register", json={"email": "diary@x.kg", "password": "secret1", "name": "D", "role": "patient"})
+    tok = r.json()["token"]
+    assert c.post("/api/me/day", json={"day": "2026-10-18", "tags": ["alcohol", "alcohol", "stress"]},
+                  headers=auth(tok)).json() == {"day": "2026-10-18", "tags": ["alcohol", "stress"]}
+    assert c.post("/api/me/day", json={"day": "2026-10-18", "tags": ["smoking"]}, headers=auth(tok)).status_code == 422
+    c.post("/api/me/day", json={"day": "2026-10-18", "tags": []}, headers=auth(tok))        # overwrite: nothing special
+    days = c.get("/api/me/days?days=366", headers=auth(tok)).json()
+    assert days == [{"day": "2026-10-18", "tags": []}]
+    assert "factors" in c.get("/api/me/report?hours=168", headers=auth(tok)).json()["triggers"]
+
+
+def test_check_30_seconds():
+    from app import ecgtools
+    from app.ecgsynth import synth_ecg
+    assert ecgtools.check(synth_ecg(30, afib=False, bpm=70, seed=1))["verdict"] == "regular"
+    assert ecgtools.check(synth_ecg(30, afib=True, bpm=110, seed=2))["verdict"] == "irregular"
+    assert ecgtools.check([0.0] * (30 * 125))["verdict"] == "no_verdict"
+    r = c.post("/api/auth/register", json={"email": "check@x.kg", "password": "secret1", "name": "C", "role": "patient"})
+    out = c.post("/api/ecg", json={"ts": time.time() - 30, "samples": synth_ecg(30, afib=False, bpm=70, seed=3),
+                                   "reason": "check"}, headers=auth(r.json()["token"])).json()
+    assert out["check"]["verdict"] == "regular" and 60 <= out["check"]["bpm"] <= 80

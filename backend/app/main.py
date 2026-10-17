@@ -20,7 +20,7 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
-from .models import (STATE_AFIB, STATE_NORMAL, SYMPTOMS, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
+from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, DayTag, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
                      Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
@@ -151,7 +151,20 @@ class EcgIn(BaseModel):
     state: int = Field(default=1, ge=0, le=3)
     prob: float = Field(default=0, ge=0, le=1)
     bpm: float = Field(default=0, ge=0, le=300)
-    reason: str = Field(default="manual", pattern="^(afib_onset|manual|symptom)$")
+    reason: str = Field(default="manual", pattern="^(afib_onset|manual|symptom|check)$")
+
+
+class DayIn(BaseModel):
+    day: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$", description="patient's local date")
+    tags: list[str] = Field(default_factory=list, max_length=len(DAY_TAGS))
+
+    @field_validator("tags")
+    @classmethod
+    def known(cls, v: list[str]) -> list[str]:
+        bad = [k for k in v if k not in DAY_TAGS]
+        if bad:
+            raise ValueError(f"unknown factors: {bad}")
+        return sorted(set(v))
 
 
 class NoteIn(BaseModel):
@@ -297,6 +310,35 @@ def add_symptom(body: SymptomIn, user: User = Depends(require_role("patient")), 
     return symptom_out(s)
 
 
+TZ_HOURS = float(os.getenv("TZ_OFFSET_HOURS", "6"))     # Asia/Bishkek
+
+
+@app.post("/api/me/day")
+def set_day(body: DayIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    d = db.scalar(select(DayTag).where(DayTag.patient_id == user.id, DayTag.day == body.day))
+    if not d:
+        d = DayTag(patient_id=user.id, day=body.day)
+        db.add(d)
+    d.tags = ",".join(body.tags)
+    db.commit()
+    return {"day": d.day, "tags": body.tags}
+
+
+@app.get("/api/me/days")
+def my_days(days: int = Query(31, ge=1, le=366), user: User = Depends(require_role("patient")),
+            db: Session = Depends(get_db)):
+    since = (utcnow() + timedelta(hours=TZ_HOURS) - timedelta(days=days)).date().isoformat()
+    return [{"day": d.day, "tags": [t for t in d.tags.split(",") if t]} for d in db.scalars(
+        select(DayTag).where(DayTag.patient_id == user.id, DayTag.day >= since).order_by(DayTag.day.desc()))]
+
+
+def diary_of(db: Session, patient_id: int, since: datetime, until: datetime) -> dict[str, set[str]]:
+    a = (since + timedelta(hours=TZ_HOURS) - timedelta(days=1)).date().isoformat()
+    b = (until + timedelta(hours=TZ_HOURS)).date().isoformat()
+    return {d.day: {t for t in d.tags.split(",") if t} for d in db.scalars(
+        select(DayTag).where(DayTag.patient_id == patient_id, DayTag.day >= a, DayTag.day <= b))}
+
+
 @app.post("/api/ecg")
 def add_ecg(body: EcgIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
     e = EcgStrip(patient_id=user.id, ts=from_unix(body.ts), fs=body.fs,
@@ -307,7 +349,10 @@ def add_ecg(body: EcgIn, user: User = Depends(require_role("patient")), db: Sess
     broker.publish(user.doctor_id, "ecg", {"patient_id": user.id, "patient_name": user.name, "id": e.id,
                                            "reason": e.reason})
     telegram.notify_ecg(e.id)
-    return ecg_meta(e)
+    out = ecg_meta(e)
+    if body.reason == "check":                   # "check me in 30 s": wellness verdict, see ml/CHECK30_CINC2017.md
+        out["check"] = ecgtools.check(body.samples, body.fs)
+    return out
 
 
 def symptom_out(s: Symptom) -> dict:
@@ -390,6 +435,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
         "battery": battery,
         "episodes": eps,
         "hr_events": [{**e, "start": iso(e["start"]), "end": iso(e["end"])} for e in analytics.hr_events(rows)],
+        "triggers": analytics.triggers(rows, diary_of(db, patient.id, since, until), DAY_TAGS, TZ_HOURS),
         "series": analytics.series(rows),
         "hourly": analytics.hourly(rows, since, until),
         "symptoms": [symptom_out(s) for s in symptoms],
@@ -603,6 +649,7 @@ def export_data(db: Session, u: User) -> dict:
         "alerts": [{"ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm, "status": a.status} for a in q(Alert, Alert.patient_id)],
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
+        "diary_days": [{"day": d.day, "tags": [t for t in d.tags.split(",") if t]} for d in q(DayTag, DayTag.patient_id)],
         "doctor_notes": notes_of(db, u.id) if u.role == "patient" else [],
         "access_log": [{"ts": iso(a.ts), "actor_id": a.actor_id, "action": a.action} for a in q(AccessLog, AccessLog.patient_id)],
     }
@@ -651,6 +698,7 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(Reading).where(Reading.patient_id == uid),
         delete(EcgStrip).where(EcgStrip.patient_id == uid),
         delete(Symptom).where(Symptom.patient_id == uid),
+        delete(DayTag).where(DayTag.patient_id == uid),
         delete(Note).where((Note.patient_id == uid) | (Note.author_id == uid)),
         delete(EpisodeReview).where((EpisodeReview.patient_id == uid) | (EpisodeReview.reviewer_id == uid)),
         delete(RiskProfile).where(RiskProfile.patient_id == uid),

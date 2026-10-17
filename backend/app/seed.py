@@ -14,7 +14,7 @@ from . import analytics
 from .auth import hash_password
 from .db import Base, SessionLocal, engine
 from .ecgsynth import synth_ecg
-from .models import (Alert, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
+from .models import (DAY_TAGS, Alert, DayTag, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
                      STATE_NO_SIGNAL)
 
 DAYS = 7
@@ -134,6 +134,12 @@ def run():
                 kinds, sev, note = SYMPTOM_SETS[rng.randrange(len(SYMPTOM_SETS))]
                 db.add(Symptom(patient_id=p.id, ts=utcnow() - timedelta(hours=rng.uniform(2, DAYS * 24)),
                                kinds=",".join(kinds), severity=sev, note=note))
+        # diary: demo patients ticked random lifestyle factors on most days (random, so no built-in "link")
+        for d in range(DAYS + 1):
+            if rng.random() < 0.85:
+                day = (utcnow() + timedelta(hours=6) - timedelta(days=d)).date().isoformat()
+                db.add(DayTag(patient_id=p.id, day=day,
+                              tags=",".join(t for t in DAY_TAGS if rng.random() < (0.45 if t in ("caffeine", "exercise") else 0.2))))
         db.commit()
         # reviews: doctor already reviewed older episodes
         ar = [analytics.R(r.ts, r.state, r.prob, r.bpm) for r in rows]
