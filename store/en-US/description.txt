@@ -1,0 +1,20 @@
+AFib Monitor is a heart rhythm diary that works with its own wearable ECG sensor.
+
+WHAT IT DOES
+• Live heart rate and ECG from the sensor over Bluetooth
+• 10-second ECG recordings on demand or together with a symptom note
+• Symptom diary: palpitations, weakness, dizziness, shortness of breath
+• Poincaré plot and a signal quality index, so you can see how clean a recording is
+• A report for your doctor: you enter your doctor's code, and only that doctor sees your data
+• Telegram notifications for relatives — only the ones you invite
+• Russian, Kyrgyz and English
+
+YOUR DATA
+• Download everything as one file or delete your account from your profile
+• See which doctor opened your data and when
+• We do not sell data and show no ads
+
+IMPORTANT
+AFib Monitor is not a medical device, does not diagnose and does not replace a doctor. Make treatment decisions only with your doctor. For chest pain, fainting or severe shortness of breath, call your local emergency number.
+
+ECG recording requires the AFib Monitor sensor.

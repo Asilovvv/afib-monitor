@@ -1,0 +1,1 @@
+Wearable ECG sensor, live heart rate, a symptom diary and a report for your doctor. Does not replace a doctor and does not diagnose.
