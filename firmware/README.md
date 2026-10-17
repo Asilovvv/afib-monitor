@@ -32,7 +32,9 @@
 3. Library Manager → **M5Unified** → Install (M5GFX поставится сам).
 4. Tools → Board → esp32 → **M5CoreS3**. Tools → USB CDC On Boot → **Enabled**.
 
-TensorFlow Lite Micro отдельно ставить не нужно: он уже есть в esp32 3.x.
+TensorFlow Lite Micro отдельно ставить не нужно: он уже есть в esp32 3.x (проверено: GitHub Actions → Firmware собирает прошивку именно так).
+
+План проверки на столе в день прихода платы — [BENCH_TEST.md](BENCH_TEST.md).
 
 ## 3. Модель (уже вставлена)
 
