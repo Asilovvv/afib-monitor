@@ -36,5 +36,5 @@ Per record, 30 s rule (episodes with alert / episodes, false alarms 2-of-3 -> wi
 | 06426 | 20/23 | 3 -> 5 | 08434 | 3/3 | 3 -> 0 |
 | | | | 08455 | 2/2 | 0 -> 0 |
 
-In 04936 and 06426 the rule gives slightly *more* alarm onsets: a long alarm broken by a short gap can count as two sustained alarms.
+In 04936 and 06426 the rule gives slightly *more* false alarms. A false alarm is counted where the alert starts; with the rule the alert starts 30 s later, so for a short AF episode the delayed alert can land after the episode has already ended, in normal rhythm. These are late alerts for real AF, not alerts out of nowhere — another cost of waiting 30 s.
 These are retrospective results on 1980s Holter data, not on our AD8232 sensor; see the clinical validation protocol.
