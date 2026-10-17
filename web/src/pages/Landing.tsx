@@ -23,12 +23,12 @@ const TXT = {
       ['Врач', 'Кабинет показывает тревоги в реальном времени, эпизоды, нагрузку ФП и ЭКГ-записи.'],
     ],
     techTitle: 'Технология',
-    techLead: 'Мы сравнили два подхода на 23 пациентах базы MIT-BIH AF Database (проверка на 5 пациентах, которых модель не видела).',
+    techLead: 'Мы сравнили два подхода на базе MIT-BIH AF Database (сравнение — на 5 пациентах, которых модель не видела). Лучшую модель затем проверили на всех 23 пациентах по очереди: 98,3% чувствительность, 96,5% специфичность.',
     cmpA: 'TCN на сырой ЭКГ', cmpB: 'TCN на RR-интервалах',
     sens: 'Чувствительность', spec: 'Специфичность',
     quantTitle: 'Сжатие модели', quantLead: 'Чувствительность при уменьшении разрядности весов',
     resTitle: 'Результаты',
-    res: [['96,6%', 'чувствительность int8 на новых пациентах'], ['94,6%', 'специфичность'], ['0,98', 'ROC-AUC'], ['27 КБ', 'модель int8 во флеш-памяти'], ['2,8 КБ', 'веса при 4 битах (97,2% чувствит.)'], ['5 665', 'параметров сети']],
+    res: [['98,3%', 'чувствительность int8 на новых пациентах (проверка на всех 23, каждый — по очереди тестовый)'], ['96,5%', 'специфичность'], ['226 / 226', 'эпизодов ФП ≥ 30 с найдено, медиана 14 с'], ['0,992', 'ROC-AUC'], ['27 КБ', 'модель int8 во флеш-памяти'], ['2,8 КБ', 'веса при 4 битах (97,2% чувствит.)']],
     appTitle: 'Приложение пациента',
     appLead: 'Живая ЭКГ, мгновенное предупреждение, кнопка SOS, дневник симптомов и история — в одном приложении для Android и iPhone.',
     appFeat: ['Живая ЭКГ по Bluetooth', 'Уведомление при начале ФП', 'Автозапись ЭКГ приступа', 'Дневник симптомов', 'SOS — звонок 103', 'Близкие получают тревогу в Telegram', 'RU / KY / EN, тёмная тема'],
@@ -58,12 +58,12 @@ const TXT = {
       ['Doctor', 'The portal shows real-time alerts, episodes, AF burden and ECG strips.'],
     ],
     techTitle: 'Technology',
-    techLead: 'We compared two approaches on 23 patients of the MIT-BIH AF Database (tested on 5 patients the model never saw).',
+    techLead: 'We compared two approaches on the MIT-BIH AF Database (on 5 patients the model never saw). The best model was then tested on all 23 patients in turn, leave-one-patient-out: 98.3% sensitivity, 96.5% specificity.',
     cmpA: 'TCN on raw ECG', cmpB: 'TCN on RR intervals',
     sens: 'Sensitivity', spec: 'Specificity',
     quantTitle: 'Model compression', quantLead: 'Sensitivity as weight bit-width goes down',
     resTitle: 'Results',
-    res: [['96.6%', 'int8 sensitivity on unseen patients'], ['94.6%', 'specificity'], ['0.98', 'ROC-AUC'], ['27 KB', 'int8 model in flash'], ['2.8 KB', 'weights at 4 bits (97.2% sens.)'], ['5,665', 'network parameters']],
+    res: [['98.3%', 'int8 sensitivity on unseen patients (leave-one-patient-out, all 23)'], ['96.5%', 'specificity'], ['226 / 226', 'AF episodes ≥ 30 s found, median 14 s'], ['0.992', 'ROC-AUC'], ['27 KB', 'int8 model in flash'], ['2.8 KB', 'weights at 4 bits (97.2% sens.)']],
     appTitle: 'Patient app',
     appLead: 'Live ECG, instant warning, SOS button, symptom diary and history — one app for Android and iPhone.',
     appFeat: ['Live ECG over Bluetooth', 'Alert at AF onset', 'Auto-recorded episode ECG', 'Symptom diary', 'SOS — call 103', 'Relatives get the alert in Telegram', 'RU / KY / EN, dark mode'],
@@ -93,12 +93,12 @@ const TXT = {
       ['Дарыгер', 'Кабинет эскертүүлөрдү реалдуу убакытта, эпизоддорду, ФП жүгүн жана ЭКГ жазууларын көрсөтөт.'],
     ],
     techTitle: 'Технология',
-    techLead: 'Эки ыкманы MIT-BIH AF Database базасынын 23 бейтабында салыштырдык (модель көрбөгөн 5 бейтапта текшерилди).',
+    techLead: 'Эки ыкманы MIT-BIH AF Database базасында салыштырдык (модель көрбөгөн 5 бейтапта). Мыкты моделди 23 бейтаптын ар биринде кезеги менен текшердик: 98,3% сезгичтик, 96,5% өзгөчөлүк.',
     cmpA: 'Чийки ЭКГдагы TCN', cmpB: 'RR-аралыктардагы TCN',
     sens: 'Сезгичтик', spec: 'Өзгөчөлүк',
     quantTitle: 'Моделди кысуу', quantLead: 'Салмактардын разряддуулугун азайтканда сезгичтик',
     resTitle: 'Жыйынтыктар',
-    res: [['96,6%', 'жаңы бейтаптардагы int8 сезгичтиги'], ['94,6%', 'өзгөчөлүк'], ['0,98', 'ROC-AUC'], ['27 КБ', 'флеш-эстутумдагы int8 модели'], ['2,8 КБ', '4 биттеги салмактар (97,2% сезгичтик)'], ['5 665', 'тармактын параметрлери']],
+    res: [['98,3%', 'жаңы бейтаптардагы int8 сезгичтиги (23түн ар бири кезеги менен текшерилди)'], ['96,5%', 'өзгөчөлүк'], ['226 / 226', '≥ 30 с ФП эпизоддору табылды, медиана 14 с'], ['0,992', 'ROC-AUC'], ['27 КБ', 'флеш-эстутумдагы int8 модели'], ['2,8 КБ', '4 биттеги салмактар (97,2% сезгичтик)']],
     appTitle: 'Бейтаптын тиркемеси',
     appLead: 'Жандуу ЭКГ, дароо эскертүү, SOS баскычы, белгилер күндөлүгү жана тарых — Android жана iPhone үчүн бир тиркемеде.',
     appFeat: ['Bluetooth аркылуу жандуу ЭКГ', 'ФП башталганда эскертүү', 'Талманын ЭКГсын автожазуу', 'Белгилер күндөлүгү', 'SOS — 103 чалуу', 'Жакындар Telegramдан эскертүү алат', 'RU / KY / EN, караңгы тема'],
@@ -261,7 +261,7 @@ export default function Landing() {
         <div className="tech-head"><h2>{L.techTitle}</h2><p>{L.techLead}</p></div>
         <div className="tech-grid">
           <div className="t-card">
-            {[[L.cmpA, 63.9, 76.6, false], [L.cmpB, 96.7, 94.6, true]].map(([name, s, p, win]) => (
+            {[[L.cmpA, 63.9, 76.6, false], [L.cmpB, 96.6, 94.6, true]].map(([name, s, p, win]) => (
               <div key={String(name)} className={`cmp ${win ? 'win' : ''}`}>
                 <h4>{name}</h4>
                 {[[L.sens, s], [L.spec, p]].map(([k, v]) => (
