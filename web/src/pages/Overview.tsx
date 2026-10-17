@@ -3,15 +3,15 @@ import { Link } from 'react-router-dom'
 import { api, REFRESH, type Overview as Ov, type PatientRow, type User } from '../api'
 import { Avatar, Count, Empty, Icon, Spark, StatePill, useFmt } from '../components/ui'
 
-export function useLive<T>(path: string): [T | null, string, () => void] {
+export function useLive<T>(path: string, everyMs = 20000): [T | null, string, () => void] {
   const [d, setD] = useState<T | null>(null)
   const [err, setErr] = useState('')
   const load = () => api<T>(path).then(x => { setD(x); setErr('') }).catch(e => setErr(e.message))
   useEffect(() => {
     load()
     window.addEventListener(REFRESH, load)
-    const iv = setInterval(load, 20000)
-    return () => { window.removeEventListener(REFRESH, load); clearInterval(iv) }
+    const iv = everyMs > 0 ? setInterval(load, everyMs) : undefined
+    return () => { window.removeEventListener(REFRESH, load); if (iv) clearInterval(iv) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path])
   return [d, err, load]
@@ -114,7 +114,7 @@ type Metrics = {
 /** Product quality over 30 days: alert load, how many alerts were real (doctor verdicts), how fast they were seen. */
 function QualityCard() {
   const f = useFmt()
-  const [m] = useLive<Metrics>('/api/metrics?days=30')
+  const [m] = useLive<Metrics>('/api/metrics?days=30', 300000)
   if (!m) return null
   const num = (v: number | null, d = 1) => (v == null ? '—' : v.toFixed(d).replace('.', f.lang === 'en' ? '.' : ','))
   const tiles: [string, string, string][] = [

@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -783,10 +784,24 @@ def add_feedback(body: FeedbackIn, user: User = Depends(current_user), db: Sessi
     return {"ok": True}
 
 
+_METRICS_CACHE: dict[tuple[int, int], tuple[datetime, dict]] = {}
+METRICS_TTL = timedelta(minutes=5)   # scans every reading of the period: heavy on a small server, so cache it
+_METRICS_LOCK = threading.Lock()     # one computation at a time; concurrent callers then read the cache
+
+
 @app.get("/api/metrics")
-def product_metrics(days: int = Query(30, ge=1, le=365), doctor: User = Depends(require_role("doctor")),
-                    db: Session = Depends(get_db)):
+def product_metrics(days: int = Query(30, ge=1, le=365), fresh: bool = False,
+                    doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
     """Product quality for this doctor's patients: alert load, how many alerts were real, how fast they were seen."""
+    db.rollback()                    # hand the connection back to the pool while waiting for the lock
+    with _METRICS_LOCK:
+        hit = _METRICS_CACHE.get((doctor.id, days))
+        if hit and not fresh and utcnow() - hit[0] < METRICS_TTL:
+            return hit[1]
+        return _compute_metrics(db, doctor, days)
+
+
+def _compute_metrics(db: Session, doctor: User, days: int) -> dict:
     now = utcnow()
     since = now - timedelta(days=days)
     pats = list(db.scalars(select(User).where(User.doctor_id == doctor.id)))
@@ -808,8 +823,8 @@ def product_metrics(days: int = Query(30, ge=1, le=365), doctor: User = Depends(
     names = {p.id: p.name for p in pats}
     names[doctor.id] = doctor.name
     med = lambda v: (v[len(v) // 2] if len(v) % 2 else (v[len(v) // 2 - 1] + v[len(v) // 2]) / 2) if v else None
-    return {
-        "days": days, "mode": PRODUCT_MODE, "patients": len(pats),
+    out = {
+        "days": days, "mode": PRODUCT_MODE, "patients": len(pats), "computed_at": iso(now),
         "patient_days": round(patient_days, 2),
         "alerts": len(alerts),
         "alerts_per_patient_day": round(len(alerts) / patient_days, 2) if patient_days else None,
@@ -824,6 +839,8 @@ def product_metrics(days: int = Query(30, ge=1, le=365), doctor: User = Depends(
         "feedback": [{"ts": iso(f.ts), "rating": f.rating, "text": f.text, "who": names.get(f.user_id, "—"),
                       "platform": f.platform} for f in fb[:20]],
     }
+    _METRICS_CACHE[(doctor.id, days)] = (now, out)
+    return out
 
 
 @app.get("/api/health")
