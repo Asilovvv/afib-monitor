@@ -148,22 +148,66 @@ def analyze(x: list[float], fs: int = 125) -> dict:
             "quality": q, "pauses": pauses(p, fs) if q["sqi"] >= 0.4 else []}
 
 
-# "Check me in 30 seconds" (wellness wording): rules fixed before validation, see ml/CHECK30_CINC2017.md
-# CinC 2017 (never tuned on it): 91.4 % of AF recordings irregular, 14.1 % of normal ones too; noise is not caught.
-CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR = 16, 0.4, 0.10
+def r_peaks_amp(x: list[float], fs: int = 125) -> list[int]:
+    """Second, independent R-peak detector for the agreement check: amplitude of the baseline-free signal
+    (not the slope energy the main detector uses), adaptive threshold at half the decaying peak, 250 ms refractory."""
+    n = len(x)
+    if n < fs:
+        return []
+    a = [abs(v) for v in _highpass(x, fs)]
+    decay = 0.5 ** (1 / (2.0 * fs))
+    refr, look = int(0.25 * fs), int(0.1 * fs)
+    pk = max(a[: min(n, 2 * fs)]) or 1e-12
+    out, i = [], 0
+    while i < n:
+        pk = max(pk * decay, a[i])
+        if a[i] > 0.5 * pk and (not out or i - out[-1] > refr):
+            j = max(range(i, min(n, i + look)), key=lambda k: a[k])
+            if not out or j - out[-1] > refr:
+                out.append(j)
+            i = j + 1
+            continue
+        i += 1
+    return out
 
 
-def check(x: list[float], fs: int = 125) -> dict:
+def bsqi(p1: list[int], p2: list[int], fs: int = 125, tol_s: float = 0.15) -> float:
+    """Agreement of two detectors (Li, Mark & Clifford 2008): matched / (n1 + n2 - matched), match within 150 ms."""
+    if not p1 and not p2:
+        return 0.0
+    tol, used, m = int(tol_s * fs), set(), 0
+    j = 0
+    for p in p1:
+        while j < len(p2) and p2[j] < p - tol:
+            j += 1
+        k = j
+        while k < len(p2) and p2[k] <= p + tol:
+            if k not in used:
+                used.add(k)
+                m += 1
+                break
+            k += 1
+    return round(m / (len(p1) + len(p2) - m), 3)
+
+
+# "Check me in 30 seconds" (wellness wording), see ml/CHECK30_CINC2017.md and ml/CHECK30_BSQI.md
+# v1 (CinC 2017, never tuned on it): 91.4 % of AF recordings irregular, 14.1 % of normal ones too; noise not caught.
+# v2 adds the two-detector agreement gate (bSQI >= 0.8), rules fixed before Notebook 8.
+CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR, CHECK_MIN_BSQI = 16, 0.4, 0.10, 0.8
+
+
+def check(x: list[float], fs: int = 125, gate: bool = True) -> dict:
     """Verdict for a 30-s spot check: "regular", "irregular" (show a doctor) or "no_verdict" (repeat)."""
     a = analyze(x, fs)
     n, sqi, irr = len(a["r_peaks"]), a["quality"]["sqi"], a["irregularity"]
-    if n < CHECK_MIN_BEATS or sqi < CHECK_MIN_SQI or irr is None:
+    b = bsqi(a["r_peaks"], r_peaks_amp(x, fs), fs)
+    if n < CHECK_MIN_BEATS or sqi < CHECK_MIN_SQI or irr is None or (gate and b < CHECK_MIN_BSQI):
         verdict = "no_verdict"
     else:
         verdict = "irregular" if irr > CHECK_IRR else "regular"
     bpm = round(len(a["r_peaks"]) / (len(x) / fs) * 60) if x else None
-    return {"verdict": verdict, "beats": n, "sqi": sqi, "irregularity": irr, "bpm": bpm,
-            "reasons": a["quality"]["reasons"]}
+    return {"verdict": verdict, "beats": n, "sqi": sqi, "irregularity": irr, "bsqi": b, "bpm": bpm,
+            "reasons": a["quality"]["reasons"] + (["detectors_disagree"] if gate and b < CHECK_MIN_BSQI else [])}
 
 
 def png(x: list[float], fs: int = 125, peaks: list[int] | None = None, title: str = "", subtitle: str = "",

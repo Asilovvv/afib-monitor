@@ -98,13 +98,51 @@ export function analyze(x: ArrayLike<number>, fs = 125) {
   return { peaks: p, rr, poincare: poincare(rr), irregularity: irr == null ? null : Math.round(irr * 1000) / 1000, quality: quality(x, fs, p) }
 }
 
-/** "Check me in 30 seconds" — same rule and constants as ecgtools.check() on the server
- *  (validated on PhysioNet/CinC 2017, see ml/CHECK30_CINC2017.md). Wellness wording only. */
+/** Second, independent R-peak detector (amplitude, not slope energy) — same as ecgtools.r_peaks_amp(). */
+export function rPeaksAmp(x: ArrayLike<number>, fs = 125): number[] {
+  const n = x.length
+  if (n < fs) return []
+  const a = highpass(x, fs).map(Math.abs)
+  const decay = Math.pow(0.5, 1 / (2 * fs)), refr = Math.floor(0.25 * fs), look = Math.floor(0.1 * fs)
+  let pk = 0
+  for (let i = 0; i < Math.min(n, 2 * fs); i++) pk = Math.max(pk, a[i])
+  if (!pk) pk = 1e-12
+  const out: number[] = []
+  let i = 0
+  while (i < n) {
+    pk = Math.max(pk * decay, a[i])
+    if (a[i] > 0.5 * pk && (!out.length || i - out[out.length - 1] > refr)) {
+      let j = i
+      for (let k = i; k < Math.min(n, i + look); k++) if (a[k] > a[j]) j = k
+      if (!out.length || j - out[out.length - 1] > refr) out.push(j)
+      i = j + 1
+      continue
+    }
+    i++
+  }
+  return out
+}
+
+/** Agreement of two detectors (Li, Mark & Clifford 2008), match within 150 ms — same as ecgtools.bsqi(). */
+export function bsqi(p1: number[], p2: number[], fs = 125, tolS = 0.15): number {
+  if (!p1.length && !p2.length) return 0
+  const tol = Math.floor(tolS * fs), used = new Set<number>()
+  let m = 0, j = 0
+  for (const p of p1) {
+    while (j < p2.length && p2[j] < p - tol) j++
+    for (let k = j; k < p2.length && p2[k] <= p + tol; k++) if (!used.has(k)) { used.add(k); m++; break }
+  }
+  return Math.round((m / (p1.length + p2.length - m)) * 1000) / 1000
+}
+
+/** "Check me in 30 seconds" — same rule and constants as ecgtools.check() on the server (v2: with the
+ *  two-detector agreement gate). Validated on PhysioNet/CinC 2017, see ml/CHECK30_*.md. Wellness wording only. */
 export const CHECK_SECONDS = 30
 export type CheckVerdict = 'regular' | 'irregular' | 'no_verdict'
-export function check(x: ArrayLike<number>, fs = 125): { verdict: CheckVerdict; beats: number; sqi: number; irregularity: number | null; bpm: number } {
+export function check(x: ArrayLike<number>, fs = 125): { verdict: CheckVerdict; beats: number; sqi: number; irregularity: number | null; bsqi: number; bpm: number } {
   const a = analyze(x, fs)
   const n = a.peaks.length, sqi = a.quality.sqi, irr = a.irregularity
-  const verdict: CheckVerdict = n < 16 || sqi < 0.4 || irr == null ? 'no_verdict' : irr > 0.1 ? 'irregular' : 'regular'
-  return { verdict, beats: n, sqi, irregularity: irr, bpm: Math.round(n / (x.length / fs) * 60) }
+  const b = bsqi(a.peaks, rPeaksAmp(x, fs), fs)
+  const verdict: CheckVerdict = n < 16 || sqi < 0.4 || irr == null || b < 0.8 ? 'no_verdict' : irr > 0.1 ? 'irregular' : 'regular'
+  return { verdict, beats: n, sqi, irregularity: irr, bsqi: b, bpm: Math.round(n / (x.length / fs) * 60) }
 }
