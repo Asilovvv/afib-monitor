@@ -148,20 +148,39 @@ def analyze(x: list[float], fs: int = 125) -> dict:
             "quality": q, "pauses": pauses(p, fs) if q["sqi"] >= 0.4 else []}
 
 
-def r_peaks_amp(x: list[float], fs: int = 125) -> list[int]:
-    """Second, independent R-peak detector for the agreement check: amplitude of the baseline-free signal
-    (not the slope energy the main detector uses), adaptive threshold at half the decaying peak, 250 ms refractory."""
+def _movmean(x: list[float], w: int) -> list[float]:
+    """Centred moving mean over w samples (w odd), shrinking at the edges — the same as in _highpass."""
+    h, n = w // 2, len(x)
+    pre = [0.0]
+    for v in x:
+        pre.append(pre[-1] + v)
+    return [(pre[min(n, i + h + 1)] - pre[max(0, i - h)]) / (min(n, i + h + 1) - max(0, i - h)) for i in range(n)]
+
+
+# second detector settings (smooth samples, baseline window s, threshold fraction, refractory s); v2 = the first
+AMP_DEFAULT = (1, 0.6, 0.5, 0.25)
+
+
+def r_peaks_amp(x: list[float], fs: int = 125, params: tuple = AMP_DEFAULT) -> list[int]:
+    """Second, independent R-peak detector for the agreement check: amplitude of the signal after removing
+    the baseline (not the slope energy the main detector uses), adaptive threshold at a fraction of the
+    decaying peak, refractory period. Optional light smoothing and a short baseline window make it a crude
+    QRS band-pass that ignores T-waves better."""
+    w1, w2s, frac, refr_s = params
     n = len(x)
     if n < fs:
         return []
-    a = [abs(v) for v in _highpass(x, fs)]
+    y = _movmean(x, w1) if w1 > 1 else list(x)
+    w2 = max(3, int(w2s * fs)) | 1
+    base = _movmean(y, w2)
+    a = [abs(u - b) for u, b in zip(y, base)]
     decay = 0.5 ** (1 / (2.0 * fs))
-    refr, look = int(0.25 * fs), int(0.1 * fs)
+    refr, look = int(refr_s * fs), int(0.1 * fs)
     pk = max(a[: min(n, 2 * fs)]) or 1e-12
     out, i = [], 0
     while i < n:
         pk = max(pk * decay, a[i])
-        if a[i] > 0.5 * pk and (not out or i - out[-1] > refr):
+        if a[i] > frac * pk and (not out or i - out[-1] > refr):
             j = max(range(i, min(n, i + look)), key=lambda k: a[k])
             if not out or j - out[-1] > refr:
                 out.append(j)
