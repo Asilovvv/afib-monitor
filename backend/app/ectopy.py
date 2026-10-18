@@ -61,7 +61,7 @@ def _pearson(a: list[float], b: list[float]) -> float:
 
 
 # ---------------------------------------------------------------- model (exported from the notebook)
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "pvc_model.json")
+_MODEL_PATH = os.path.join(os.path.dirname(globals().get("__file__", "")), "pvc_model.json")   # also works when pasted into a notebook
 _MODEL = None
 
 
