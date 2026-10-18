@@ -192,7 +192,9 @@ def bsqi(p1: list[int], p2: list[int], fs: int = 125, tol_s: float = 0.15) -> fl
 
 # "Check me in 30 seconds" (wellness wording), see ml/CHECK30_CINC2017.md and ml/CHECK30_BSQI.md
 # v1 (CinC 2017, never tuned on it): 91.4 % of AF recordings irregular, 14.1 % of normal ones too; noise not caught.
-# v2 adds the two-detector agreement gate (bSQI >= 0.8), rules fixed before Notebook 8.
+# v2 adds the two-detector agreement gate (bSQI >= 0.8), rules fixed before Notebook 8: false "irregular" on clean
+# normal rhythm 14.1 % -> 3.3 %, noise caught (97.5 % of noisy recordings -> "could not read"), but 44 % of clean
+# normal checks need a repeat and AF found drops 91.4 -> 69.4 %. See ml/CHECK30_BSQI.md.
 CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR, CHECK_MIN_BSQI = 16, 0.4, 0.10, 0.8
 
 
