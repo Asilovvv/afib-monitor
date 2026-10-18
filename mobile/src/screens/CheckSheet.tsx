@@ -7,15 +7,34 @@ import { F } from '../theme'
 import { callSos } from './Monitor'
 
 /** "Check me in 30 seconds": one big ring, then one big answer. Wording is wellness-only:
- *  "regular / irregular — show your doctor / could not read", never a diagnosis. */
+ *  "regular / irregular — show your doctor / could not read", never a diagnosis.
+ *  "Irregular" is shown only after two irregular checks in a row (ml/REPEAT_LTAFDB.md: AF minutes found 93.6 -> 92.3 %,
+ *  false "irregular" on normal rhythm 13.2 -> 8.7 %). After the first one the app asks to check again. */
+const CONFIRM_WINDOW_MS = 10 * 60e3
+let firstIrregularAt = 0            // survives closing the sheet; a repeat within 10 minutes confirms it
+type Shown = CheckResult & { stage: 'final' | 'confirm' | 'mixed' }
 export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { theme: tm, t, checking, checkMe } = useApp()
-  const [res, setRes] = useState<CheckResult | null>(null)
+  const [res, setRes] = useState<Shown | null>(null)
 
-  const run = async () => { setRes(null); const r = await checkMe(); if (r) setRes(r); else onClose() }
+  const run = async () => {
+    setRes(null)
+    const r = await checkMe()
+    if (!r) { onClose(); return }
+    const pending = Date.now() - firstIrregularAt < CONFIRM_WINDOW_MS
+    if (r.verdict === 'irregular' && !pending) { firstIrregularAt = Date.now(); setRes({ ...r, stage: 'confirm' }); return }
+    if (pending && r.verdict !== 'no_verdict') {
+      firstIrregularAt = 0
+      setRes(r.verdict === 'irregular' ? { ...r, stage: 'final' } : { ...r, verdict: 'no_verdict', stage: 'mixed' })
+      return
+    }
+    setRes({ ...r, stage: 'final' })
+  }
   useEffect(() => { if (open) run(); else setRes(null) }, [open])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const look = res?.verdict === 'regular' ? { c: tm.ok, soft: tm.okSoft, icon: 'check' as const }
+  const confirm = res?.stage === 'confirm'
+  const look = confirm ? { c: tm.accent, soft: tm.accentSoft, icon: 'sync' as const }
+    : res?.verdict === 'regular' ? { c: tm.ok, soft: tm.okSoft, icon: 'check' as const }
     : res?.verdict === 'irregular' ? { c: tm.warn, soft: tm.warnSoft, icon: 'sos' as const }
     : { c: tm.ink2, soft: tm.bg2, icon: 'signal' as const }
   const secs = Math.round((checking ?? 0) * CHECK_SECONDS)
@@ -35,13 +54,13 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
       ) : (
         <View style={s.center}>
           <View style={[s.badge, { backgroundColor: look.soft }]}><Icon name={look.icon} color={look.c} size={54} /></View>
-          <T style={[s.verdict, { color: look.c }]}>{t(`check_${res.verdict}`)}</T>
+          <T style={[s.verdict, { color: look.c }]}>{confirm ? t('check_confirm') : res.stage === 'mixed' ? t('check_mixed') : t(`check_${res.verdict}`)}</T>
           {res.verdict !== 'no_verdict' && <T v="num" style={{ fontSize: 22, marginTop: 4 }}>{res.bpm} {t('bpm')}</T>}
-          <T style={[s.sub, { color: tm.ink2 }]}>{t(`check_${res.verdict}_sub`)}</T>
+          <T style={[s.sub, { color: tm.ink2 }]}>{confirm ? t('check_confirm_sub') : res.stage === 'mixed' ? t('check_mixed_sub') : t(`check_${res.verdict}_sub`)}</T>
           {res.verdict !== 'no_verdict' && <T v="small" style={{ marginTop: 10 }}>✓ {t('check_saved')}</T>}
           <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 22 }}>
-            {res.verdict === 'irregular' && <Button title="SOS · 103" kind="danger" icon="phone" onPress={() => callSos(t)} />}
-            <Button title={t('check_again')} kind={res.verdict === 'irregular' ? 'ghost' : 'primary'} icon="sync" onPress={run} />
+            {res.verdict === 'irregular' && !confirm && <Button title="SOS · 103" kind="danger" icon="phone" onPress={() => callSos(t)} />}
+            <Button title={t('check_again')} kind={res.verdict === 'irregular' && !confirm ? 'ghost' : 'primary'} icon="sync" onPress={run} />
             <Button title={t('close')} kind="ghost" onPress={onClose} />
           </View>
         </View>

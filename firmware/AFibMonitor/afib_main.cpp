@@ -136,6 +136,7 @@ static float chkBuf[CHK_N];
 static volatile int chkN = 0;
 static volatile bool chkActive = false;
 static uint32_t chkShownMs = 0;            // when the last verdict was drawn (kept on screen for 10 s)
+static uint32_t chkFirstIrrMs = 0;         // "irregular" is shown only after two irregular checks within 10 min
 
 static void pushRaw(float mv) {            // called at 250 Hz from either source
   rawCount++;
@@ -510,8 +511,15 @@ static void finishCheck() {
   uint32_t us = micros() - t0;
   chkActive = false;
   char sub[48];
-  if (r.verdict == 1) { snprintf(sub, sizeof sub, "%d bpm - 30 s regular", r.bpm); drawCheck("REGULAR RHYTHM", 0x0320, sub); }
-  else if (r.verdict == 2) { snprintf(sub, sizeof sub, "%d bpm - not a diagnosis, show a doctor", r.bpm); drawCheck("IRREGULAR RHYTHM", 0xC400, sub); }
+  bool pending = chkFirstIrrMs && millis() - chkFirstIrrMs < 600000UL;
+  if (r.verdict == 2 && !pending) {                      // first irregular check: ask to repeat
+    chkFirstIrrMs = millis();
+    drawCheck("CHECK AGAIN", 0x0010, "Sit still, tap here to repeat 30 s");
+  } else if (pending && r.verdict == 1) {                // irregular then regular: results differ
+    chkFirstIrrMs = 0;
+    drawCheck("RESULTS DIFFER", 0x4208, "Repeat later at rest");
+  } else if (r.verdict == 1) { snprintf(sub, sizeof sub, "%d bpm - 30 s regular", r.bpm); drawCheck("REGULAR RHYTHM", 0x0320, sub); }
+  else if (r.verdict == 2) { chkFirstIrrMs = 0; snprintf(sub, sizeof sub, "%d bpm - twice; not a diagnosis, see a doctor", r.bpm); drawCheck("IRREGULAR RHYTHM", 0xC400, sub); }
   else drawCheck("REPEAT THE CHECK", 0x4208, "Sit still, check the electrodes");
   chkShownMs = millis();
   Serial.printf("CHECK verdict=%d beats=%d sqi=%.2f irr=%.3f bsqi=%.3f bpm=%d calc_us=%lu free_heap=%lu\n", r.verdict, r.beats,
