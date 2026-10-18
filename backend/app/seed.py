@@ -14,7 +14,7 @@ from . import analytics
 from .auth import hash_password
 from .db import Base, SessionLocal, engine
 from .ecgsynth import synth_ecg
-from .models import (DAY_TAGS, Alert, DayTag, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
+from .models import (DAY_TAGS, Alert, DayTag, MedDose, Medication, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
                      STATE_NO_SIGNAL)
 
 DAYS = 7
@@ -82,6 +82,12 @@ def synth_readings(pattern: str, seed: int):
     return out
 
 
+DEMO_MEDS = {  # pattern -> (name, dose, local times, anticoagulant)
+    "paroxysmal": [("Апиксабан", "5 мг", "08:00,20:00", True), ("Бисопролол", "2,5 мг", "08:00", False)],
+    "persistent": [("Ривароксабан", "20 мг", "20:00", True), ("Бисопролол", "5 мг", "08:00", False)],
+    "recent": [("Бисопролол", "2,5 мг", "08:00", False)],
+}
+
 SYMPTOM_SETS = [(["palpitations"], 2, "Сердце колотится после подъёма по лестнице"),
                 (["palpitations", "dizziness"], 2, None),
                 (["fatigue"], 1, "Весь день слабость"),
@@ -140,6 +146,19 @@ def run():
                 day = (utcnow() + timedelta(hours=6) - timedelta(days=d)).date().isoformat()
                 db.add(DayTag(patient_id=p.id, day=day,
                               tags=",".join(t for t in DAY_TAGS if rng.random() < (0.45 if t in ("caffeine", "exercise") else 0.2))))
+        db.commit()
+        # demo medicines with a mostly-kept schedule (random answers, some doses left unanswered)
+        for name, dose, times, ac in DEMO_MEDS.get(pattern, []):
+            m = Medication(patient_id=p.id, name=name, dose=dose, times=times, anticoagulant=ac,
+                           created_at=utcnow() - timedelta(days=DAYS))
+            db.add(m)
+            db.flush()
+            for slot in analytics.dose_slots(times.split(","), m.created_at, utcnow(), 6):
+                r = rng.random()
+                if r < 0.9 - (0.15 if pattern == "persistent" else 0):
+                    db.add(MedDose(patient_id=p.id, medication_id=m.id, slot=slot, status="taken"))
+                elif r < 0.95:
+                    db.add(MedDose(patient_id=p.id, medication_id=m.id, slot=slot, status="skipped"))
         db.commit()
         # reviews: doctor already reviewed older episodes
         ar = [analytics.R(r.ts, r.state, r.prob, r.bpm) for r in rows]

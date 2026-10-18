@@ -1,6 +1,6 @@
 """Tables: users, readings from the device, alerts, ECG strips, symptoms, doctor notes, episode reviews."""
 from datetime import datetime
-from sqlalchemy import BigInteger, String, Integer, Float, DateTime, ForeignKey, Index, Text
+from sqlalchemy import BigInteger, Boolean, String, Integer, Float, DateTime, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -207,3 +207,30 @@ class DayTag(Base):
     tags: Mapped[str] = mapped_column(String(200), default="")       # comma-separated DAY_TAGS
 
     __table_args__ = (Index("ux_day_tags_patient_day", "patient_id", "day", unique=True),)
+
+
+class Medication(Base):
+    """A medicine the patient takes on a daily schedule (reminders on the phone, adherence in the doctor's report)."""
+    __tablename__ = "medications"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    dose: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    times: Mapped[str] = mapped_column(String(100))                  # "08:00,20:00", patient's local time
+    anticoagulant: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class MedDose(Base):
+    """The patient's answer for one scheduled dose: taken or skipped (no row = no answer)."""
+    __tablename__ = "med_doses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    medication_id: Mapped[int] = mapped_column(ForeignKey("medications.id"), index=True)
+    slot: Mapped[str] = mapped_column(String(16))                    # "YYYY-MM-DDTHH:MM", local time of the dose
+    status: Mapped[str] = mapped_column(String(10))                  # "taken" | "skipped"
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (Index("ux_med_doses_med_slot", "medication_id", "slot", unique=True),)

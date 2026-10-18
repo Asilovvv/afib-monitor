@@ -20,7 +20,7 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
-from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, DayTag, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
+from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
                      Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
@@ -152,6 +152,27 @@ class EcgIn(BaseModel):
     prob: float = Field(default=0, ge=0, le=1)
     bpm: float = Field(default=0, ge=0, le=300)
     reason: str = Field(default="manual", pattern="^(afib_onset|manual|symptom|check)$")
+
+
+class MedIn(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    dose: str | None = Field(default=None, max_length=50)
+    times: list[str] = Field(min_length=1, max_length=8)
+    anticoagulant: bool = False
+
+    @field_validator("times")
+    @classmethod
+    def hhmm(cls, v: list[str]) -> list[str]:
+        import re
+        for t in v:
+            if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t):
+                raise ValueError(f"bad time: {t}")
+        return sorted(set(v))
+
+
+class DoseIn(BaseModel):
+    slot: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
+    status: str = Field(pattern="^(taken|skipped)$")
 
 
 class DayIn(BaseModel):
@@ -332,6 +353,84 @@ def my_days(days: int = Query(31, ge=1, le=366), user: User = Depends(require_ro
         select(DayTag).where(DayTag.patient_id == user.id, DayTag.day >= since).order_by(DayTag.day.desc()))]
 
 
+def med_out(m: Medication) -> dict:
+    return {"id": m.id, "name": m.name, "dose": m.dose, "times": m.times.split(","), "anticoagulant": m.anticoagulant,
+            "active": m.active, "created_at": iso(m.created_at)}
+
+
+def meds_adherence(db: Session, patient_id: int, since: datetime, until: datetime) -> list[dict]:
+    meds = list(db.scalars(select(Medication).where(Medication.patient_id == patient_id, Medication.created_at <= until,
+                                                    (Medication.ended_at.is_(None)) | (Medication.ended_at >= since))))
+    if not meds:
+        return []
+    a = (since + timedelta(hours=TZ_HOURS)).strftime("%Y-%m-%dT%H:%M")
+    answers = {(d.medication_id, d.slot): d.status for d in db.scalars(
+        select(MedDose).where(MedDose.patient_id == patient_id, MedDose.slot >= a))}
+    return analytics.adherence([{"id": m.id, "name": m.name, "dose": m.dose, "anticoagulant": m.anticoagulant,
+                                 "times": m.times.split(","), "created_at": m.created_at, "ended_at": m.ended_at}
+                                for m in meds], answers, since, until, TZ_HOURS)
+
+
+@app.get("/api/me/meds")
+def my_meds(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    """Active medicines and today's doses with the patient's answers (local day)."""
+    now = utcnow()
+    today = (now + timedelta(hours=TZ_HOURS)).date().isoformat()
+    meds = list(db.scalars(select(Medication).where(Medication.patient_id == user.id, Medication.active.is_(True))
+                           .order_by(Medication.id)))
+    answers = {(d.medication_id, d.slot): d.status for d in db.scalars(
+        select(MedDose).where(MedDose.patient_id == user.id, MedDose.slot >= today))}
+    doses = [{"medication_id": m.id, "name": m.name, "dose": m.dose, "anticoagulant": m.anticoagulant,
+              "slot": f"{today}T{t}", "status": answers.get((m.id, f"{today}T{t}"))}
+             for m in meds for t in m.times.split(",")]
+    return {"meds": [med_out(m) for m in meds], "today": sorted(doses, key=lambda d: d["slot"])}
+
+
+@app.post("/api/me/meds")
+def add_med(body: MedIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    m = Medication(patient_id=user.id, name=body.name.strip(), dose=(body.dose or "").strip() or None,
+                   times=",".join(body.times), anticoagulant=body.anticoagulant, created_at=utcnow())
+    db.add(m)
+    db.commit()
+    return med_out(m)
+
+
+def own_med(db: Session, user: User, med_id: int) -> Medication:
+    m = db.get(Medication, med_id)
+    if not m or m.patient_id != user.id:
+        raise HTTPException(404, "Medication not found")
+    return m
+
+
+@app.put("/api/me/meds/{med_id}")
+def edit_med(med_id: int, body: MedIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    """A changed schedule is stored as a new medicine from now on, so past adherence keeps its old schedule."""
+    old = own_med(db, user, med_id)
+    old.active, old.ended_at = False, utcnow()
+    db.flush()
+    return add_med(body, user, db)
+
+
+@app.delete("/api/me/meds/{med_id}")
+def stop_med(med_id: int, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    m = own_med(db, user, med_id)
+    m.active, m.ended_at = False, utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/me/meds/{med_id}/dose")
+def answer_dose(med_id: int, body: DoseIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    m = own_med(db, user, med_id)
+    d = db.scalar(select(MedDose).where(MedDose.medication_id == m.id, MedDose.slot == body.slot))
+    if not d:
+        d = MedDose(patient_id=user.id, medication_id=m.id, slot=body.slot)
+        db.add(d)
+    d.status, d.ts = body.status, utcnow()
+    db.commit()
+    return {"medication_id": m.id, "slot": d.slot, "status": d.status}
+
+
 def diary_of(db: Session, patient_id: int, since: datetime, until: datetime) -> dict[str, set[str]]:
     a = (since + timedelta(hours=TZ_HOURS) - timedelta(days=1)).date().isoformat()
     b = (until + timedelta(hours=TZ_HOURS)).date().isoformat()
@@ -435,6 +534,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
         "battery": battery,
         "episodes": eps,
         "hr_events": [{**e, "start": iso(e["start"]), "end": iso(e["end"])} for e in analytics.hr_events(rows)],
+        "medications": meds_adherence(db, patient.id, since, until),
         "triggers": analytics.triggers(rows, diary_of(db, patient.id, since, until), DAY_TAGS, TZ_HOURS),
         "series": analytics.series(rows),
         "hourly": analytics.hourly(rows, since, until),
@@ -649,6 +749,8 @@ def export_data(db: Session, u: User) -> dict:
         "alerts": [{"ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm, "status": a.status} for a in q(Alert, Alert.patient_id)],
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
+        "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
+        "medication_doses": [{"medication_id": d.medication_id, "slot": d.slot, "status": d.status} for d in q(MedDose, MedDose.patient_id)],
         "diary_days": [{"day": d.day, "tags": [t for t in d.tags.split(",") if t]} for d in q(DayTag, DayTag.patient_id)],
         "doctor_notes": notes_of(db, u.id) if u.role == "patient" else [],
         "access_log": [{"ts": iso(a.ts), "actor_id": a.actor_id, "action": a.action} for a in q(AccessLog, AccessLog.patient_id)],
@@ -699,6 +801,8 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(EcgStrip).where(EcgStrip.patient_id == uid),
         delete(Symptom).where(Symptom.patient_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
+        delete(MedDose).where(MedDose.patient_id == uid),
+        delete(Medication).where(Medication.patient_id == uid),
         delete(Note).where((Note.patient_id == uid) | (Note.author_id == uid)),
         delete(EpisodeReview).where((EpisodeReview.patient_id == uid) | (EpisodeReview.reviewer_id == uid)),
         delete(RiskProfile).where(RiskProfile.patient_id == uid),

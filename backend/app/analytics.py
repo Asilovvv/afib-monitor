@@ -185,3 +185,36 @@ def triggers(rows: list[R], diary: dict[str, set[str]], tags: tuple[str, ...], t
                     "episodes_per_day_without": round(sum(x["episodes"] for x in wo) / len(wo), 2) if wo else None,
                     "enough": len(w) >= TRIGGER_MIN_DAYS and len(wo) >= TRIGGER_MIN_DAYS})
     return {"days": days, "factors": out, "min_days": TRIGGER_MIN_DAYS, "min_monitored_h": TRIGGER_MIN_MONITORED_H}
+
+
+def dose_slots(times: list[str], start: datetime, end: datetime, tz_hours: float) -> list[str]:
+    """Local "YYYY-MM-DDTHH:MM" slots of a daily schedule that fall between two UTC moments."""
+    out = []
+    lo, hi = start + timedelta(hours=tz_hours), end + timedelta(hours=tz_hours)
+    d = lo.date()
+    while d <= hi.date():
+        for t in times:
+            hh, mm = map(int, t.split(":"))
+            at = datetime(d.year, d.month, d.day, hh, mm)
+            if lo <= at <= hi:
+                out.append(at.strftime("%Y-%m-%dT%H:%M"))
+        d += timedelta(days=1)
+    return out
+
+
+def adherence(meds: list[dict], answers: dict[tuple[int, str], str], since: datetime, until: datetime,
+              tz_hours: float) -> list[dict]:
+    """Per medicine: doses due in the period (from when it was added until it was stopped), taken, skipped, no answer."""
+    out = []
+    for m in meds:
+        a = max(since, m["created_at"])
+        b = min(until, m["ended_at"] or until)
+        slots = dose_slots(m["times"], a, b, tz_hours) if a < b else []
+        st = [answers.get((m["id"], s)) for s in slots]
+        taken, skipped = st.count("taken"), st.count("skipped")
+        out.append({"id": m["id"], "name": m["name"], "dose": m["dose"], "anticoagulant": m["anticoagulant"],
+                    "times": m["times"], "due": len(slots), "taken": taken, "skipped": skipped,
+                    "no_answer": len(slots) - taken - skipped,
+                    "adherence": round(taken / len(slots), 3) if slots else None,
+                    "missed_slots": [s for s, x in zip(slots, st) if x != "taken"][-10:]})
+    return out

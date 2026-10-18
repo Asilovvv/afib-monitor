@@ -388,3 +388,34 @@ def test_check_30_seconds():
     out = c.post("/api/ecg", json={"ts": time.time() - 30, "samples": synth_ecg(30, afib=False, bpm=70, seed=3),
                                    "reason": "check"}, headers=auth(r.json()["token"])).json()
     assert out["check"]["verdict"] == "regular" and 60 <= out["check"]["bpm"] <= 80
+
+
+def test_medications_and_adherence():
+    from datetime import datetime
+    from app import analytics
+    # schedule maths: 2 doses a day over 3 local days
+    slots = analytics.dose_slots(["08:00", "20:00"], datetime(2026, 10, 10, 0, 0), datetime(2026, 10, 12, 23, 0), 6)
+    assert slots[0] == "2026-10-10T08:00" and len(slots) == 6          # 00:00 UTC = 06:00 local; 23:00 UTC = 05:00 next day
+    ad = analytics.adherence([{"id": 1, "name": "A", "dose": None, "anticoagulant": True, "times": ["08:00", "20:00"],
+                               "created_at": datetime(2026, 10, 10), "ended_at": None}],
+                             {(1, "2026-10-10T08:00"): "taken", (1, "2026-10-10T20:00"): "skipped"},
+                             datetime(2026, 10, 10), datetime(2026, 10, 11, 18), 6)[0]
+    assert (ad["due"], ad["taken"], ad["skipped"], ad["no_answer"]) == (4, 1, 1, 2) and ad["adherence"] == 0.25
+    # API
+    tok = c.post("/api/auth/register", json={"email": "meds@x.kg", "password": "secret1", "name": "M", "role": "patient"}).json()["token"]
+    h = auth(tok)
+    assert c.post("/api/me/meds", json={"name": "X", "times": ["25:00"]}, headers=h).status_code == 422
+    m = c.post("/api/me/meds", json={"name": " Апиксабан ", "dose": "5 мг", "times": ["20:00", "08:00"], "anticoagulant": True}, headers=h).json()
+    assert m["name"] == "Апиксабан" and m["times"] == ["08:00", "20:00"]
+    today = c.get("/api/me/meds", headers=h).json()["today"]
+    assert [d["slot"][-5:] for d in today] == ["08:00", "20:00"] and today[0]["status"] is None
+    r = c.post(f"/api/me/meds/{m['id']}/dose", json={"slot": today[0]["slot"], "status": "taken"}, headers=h).json()
+    assert r["status"] == "taken"
+    c.post(f"/api/me/meds/{m['id']}/dose", json={"slot": today[0]["slot"], "status": "skipped"}, headers=h)   # changed mind
+    assert c.get("/api/me/meds", headers=h).json()["today"][0]["status"] == "skipped"
+    m2 = c.put(f"/api/me/meds/{m['id']}", json={"name": "Апиксабан", "times": ["09:00"], "anticoagulant": True}, headers=h).json()
+    assert [x["id"] for x in c.get("/api/me/meds", headers=h).json()["meds"]] == [m2["id"]]
+    assert "medications" in c.get("/api/me/report?hours=24", headers=h).json()
+    other = c.post("/api/auth/register", json={"email": "meds2@x.kg", "password": "secret1", "name": "O", "role": "patient"}).json()["token"]
+    assert c.delete(f"/api/me/meds/{m2['id']}", headers=auth(other)).status_code == 404
+    assert c.delete(f"/api/me/meds/{m2['id']}", headers=h).json() == {"ok": True}
