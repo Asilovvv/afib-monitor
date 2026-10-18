@@ -11,6 +11,7 @@ import { F, stateTone } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
 import { SymptomSheet } from './SymptomSheet'
 import { CheckSheet } from './CheckSheet'
+import { CheckPlanCard } from './CheckPlan'
 import { MedsCard } from './Meds'
 
 export function useNow(ms = 1000) {
@@ -200,6 +201,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
           </>
         )}
 
+        <CheckPlanCard />
         <MedsCard big={big} />
 
         {/* quick actions */}

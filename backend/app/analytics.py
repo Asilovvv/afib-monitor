@@ -218,3 +218,33 @@ def adherence(meds: list[dict], answers: dict[tuple[int, str], str], since: date
                     "adherence": round(taken / len(slots), 3) if slots else None,
                     "missed_slots": [s for s, x in zip(slots, st) if x != "taken"][-10:]})
     return out
+
+
+CHECK_SLOT_WINDOW = timedelta(minutes=90)     # a check within 1.5 h of the planned time counts for that time
+CONFIRM_WINDOW = timedelta(minutes=10)        # two irregular checks within 10 min = confirmed (the app's twice rule)
+
+
+def check_adherence(times: list[str], start: datetime, end: datetime, checks: list[tuple[datetime, str]],
+                    tz_hours: float) -> dict:
+    """Planned 30-s checks between two UTC moments: how many were done (each check counts for one planned time),
+    and how many times "irregular" was confirmed by a second irregular check within 10 minutes."""
+    slots = [datetime.strptime(s, "%Y-%m-%dT%H:%M") - timedelta(hours=tz_hours) for s in dose_slots(times, start, end, tz_hours)]
+    used, done = set(), 0
+    for s in slots:
+        for i, (ts, _) in enumerate(checks):
+            if i not in used and abs(ts - s) <= CHECK_SLOT_WINDOW:
+                used.add(i)
+                done += 1
+                break
+    cs = sorted(checks)
+    confirmed, i = 0, 0
+    while i + 1 < len(cs):
+        if cs[i][1] == "irregular" and cs[i + 1][1] == "irregular" and cs[i + 1][0] - cs[i][0] <= CONFIRM_WINDOW:
+            confirmed += 1
+            i += 2
+        else:
+            i += 1
+    verdicts = [v for _, v in checks]
+    return {"due": len(slots), "done": done, "adherence": round(done / len(slots), 3) if slots else None,
+            "checks": len(checks), "regular": verdicts.count("regular"), "irregular": verdicts.count("irregular"),
+            "no_verdict": verdicts.count("no_verdict"), "confirmed_irregular": confirmed}

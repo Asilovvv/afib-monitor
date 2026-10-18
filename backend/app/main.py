@@ -20,7 +20,7 @@ from .auth import (check_password, current_user, hash_password, make_token, new_
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
-from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
+from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
                      Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
 
 Base.metadata.create_all(engine)
@@ -168,6 +168,16 @@ class MedIn(BaseModel):
             if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", t):
                 raise ValueError(f"bad time: {t}")
         return sorted(set(v))
+
+
+class CheckPlanIn(BaseModel):
+    times: list[str] = Field(default_factory=list, max_length=6)    # empty = no plan
+    active: bool = True
+
+    @field_validator("times")
+    @classmethod
+    def hhmm(cls, v: list[str]) -> list[str]:
+        return MedIn.hhmm(v) if v else []
 
 
 class DoseIn(BaseModel):
@@ -371,6 +381,62 @@ def meds_adherence(db: Session, patient_id: int, since: datetime, until: datetim
                                 for m in meds], answers, since, until, TZ_HOURS)
 
 
+# ---------------------------------------------------------------- 30-s check plan ("control" mode)
+_CHECK_CACHE: dict[int, str] = {}      # strip id -> verdict (strips never change after upload)
+
+
+def check_verdicts(strips: list[EcgStrip]) -> list[tuple[datetime, str]]:
+    out = []
+    for e in strips:
+        if e.id not in _CHECK_CACHE:
+            _CHECK_CACHE[e.id] = ecgtools.check(json.loads(e.samples), e.fs)["verdict"]
+        out.append((e.ts, _CHECK_CACHE[e.id]))
+    return out
+
+
+def plan_out(p: CheckPlan | None) -> dict | None:
+    return {"times": p.times.split(",") if p.times else [], "active": p.active, "set_by": p.set_by,
+            "updated_at": iso(p.updated_at)} if p else None
+
+
+def set_plan(db: Session, patient_id: int, body: CheckPlanIn, role: str) -> dict:
+    p = db.scalar(select(CheckPlan).where(CheckPlan.patient_id == patient_id))
+    if not p:
+        p = CheckPlan(patient_id=patient_id)
+        db.add(p)
+    p.times, p.active, p.set_by, p.updated_at = ",".join(body.times), body.active and bool(body.times), role, utcnow()
+    db.commit()
+    return plan_out(p)
+
+
+def checks_summary(db: Session, patient_id: int, since: datetime, until: datetime) -> dict:
+    p = db.scalar(select(CheckPlan).where(CheckPlan.patient_id == patient_id))
+    strips = list(db.scalars(select(EcgStrip).where(EcgStrip.patient_id == patient_id, EcgStrip.reason == "check",
+                                                    EcgStrip.ts >= since, EcgStrip.ts <= until).order_by(EcgStrip.ts)))
+    checks = check_verdicts(strips)
+    times = p.times.split(",") if p and p.active and p.times else []
+    s = analytics.check_adherence(times, max(since, p.updated_at) if p else until, until, checks, TZ_HOURS)
+    return {"plan": plan_out(p), **s, "last": [{"ts": iso(t), "verdict": v} for t, v in checks[-6:][::-1]]}
+
+
+@app.get("/api/me/checkplan")
+def my_checkplan(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    return plan_out(db.scalar(select(CheckPlan).where(CheckPlan.patient_id == user.id)))
+
+
+@app.put("/api/me/checkplan")
+def put_my_checkplan(body: CheckPlanIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    return set_plan(db, user.id, body, "patient")
+
+
+@app.put("/api/patients/{patient_id}/checkplan")
+def put_patient_checkplan(patient_id: int, body: CheckPlanIn, doctor: User = Depends(require_role("doctor")),
+                          db: Session = Depends(get_db)):
+    p = own_patient(db, doctor, patient_id)
+    log_access(db, p.id, doctor, "checkplan")
+    return set_plan(db, p.id, body, "doctor")
+
+
 @app.get("/api/me/meds")
 def my_meds(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
     """Active medicines and today's doses with the patient's answers (local day)."""
@@ -568,6 +634,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
         "episodes": eps,
         "hr_events": [{**e, "start": iso(e["start"]), "end": iso(e["end"])} for e in analytics.hr_events(rows)],
         "medications": meds_adherence(db, patient.id, since, until),
+        "checks": checks_summary(db, patient.id, since, until),
         "triggers": analytics.triggers(rows, diary_of(db, patient.id, since, until), DAY_TAGS, TZ_HOURS),
         "series": analytics.series(rows),
         "hourly": analytics.hourly(rows, since, until),
@@ -788,6 +855,7 @@ def export_data(db: Session, u: User) -> dict:
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
         "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
         "medication_doses": [{"medication_id": d.medication_id, "slot": d.slot, "status": d.status} for d in q(MedDose, MedDose.patient_id)],
+        "check_plan": plan_out(db.scalar(select(CheckPlan).where(CheckPlan.patient_id == u.id))),
         "diary_days": [{"day": d.day, "tags": [t for t in d.tags.split(",") if t]} for d in q(DayTag, DayTag.patient_id)],
         "doctor_notes": notes_of(db, u.id) if u.role == "patient" else [],
         "access_log": [{"ts": iso(a.ts), "actor_id": a.actor_id, "action": a.action} for a in q(AccessLog, AccessLog.patient_id)],
@@ -839,6 +907,7 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(Symptom).where(Symptom.patient_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
         delete(MedDose).where(MedDose.patient_id == uid),
+        delete(CheckPlan).where(CheckPlan.patient_id == uid),
         delete(Medication).where(Medication.patient_id == uid),
         delete(Note).where((Note.patient_id == uid) | (Note.author_id == uid)),
         delete(EpisodeReview).where((EpisodeReview.patient_id == uid) | (EpisodeReview.reviewer_id == uid)),

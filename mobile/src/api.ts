@@ -31,6 +31,7 @@ export type EcgOut = { ts: number; fs: number; samples: number[]; state: number;
 
 export type Med = { id: number; name: string; dose: string | null; times: string[]; anticoagulant: boolean; active: boolean; created_at: string }
 export type TodayDose = { medication_id: number; name: string; dose: string | null; anticoagulant: boolean; slot: string; status: 'taken' | 'skipped' | null }
+export type CheckPlan = { times: string[]; active: boolean; set_by: 'patient' | 'doctor'; updated_at: string }
 export type MedBody = { name: string; dose?: string; times: string[]; anticoagulant: boolean }
 export type TgLink = { id: number; name: string; kind: string; created_at: string }
 export type Risk = { cha2ds2_vasc: number; cha2ds2_va: number; annual_stroke_risk_pct: number | null; level: 'low' | 'moderate' | 'high'; updated_at: string | null }
@@ -87,6 +88,8 @@ export const api = {
   report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`, {}, WAKE),
   symptom: (b: { kinds: string[]; severity: number; note?: string; ts?: number }) =>
     call<Symptom>('/api/symptoms', { method: 'POST', body: JSON.stringify(b) }),
+  checkPlan: () => call<CheckPlan | null>('/api/me/checkplan'),
+  setCheckPlan: (times: string[]) => call<CheckPlan>('/api/me/checkplan', { method: 'PUT', body: JSON.stringify({ times }) }),
   meds: () => call<{ meds: Med[]; today: TodayDose[] }>('/api/me/meds'),
   addMed: (b: MedBody) => call<Med>('/api/me/meds', { method: 'POST', body: JSON.stringify(b) }),
   editMed: (id: number, b: MedBody) => call<Med>(`/api/me/meds/${id}`, { method: 'PUT', body: JSON.stringify(b) }),

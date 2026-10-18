@@ -41,6 +41,8 @@ export type Risk = {
   missing_age: boolean; note: string; updated_at: string | null
 }
 export type Note = { id: number; ts: string; text: string; author: string }
+export type CheckPlan = { times: string[]; active: boolean; set_by: 'patient' | 'doctor'; updated_at: string }
+
 export type Report = {
   patient: User
   range: { from: string; to: string; hours: number }
@@ -53,6 +55,8 @@ export type Report = {
   battery: number | null
   episodes: Episode[]
   hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
+  checks?: { plan: CheckPlan | null; due: number; done: number; adherence: number | null; checks: number; regular: number
+    irregular: number; no_verdict: number; confirmed_irregular: number; last: { ts: string; verdict: 'regular' | 'irregular' | 'no_verdict' }[] }
   pvc?: { strips: number; skipped: number; beats: number; pvc: number; share: number | null
     worst: { ecg_id: number; ts: string; beats: number; pvc: number } | null } | null   // research, doctor only
   medications?: { id: number; name: string; dose: string | null; anticoagulant: boolean; times: string[]; due: number; taken: number

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
-import { api, del, emitRefresh, post, put, type EcgStrip as Strip, type Report, type Risk } from '../api'
+import { api, del, emitRefresh, post, put, type CheckPlan, type EcgStrip as Strip, type Report, type Risk } from '../api'
 import { Poincare } from '../components/Poincare'
 import { EcgStrip, EcgThumb, rrStats } from '../components/Ecg'
 import { Avatar, BatteryBadge, Empty, Icon, Modal, Seg, StatePill, SYMPTOM_LABEL, Tabs, useFmt } from '../components/ui'
@@ -347,7 +347,53 @@ function AnalysisTab({ rep, pid }: { rep: Report; pid: number }) {
         </>}
       </section>
       <RiskCard pid={pid} />
+      <CheckPlanCard rep={rep} pid={pid} />
     </div>
+  )
+}
+
+const PLAN_PRESETS: [string, string[]][] = [['2', ['09:00', '21:00']], ['3', ['08:00', '14:00', '20:00']]]
+
+/** "Control" mode: 30-s checks on a schedule. Notebook 15 (ml/WEAR_MODES.md): 2-3 checks a day found AF on 98-100 %
+ *  of days when AF burden was >= 50 %, but only 2-7 % when it was < 5 % -- searching for rare episodes needs continuous wear. */
+function CheckPlanCard({ rep, pid }: { rep: Report; pid: number }) {
+  const f = useFmt()
+  const ch = rep.checks
+  const [plan, setPlan] = useState<CheckPlan | null>(ch?.plan ?? null)
+  const [custom, setCustom] = useState('')
+  const [saving, setSaving] = useState(false)
+  async function save(times: string[]) {
+    setSaving(true)
+    try { setPlan(await put<CheckPlan>(`/api/patients/${pid}/checkplan`, { times })); emitRefresh() } finally { setSaving(false) }
+  }
+  const active = plan?.active ? plan.times : []
+  const V: Record<string, [string, string]> = {
+    regular: ['ok', f.tr('ровный', 'regular', 'бирдей')], irregular: ['af', f.tr('неровный', 'irregular', 'бирдей эмес')],
+    no_verdict: ['muted', f.tr('не прочитано', 'unreadable', 'окулган жок')] }
+  return (
+    <section className="card">
+      <div className="card-head"><h2>{Icon.pulse(18)} {f.tr('Проверки 30 с по расписанию', 'Scheduled 30-s checks', 'Графиги менен 30 с текшерүү')}</h2>{saving && <span className="muted">…</span>}</div>
+      <p className="muted">{active.length
+        ? <>{f.tr('План', 'Plan', 'План')}: <b>{active.join(', ')}</b> · {plan?.set_by === 'doctor' ? f.tr('назначил врач', 'set by the doctor', 'дарыгер белгиледи') : f.tr('выбрал пациент', 'set by the patient', 'бейтап тандады')}</>
+        : f.tr('Плана нет', 'No plan', 'План жок')}</p>
+      <div className="row-btns">
+        {PLAN_PRESETS.map(([n, t]) => <button key={n} className={`btn ${active.join() === t.join() ? '' : 'ghost'}`} onClick={() => save(t)}>{f.tr(`${n} раза в день`, `${n} a day`, `күнүнө ${n} жолу`)}</button>)}
+        <input className="plan-in" placeholder="07:30, 19:30" value={custom} onChange={e => setCustom(e.target.value)} />
+        <button className="btn ghost" disabled={!/^\s*([01]\d|2[0-3]):[0-5]\d(\s*,\s*([01]\d|2[0-3]):[0-5]\d)*\s*$/.test(custom)}
+          onClick={() => save(custom.split(',').map(x => x.trim()))}>{f.tr('Задать', 'Set', 'Коюу')}</button>
+        {active.length > 0 && <button className="btn ghost" onClick={() => save([])}>{f.tr('Отменить', 'Turn off', 'Өчүрүү')}</button>}
+      </div>
+      {ch && ch.checks + ch.due > 0 && <table className="pc-table"><tbody>
+        <tr><td>{f.tr('Сделано по плану', 'Done as planned', 'План боюнча жасалды')}</td><td><b>{ch.done}</b> / {ch.due}{ch.adherence != null ? ` (${f.pct(ch.adherence)})` : ''}</td></tr>
+        <tr><td>{f.tr('Всего проверок', 'All checks', 'Бардык текшерүүлөр')}</td><td>{ch.checks}: {ch.regular} {V.regular[1]}, {ch.irregular} {V.irregular[1]}, {ch.no_verdict} {V.no_verdict[1]}</td></tr>
+        <tr><td>{f.tr('Неровный дважды подряд', 'Irregular twice in a row', 'Катары менен эки жолу бирдей эмес')}</td><td><b className={ch.confirmed_irregular ? 'r-af' : ''}>{ch.confirmed_irregular}</b></td></tr>
+        {ch.last.map(x => <tr key={x.ts}><td>{f.dt(x.ts)}</td><td className={V[x.verdict][0]}>{V[x.verdict][1]}</td></tr>)}
+      </tbody></table>}
+      <p className="fine">{f.tr(
+        'Режим для контроля уже известной ФП. На записях LTAFDB 2–3 проверки в день находили ФП в 98–100 % дней при нагрузке ≥ 50 %, но лишь в 2–7 % при нагрузке < 5 %. Для поиска редких эпизодов нужен постоянный режим.',
+        'For monitoring known AF. On LTAFDB, 2–3 checks a day found AF on 98–100 % of days at burden ≥ 50 %, but on only 2–7 % at burden < 5 %. Searching for rare episodes needs continuous wear.',
+        'Белгилүү ФПны көзөмөлдөө үчүн. LTAFDB жазууларында күнүнө 2–3 текшерүү жүк ≥ 50 % болгондо күндөрдүн 98–100 %ында ФПны тапты, бирок жүк < 5 % болгондо 2–7 % гана. Сейрек эпизоддорду издөө үчүн дайыма тагынуу керек.')}</p>
+    </section>
   )
 }
 

@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
-import type { Med } from './api'
+import type { CheckPlan, Med } from './api'
 import { translate, type Lang } from './i18n'
 
 const K_IDS = 'afib.medNotif'
@@ -27,4 +27,24 @@ export async function scheduleMedReminders(meds: Med[], lang: Lang) {
     }
     await AsyncStorage.setItem(K_IDS, JSON.stringify(ids))
   } catch { /* permissions refused: the in-app list still works */ }
+}
+
+const K_CHECK = 'afib.checkNotif'
+
+/** Reminders for scheduled 30-s checks ("control" mode); the plan may come from the doctor. */
+export async function scheduleCheckReminders(plan: CheckPlan | null, lang: Lang) {
+  if (Platform.OS === 'web') return
+  try {
+    const old: string[] = JSON.parse((await AsyncStorage.getItem(K_CHECK)) ?? '[]')
+    await Promise.all(old.map(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => undefined)))
+    const ids: string[] = []
+    for (const t of plan?.active ? plan.times : []) {
+      const [hour, minute] = t.split(':').map(Number)
+      ids.push(await Notifications.scheduleNotificationAsync({
+        content: { title: translate(lang, 'check_notif_t'), body: translate(lang, 'check_notif_b') },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute },
+      }))
+    }
+    await AsyncStorage.setItem(K_CHECK, JSON.stringify(ids))
+  } catch { /* permissions refused: the plan still shows on the main screen */ }
 }

@@ -646,3 +646,5 @@ a.kpi:hover { transform: translateY(-2px); }
 .hr-list li span{color:var(--ink-3);font-size:13px}
 
 .tag-research { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; padding: 1px 6px; border-radius: 4px; background: var(--warn-soft, #fbf0d6); color: var(--warn, #9a6a00); }
+.plan-in { width: 150px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font: inherit; }
+td.ok { color: var(--ok); } td.af { color: var(--af); } td.muted { color: var(--ink-3); }

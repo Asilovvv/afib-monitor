@@ -223,6 +223,18 @@ class Medication(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class CheckPlan(Base):
+    """30-second checks on a daily schedule ("control" of known AF: Notebook 15 found 2-3 checks a day enough when AF
+    burden is high; "search" for rare episodes needs continuous wear instead). Set by the patient or the doctor."""
+    __tablename__ = "check_plans"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    times: Mapped[str] = mapped_column(String(100))                  # "08:00,14:00,20:00", patient's local time
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    set_by: Mapped[str] = mapped_column(String(10), default="patient")  # "patient" | "doctor"
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class MedDose(Base):
     """The patient's answer for one scheduled dose: taken or skipped (no row = no answer)."""
     __tablename__ = "med_doses"

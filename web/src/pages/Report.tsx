@@ -71,6 +71,11 @@ export default function Report({ me }: { me: User }) {
             [f.t('Симптомы'), rep.symptoms.length ? `${rep.symptoms.length} · ${symAf} ${f.tr('при ФП', 'in AF', 'ФПда')}` : '0']]
             .map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}
         </div>
+        {rep.checks && (rep.checks.due > 0 || rep.checks.checks > 0) && <p className="r-fine r-pvc">
+          {f.tr('Проверки 30 с', '30-s checks', '30 с текшерүү')}{rep.checks.plan?.active ? ` (${f.tr('план', 'plan', 'план')} ${rep.checks.plan.times.join(', ')})` : ''}:{' '}
+          {rep.checks.due > 0 && <><b>{rep.checks.done}</b> {f.tr('из', 'of', '/')} {rep.checks.due} {f.tr('по плану', 'as planned', 'план боюнча')}; </>}
+          {f.tr('всего', 'total', 'бардыгы')} {rep.checks.checks}: {rep.checks.regular} {f.tr('ровный', 'regular', 'бирдей')}, {rep.checks.irregular} {f.tr('неровный', 'irregular', 'бирдей эмес')}, {rep.checks.no_verdict} {f.tr('не прочитано', 'unreadable', 'окулган жок')};
+          {' '}{f.tr('неровный дважды подряд', 'irregular twice in a row', 'катары менен эки жолу бирдей эмес')}: <b className={rep.checks.confirmed_irregular ? 'r-af' : ''}>{rep.checks.confirmed_irregular}</b>.</p>}
         {rep.pvc && rep.pvc.strips > 0 && <p className="r-fine r-pvc"><span className="tag-research">{f.tr('исследование', 'research', 'изилдөө')}</span>{' '}
           {f.tr('Ранние желудочковые сокращения (оценка алгоритма)', 'Early ventricular beats (algorithm estimate)', 'Эрте карынча согуулары (алгоритмдин баалоосу)')}:{' '}
           <b>{rep.pvc.pvc}</b> {f.tr('из', 'of', '/')} {rep.pvc.beats} {f.tr('ударов', 'beats', 'согуу')} (<b>{f.pct(rep.pvc.share ?? 0)}</b>)

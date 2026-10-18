@@ -463,3 +463,41 @@ def test_pvc_in_doctor_report_only():
         assert "pvc" not in c.get(f"/api/patients/{pid}/report?hours=24", headers=auth(dt)).json()
     finally:
         m.PRODUCT_MODE = "research"
+
+
+def test_check_plan_control_mode():
+    import calendar
+    from datetime import timedelta
+    from app import analytics, main as m
+    from app.db import SessionLocal
+    from app.ecgsynth import synth_ecg
+    from app.models import CheckPlan
+    dt, pt, pid = _pair("plan")
+    assert c.get("/api/me/checkplan", headers=auth(pt)).json() is None
+    assert c.put("/api/me/checkplan", json={"times": ["25:00"]}, headers=auth(pt)).status_code == 422
+    r = c.put(f"/api/patients/{pid}/checkplan", json={"times": ["20:00", "08:00", "14:00"]}, headers=auth(dt)).json()
+    assert r["times"] == ["08:00", "14:00", "20:00"] and r["set_by"] == "doctor" and r["active"]
+    assert c.get("/api/me/checkplan", headers=auth(pt)).json()["set_by"] == "doctor"
+    # the plan started 2 days ago; the patient did checks at 4 of the planned times, two of them irregular in a row
+    with SessionLocal() as db:
+        p = db.query(CheckPlan).filter_by(patient_id=pid).one()
+        p.updated_at = m.utcnow() - timedelta(days=2)
+        db.commit()
+        start = p.updated_at
+    slots = [m.datetime.strptime(s, "%Y-%m-%dT%H:%M") - timedelta(hours=m.TZ_HOURS)
+             for s in analytics.dose_slots(["08:00", "14:00", "20:00"], start, m.utcnow(), m.TZ_HOURS)]
+    assert 5 <= len(slots) <= 7
+    done = slots[:4]
+    for k, t in enumerate(done):
+        af = k >= 2
+        c.post("/api/ecg", json={"ts": calendar.timegm((t + timedelta(minutes=20)).timetuple()),
+                                 "samples": synth_ecg(30, afib=af, bpm=95 if af else 70, seed=50 + k), "state": 0, "reason": "check"}, headers=auth(pt))
+    last = done[3] + timedelta(minutes=25)       # the repeat 5 minutes later, also AF -> confirmed
+    c.post("/api/ecg", json={"ts": calendar.timegm(last.timetuple()), "samples": synth_ecg(30, afib=True, bpm=95, seed=60),
+                             "state": 0, "reason": "check"}, headers=auth(pt))
+    ch = c.get(f"/api/patients/{pid}/report?hours=72", headers=auth(dt)).json()["checks"]
+    assert ch["due"] == len(slots) and ch["done"] == 4 and ch["checks"] == 5
+    assert ch["irregular"] >= 2 and ch["confirmed_irregular"] >= 1 and len(ch["last"]) == 5
+    assert c.get("/api/me/report?hours=72", headers=auth(pt)).json()["checks"]["done"] == 4
+    off = c.put("/api/me/checkplan", json={"times": []}, headers=auth(pt)).json()
+    assert off["active"] is False
