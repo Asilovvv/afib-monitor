@@ -1,12 +1,23 @@
 name: Firmware
 on:
   push:
-    paths: ["firmware/**", ".github/workflows/firmware.yml"]
+    paths: ["firmware/**", "backend/app/ecgtools.py", "tools/parity/**", ".github/workflows/firmware.yml"]
   workflow_dispatch:
 
 # Compiles the M5Stack CoreS3 SE firmware exactly as the README tells a person to do in Arduino IDE
 # (esp32 core 3.x + M5Unified), so that the day the board arrives only flashing is left.
 jobs:
+  parity:
+    # the 30-second check on the device must give the same verdict as the server on the same strips
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Server verdicts on 40 synthetic strips
+        run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
+      - name: Device code on a PC, same strips
+        run: g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/check30_host.cpp -o /tmp/c30 && /tmp/c30 < /tmp/parity.txt
   build:
     runs-on: ubuntu-latest
     steps:
