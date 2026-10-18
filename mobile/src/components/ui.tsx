@@ -57,9 +57,13 @@ const TS: Record<TV, TextStyle> = {
   mono: { fontFamily: F.mono, fontSize: 12.5 },
 }
 export function T({ v = 'body', c, style, children, lines }: { v?: TV; c?: string; style?: StyleProp<TextStyle>; children: ReactNode; lines?: number }) {
-  const { theme } = useApp()
+  const { theme, big } = useApp()
   const color = c ?? (v === 'small' || v === 'label' || v === 'mono' ? theme.ink3 : theme.ink)
-  return <Text numberOfLines={lines} style={[TS[v], { color }, style]}>{children}</Text>
+  const base = StyleSheet.flatten([TS[v], { color }, style])
+  // large mode: everything 25 % bigger, the smallest text a little more (it is what older eyes miss first)
+  const k = big ? (v === 'small' || v === 'label' || v === 'mono' ? 1.35 : 1.25) : 1
+  const scaled = k === 1 ? base : { ...base, fontSize: (base.fontSize ?? 15) * k, lineHeight: base.lineHeight ? base.lineHeight * k : undefined }
+  return <Text numberOfLines={lines} style={scaled}>{children}</Text>
 }
 
 // ---------------------------------------------------------------- containers

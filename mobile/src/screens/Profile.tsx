@@ -1,6 +1,6 @@
 import { locOf } from '../i18n'
 import { useEffect, useState } from 'react'
-import { Linking, Pressable, ScrollView, Share, StyleSheet, TextInput, View, Platform } from 'react-native'
+import { Linking, Pressable, ScrollView, Share, StyleSheet, Switch, TextInput, View, Platform } from 'react-native'
 import { api, settings, type Risk, type TgLink } from '../api'
 import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
@@ -19,7 +19,7 @@ function Item({ icon, title, sub, onPress, right }: { icon: IconName; title: str
 }
 
 export default function Profile({ onSignIn }: { onSignIn: () => void }) {
-  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source } = useApp()
+  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig } = useApp()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [dev, setDev] = useState(false)
@@ -94,6 +94,10 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
         <Seg<ThemePref> value={themePref} onChange={setThemePref} items={[['system', t('th_system')], ['light', t('th_light')], ['dark', t('th_dark')]]} />
         <Row gap={8} style={{ marginTop: 14, marginBottom: 8 }}><Icon name="globe" size={16} color={tm.ink3} /><T v="small">{t('language')}</T></Row>
         <Seg value={lang} onChange={setLang} items={[['ru', 'Рус'], ['ky', 'Кыр'], ['en', 'Eng']]} />
+        <Row style={{ justifyContent: 'space-between', marginTop: 16 }}>
+          <View style={{ flex: 1, paddingRight: 12 }}><T v="h3">{t('big_mode')}</T><T v="small">{t('big_mode_sub')}</T></View>
+          <Switch value={big} onValueChange={setBig} accessibilityLabel={t('big_mode')} />
+        </Row>
       </Card>
 
       {user && <Button title={t('sign_out')} kind="ghost" icon="logout" onPress={signOut} />}

@@ -52,6 +52,8 @@ export type Report = {
   battery: number | null
   episodes: Episode[]
   hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
+  medications?: { id: number; name: string; dose: string | null; anticoagulant: boolean; times: string[]; due: number; taken: number
+    skipped: number; no_answer: number; adherence: number | null; missed_slots: string[] }[]
   triggers?: {
     days: { day: string; tags: string[]; monitored_h: number; af_burden: number; episodes: number }[]
     factors: { tag: string; days_with: number; days_without: number; burden_with: number | null; burden_without: number | null

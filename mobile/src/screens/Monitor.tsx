@@ -11,6 +11,7 @@ import { F, stateTone } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
 import { SymptomSheet } from './SymptomSheet'
 import { CheckSheet } from './CheckSheet'
+import { MedsCard } from './Meds'
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -64,7 +65,7 @@ function Halo({ color }: { color: string }) {
 
 export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
   const { theme: tm, t, user, source, link, status, battery, ecg, episodes, history, startDevice, startSimulator,
-    recording, recordEcg, lang, mode } = useApp()
+    recording, recordEcg, lang, mode, big } = useApp()
   const now = useNow()
   const [devOpen, setDevOpen] = useState(false)
   const [symOpen, setSymOpen] = useState(false)
@@ -163,6 +164,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
               </Row>
             </Card>
 
+            {!big && (<>
             {/* live ECG */}
             <Card style={{ marginTop: 14, padding: 14 }}>
               <Row style={{ justifyContent: 'space-between', marginBottom: 10, paddingHorizontal: 4 }}>
@@ -194,8 +196,11 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                 <Stat label={t('monitored')} value={fmtDur(t, today.minutes * 60)} />
               </Row>
             </Card>
+            </>)}
           </>
         )}
+
+        <MedsCard big={big} />
 
         {/* quick actions */}
         <Row style={{ marginTop: 14 }} gap={12}>

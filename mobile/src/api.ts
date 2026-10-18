@@ -29,6 +29,9 @@ export type Report = {
 export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
 export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' | 'check' }
 
+export type Med = { id: number; name: string; dose: string | null; times: string[]; anticoagulant: boolean; active: boolean; created_at: string }
+export type TodayDose = { medication_id: number; name: string; dose: string | null; anticoagulant: boolean; slot: string; status: 'taken' | 'skipped' | null }
+export type MedBody = { name: string; dose?: string; times: string[]; anticoagulant: boolean }
 export type TgLink = { id: number; name: string; kind: string; created_at: string }
 export type Risk = { cha2ds2_vasc: number; cha2ds2_va: number; annual_stroke_risk_pct: number | null; level: 'low' | 'moderate' | 'high'; updated_at: string | null }
 
@@ -84,6 +87,12 @@ export const api = {
   report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`, {}, WAKE),
   symptom: (b: { kinds: string[]; severity: number; note?: string; ts?: number }) =>
     call<Symptom>('/api/symptoms', { method: 'POST', body: JSON.stringify(b) }),
+  meds: () => call<{ meds: Med[]; today: TodayDose[] }>('/api/me/meds'),
+  addMed: (b: MedBody) => call<Med>('/api/me/meds', { method: 'POST', body: JSON.stringify(b) }),
+  editMed: (id: number, b: MedBody) => call<Med>(`/api/me/meds/${id}`, { method: 'PUT', body: JSON.stringify(b) }),
+  stopMed: (id: number) => call<{ ok: boolean }>(`/api/me/meds/${id}`, { method: 'DELETE' }),
+  dose: (id: number, slot: string, status: 'taken' | 'skipped') =>
+    call<{ status: string }>(`/api/me/meds/${id}/dose`, { method: 'POST', body: JSON.stringify({ slot, status }) }),
   setDay: (day: string, tags: string[]) => call<{ day: string; tags: string[] }>('/api/me/day', { method: 'POST', body: JSON.stringify({ day, tags }) }),
   days: (n = 31) => call<{ day: string; tags: string[] }[]>(`/api/me/days?days=${n}`),
   ecg: (b: EcgOut) => call<EcgMeta>('/api/ecg', { method: 'POST', body: JSON.stringify(b) }),

@@ -68,6 +68,13 @@ const ru = {
   check_no_verdict: 'Не удалось прочитать', check_no_verdict_sub: 'Сядьте удобно, проверьте электроды и повторите проверку.', check_again: 'Проверить ещё раз', check_saved: 'Запись отправлена врачу', close: 'Закрыть',
   day_title: 'Что было сегодня?', day_sub: 'Отметьте — врач увидит, как это связано с ритмом', day_nothing: 'Ничего особенного', day_saved: 'Сохранено', day_offline: 'Нет связи — отметьте позже',
   f_alcohol: 'Алкоголь', f_caffeine: 'Кофе, крепкий чай', f_poor_sleep: 'Плохо спал(а)', f_stress: 'Стресс', f_exercise: 'Спорт, нагрузка', f_missed_meds: 'Пропустил(а) лекарство', f_heavy_meal: 'Плотно поел(а)',
+  meds_today: 'Лекарства сегодня', meds_add: 'Добавить лекарство', meds_edit: 'Изменить', meds_empty: 'Добавьте лекарства — напомню вовремя, а врач увидит, всё ли принято.',
+  meds_ac: 'против тромбов', meds_taken: 'Принял(а)', meds_skip: 'Пропустить', meds_later: 'Позже', meds_title: 'Мои лекарства',
+  meds_stop_q: 'Больше не принимаете?', meds_stop: 'Убрать', meds_note: 'Напоминания приходят, даже если нет интернета. Не меняйте лечение без врача.',
+  meds_need: 'Укажите название и время', meds_name: 'Название, например «Апиксабан»', meds_dose: 'Доза, например «5 мг»', meds_times: 'Во сколько принимать',
+  meds_ac_q: 'Это препарат против тромбов?', meds_ac_hint: 'Антикоагулянт: варфарин, апиксабан, ривароксабан, дабигатран. Врач увидит пропуски отдельно.',
+  med_notif_t: 'Время принять лекарство', med_notif_ac: 'Не пропустите: препарат против тромбов',
+  big_mode: 'Крупный режим', big_mode_sub: 'Большой шрифт и только главное на экране',
   act_report: 'открыл отчёт', act_ecg: 'смотрел ЭКГ', act_risk_edit: 'изменил шкалу риска',
 }
 export type Key = keyof typeof ru
@@ -131,6 +138,13 @@ const en: Record<Key, string> = {
   check_no_verdict: 'Could not read', check_no_verdict_sub: 'Sit comfortably, check the electrodes and try again.', check_again: 'Check again', check_saved: 'Recording sent to your doctor', close: 'Close',
   day_title: 'How was today?', day_sub: 'Tick what happened — your doctor will see how it relates to your rhythm', day_nothing: 'Nothing special', day_saved: 'Saved', day_offline: 'No connection — tick it later',
   f_alcohol: 'Alcohol', f_caffeine: 'Coffee, strong tea', f_poor_sleep: 'Slept badly', f_stress: 'Stress', f_exercise: 'Exercise', f_missed_meds: 'Missed medication', f_heavy_meal: 'Heavy meal',
+  meds_today: 'Medicines today', meds_add: 'Add a medicine', meds_edit: 'Edit', meds_empty: 'Add your medicines — I will remind you on time and your doctor will see whether all were taken.',
+  meds_ac: 'blood thinner', meds_taken: 'Taken', meds_skip: 'Skip', meds_later: 'Later', meds_title: 'My medicines',
+  meds_stop_q: 'Not taking it any more?', meds_stop: 'Remove', meds_note: 'Reminders arrive even without internet. Do not change your treatment without your doctor.',
+  meds_need: 'Enter a name and a time', meds_name: 'Name, e.g. "Apixaban"', meds_dose: 'Dose, e.g. "5 mg"', meds_times: 'When to take it',
+  meds_ac_q: 'Is it a blood thinner?', meds_ac_hint: 'Anticoagulant: warfarin, apixaban, rivaroxaban, dabigatran. Your doctor sees missed doses separately.',
+  med_notif_t: 'Time to take your medicine', med_notif_ac: 'Do not miss it: blood thinner',
+  big_mode: 'Large mode', big_mode_sub: 'Bigger text and only the essentials on screen',
   act_report: 'opened the report', act_ecg: 'viewed an ECG', act_risk_edit: 'edited the risk score',
 }
 
@@ -193,6 +207,13 @@ const ky: Record<Key, string> = {
   check_no_verdict: 'Окуй алган жокмун', check_no_verdict_sub: 'Ыңгайлуу отуруп, электроддорду текшерип, кайталаңыз.', check_again: 'Дагы текшерүү', check_saved: 'Жазуу дарыгерге жөнөтүлдү', close: 'Жабуу',
   day_title: 'Бүгүн эмне болду?', day_sub: 'Белгилеңиз — дарыгер анын ритм менен байланышын көрөт', day_nothing: 'Өзгөчө эч нерсе', day_saved: 'Сакталды', day_offline: 'Байланыш жок — кийинчерээк белгилеңиз',
   f_alcohol: 'Алкоголь', f_caffeine: 'Кофе, коюу чай', f_poor_sleep: 'Начар уктадым', f_stress: 'Стресс', f_exercise: 'Спорт, көнүгүү', f_missed_meds: 'Дары ичпей калдым', f_heavy_meal: 'Көп тамак жедим',
+  meds_today: 'Бүгүнкү дарылар', meds_add: 'Дары кошуу', meds_edit: 'Өзгөртүү', meds_empty: 'Дарыларыңызды кошуңуз — убагында эскертем, дарыгер баары ичилгенин көрөт.',
+  meds_ac: 'тромбго каршы', meds_taken: 'Ичтим', meds_skip: 'Өткөрүү', meds_later: 'Кийин', meds_title: 'Менин дарыларым',
+  meds_stop_q: 'Мындан ары ичпейсизби?', meds_stop: 'Алып салуу', meds_note: 'Эскертүүлөр интернет жок болсо да келет. Дарыгерсиз дарылоону өзгөртпөңүз.',
+  meds_need: 'Атын жана убактысын жазыңыз', meds_name: 'Аты, мисалы «Апиксабан»', meds_dose: 'Дозасы, мисалы «5 мг»', meds_times: 'Качан ичүү керек',
+  meds_ac_q: 'Бул тромбго каршы дарыбы?', meds_ac_hint: 'Антикоагулянт: варфарин, апиксабан, ривароксабан, дабигатран. Дарыгер өткөрүлгөндөрдү өзүнчө көрөт.',
+  med_notif_t: 'Дары ичүү убактысы', med_notif_ac: 'Өткөрбөңүз: тромбго каршы дары',
+  big_mode: 'Ири режим', big_mode_sub: 'Чоң шрифт жана экранда эң керектүүсү гана',
   act_report: 'отчётту ачты', act_ecg: 'ЭКГны карады', act_risk_edit: 'тобокелдик шкаласын өзгөрттү',
 }
 

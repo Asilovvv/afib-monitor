@@ -121,9 +121,16 @@ export default function Report({ me }: { me: User }) {
               `Сравниваются только дни, когда пациент заполнил дневник и носил датчик ≥ ${tr?.min_monitored_h ?? 4} ч (день и следующая ночь, 06:00–06:00). Нужно ≥ ${tr?.min_days ?? 3} дней с фактором и без. Это наблюдение по дневнику одного человека, а не доказательство причины.`,
               `Only days the patient filled in the diary and wore the sensor ≥ ${tr?.min_monitored_h ?? 4} h (day and following night, 06:00–06:00). Needs ≥ ${tr?.min_days ?? 3} days with and without. An observation from one person's diary, not proof of cause.`,
               `Бейтап күндөлүк толтурган жана датчикти ≥ ${tr?.min_monitored_h ?? 4} саат тагынган күндөр гана салыштырылат (06:00–06:00). Фактор менен жана жок ≥ ${tr?.min_days ?? 3} күн керек. Бул бир адамдын күндөлүгү боюнча байкоо, себептин далили эмес.`)}</p>
+            {(rep.medications?.length ?? 0) > 0 && <>
+              <h2>{f.tr('Приём лекарств (по отметкам пациента)', 'Medicines (patient-reported)', 'Дары ичүү (бейтаптын белгилери)')}</h2>
+              <table className="r-table"><tbody>{rep.medications!.map(m => <tr key={m.id}>
+                <td>{m.anticoagulant ? <b>{m.name}</b> : m.name}{m.dose ? ` ${m.dose}` : ''}{m.anticoagulant ? <span className="r-af"> · {f.tr('антикоагулянт', 'anticoagulant', 'антикоагулянт')}</span> : ''}</td>
+                <td>{m.times.join(', ')}</td>
+                <td>{m.adherence == null ? '—' : <b className={m.anticoagulant && m.adherence < 0.9 ? 'r-af' : ''}>{f.pct(m.adherence)}</b>} ({m.taken}/{m.due}{m.skipped ? `, ${f.tr('пропущено', 'skipped', 'өткөрүлдү')} ${m.skipped}` : ''})</td></tr>)}</tbody></table>
+            </>}
             {rep.symptoms.length > 0 && <>
               <h2>{f.t('Симптомы')}</h2>
-              <table className="r-table"><tbody>{rep.symptoms.slice(0, 5).map(x => <tr key={x.id}><td>{f.dt(x.ts)}</td>
+              <table className="r-table"><tbody>{rep.symptoms.slice(0, rep.medications?.length ? 3 : 5).map(x => <tr key={x.id}><td>{f.dt(x.ts)}</td>
                 <td>{x.kinds.map(k => f.t(SYMPTOM_LABEL[k] ?? k)).join(', ')}</td>
                 <td>{inAf(x.ts) ? <b className="r-af">{f.tr('во время ФП', 'during AF', 'ФП учурунда')}</b> : f.tr('ритм ровный', 'regular rhythm', 'ритм бирдей')}</td></tr>)}</tbody></table>
             </>}
