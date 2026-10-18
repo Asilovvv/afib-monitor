@@ -501,6 +501,34 @@ def strips_poincare(strips: list[EcgStrip]) -> dict:
     return out
 
 
+_PVC_CACHE: dict[int, dict | None] = {}     # strip id -> estimate (strips never change after upload)
+PVC_MAX_STRIPS = 200
+
+
+def strips_pvc(strips: list[EcgStrip]) -> dict | None:
+    """Research estimate of early ventricular beats over the ECG strips of the period (doctor only, research mode).
+    Strips are recorded at events or on request, not continuously, so this is not a Holter PVC burden."""
+    if not ectopy.load_model():
+        return None
+    used, low, beats, pvc, worst = 0, 0, 0, 0, None
+    for e in strips[:PVC_MAX_STRIPS]:
+        if e.id not in _PVC_CACHE:
+            x = json.loads(e.samples)
+            a = ecgtools.analyze(x, e.fs)
+            _PVC_CACHE[e.id] = ectopy.count_pvc(x, a["r_peaks"], e.fs) if a["quality"]["sqi"] >= 0.4 else None
+        est = _PVC_CACHE[e.id]
+        if not est or not est["beats"]:
+            low += 1
+            continue
+        used += 1
+        beats += est["beats"]
+        pvc += est["pvc"]
+        if est["pvc"] and (worst is None or est["pvc"] / est["beats"] > worst["pvc"] / worst["beats"]):
+            worst = {"ecg_id": e.id, "ts": iso(e.ts), "beats": est["beats"], "pvc": est["pvc"]}
+    return {"strips": used, "skipped": low, "beats": beats, "pvc": pvc,
+            "share": round(pvc / beats, 4) if beats else None, "worst": worst}
+
+
 # ---------------------------------------------------------------- reports
 def load_rows(db: Session, patient_id: int, since: datetime, until: datetime) -> list[analytics.R]:
     q = (select(Reading.ts, Reading.state, Reading.prob, Reading.bpm)
@@ -651,6 +679,10 @@ def doctor_patient_report(patient_id: int, hours: float = Query(24, gt=0, le=24 
     p = own_patient(db, doctor, patient_id)
     log_access(db, p.id, doctor, "report")
     rep = patient_report(db, p, hours)
+    if PRODUCT_MODE == "research":           # PVC count = medical-device claim: research estimate, doctor only
+        rep["pvc"] = strips_pvc(list(db.scalars(select(EcgStrip).where(EcgStrip.patient_id == p.id,
+                                                                     EcgStrip.ts >= utcnow() - timedelta(hours=hours))
+                                              .order_by(EcgStrip.ts.desc()))))
     rep["notes"] = notes_of(db, p.id)
     rep["alerts"] = [alert_out(a, {p.id: p.name}) for a in db.scalars(
         select(Alert).where(Alert.patient_id == p.id).order_by(Alert.ts.desc()).limit(20))]

@@ -442,3 +442,24 @@ def test_pvc_research_estimate_doctor_only():
         assert "pvc_estimate" not in c.get(f"/api/ecg/{e['id']}", headers=auth(dt)).json()  # not in wellness mode
     finally:
         m.PRODUCT_MODE = "research"
+
+
+def test_pvc_in_doctor_report_only():
+    from app import main as m
+    from app.ecgsynth import synth_ecg
+    dt, pt, pid = _pair("pvcrep")
+    now = time.time()
+    for k in range(3):
+        c.post("/api/ecg", json={"ts": now - 600 * (k + 1), "samples": synth_ecg(30, afib=k == 1, bpm=70, seed=20 + k),
+                                 "state": 2 if k == 1 else 0, "reason": "manual"}, headers=auth(pt))
+    c.post("/api/ecg", json={"ts": now - 5000, "samples": [0.0] * 3750, "state": 0, "reason": "manual"}, headers=auth(pt))
+    rep = c.get(f"/api/patients/{pid}/report?hours=24", headers=auth(dt)).json()
+    pv = rep["pvc"]
+    assert pv["strips"] == 3 and pv["skipped"] == 1 and pv["beats"] > 60 and 0 <= pv["pvc"] <= pv["beats"]
+    assert pv["share"] == round(pv["pvc"] / pv["beats"], 4)
+    assert "pvc" not in c.get("/api/me/report?hours=24", headers=auth(pt)).json()           # never to the patient
+    m.PRODUCT_MODE = "wellness"
+    try:
+        assert "pvc" not in c.get(f"/api/patients/{pid}/report?hours=24", headers=auth(dt)).json()
+    finally:
+        m.PRODUCT_MODE = "research"

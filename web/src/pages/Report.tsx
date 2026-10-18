@@ -71,6 +71,14 @@ export default function Report({ me }: { me: User }) {
             [f.t('Симптомы'), rep.symptoms.length ? `${rep.symptoms.length} · ${symAf} ${f.tr('при ФП', 'in AF', 'ФПда')}` : '0']]
             .map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}
         </div>
+        {rep.pvc && rep.pvc.strips > 0 && <p className="r-fine r-pvc"><span className="tag-research">{f.tr('исследование', 'research', 'изилдөө')}</span>{' '}
+          {f.tr('Ранние желудочковые сокращения (оценка алгоритма)', 'Early ventricular beats (algorithm estimate)', 'Эрте карынча согуулары (алгоритмдин баалоосу)')}:{' '}
+          <b>{rep.pvc.pvc}</b> {f.tr('из', 'of', '/')} {rep.pvc.beats} {f.tr('ударов', 'beats', 'согуу')} (<b>{f.pct(rep.pvc.share ?? 0)}</b>)
+          {' '}{f.tr(`в ${rep.pvc.strips} записях ЭКГ`, `in ${rep.pvc.strips} ECG strips`, `${rep.pvc.strips} ЭКГ жазуусунда`)}
+          {rep.pvc.worst && <>; {f.tr('больше всего', 'most', 'эң көп')}: {f.dt(rep.pvc.worst.ts)}, {rep.pvc.worst.pvc}/{rep.pvc.worst.beats}</>}.
+          {' '}{f.tr('Записи делаются при событиях и по запросу, это не холтеровская нагрузка. Проверьте по ЭКГ.',
+            'Strips are taken at events and on request, so this is not a Holter burden. Check on the ECG.',
+            'Жазуулар окуяларда жана суроо боюнча жасалат, бул Холтер жүгү эмес. ЭКГ боюнча текшериңиз.')}</p>}
 
         <div className="r-charts">
           <div>

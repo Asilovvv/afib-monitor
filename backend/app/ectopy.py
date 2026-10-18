@@ -16,6 +16,9 @@ from .ecgtools import _highpass
 HALF_S = 0.25            # beat window ±250 ms
 N_PREV_SHAPES = 20       # median template of the previous beats
 N_PREV_RR = 10           # local mean RR
+# Decision threshold on the model probability. 0.5 in Notebook 13; 0.8 chosen in Notebook 14 on DS1 out-of-fold
+# predictions (V F1 0.830 -> 0.854), then on DS2: PPV 89.1 -> 95.5 %, sensitivity 95.4 -> 92.6 % (ml/PVC_GATE.md).
+THRESHOLD = 0.8
 
 
 def beat_features(x: list[float], peaks: list[int], fs: int = 125) -> list[tuple[int, list[float]]]:
@@ -95,5 +98,5 @@ def count_pvc(x: list[float], peaks: list[int], fs: int = 125, model: dict | Non
     if not model:
         return None
     feats = beat_features(x, peaks, fs)
-    hits = [p for p, f in feats if score(f, model) >= model.get("threshold", 0.5)]
+    hits = [p for p, f in feats if score(f, model) >= THRESHOLD]
     return {"beats": len(feats), "pvc": len(hits), "pvc_at_s": [round(p / fs, 2) for p in hits]}

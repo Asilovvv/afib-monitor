@@ -53,6 +53,8 @@ export type Report = {
   battery: number | null
   episodes: Episode[]
   hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
+  pvc?: { strips: number; skipped: number; beats: number; pvc: number; share: number | null
+    worst: { ecg_id: number; ts: string; beats: number; pvc: number } | null } | null   // research, doctor only
   medications?: { id: number; name: string; dose: string | null; anticoagulant: boolean; times: string[]; due: number; taken: number
     skipped: number; no_answer: number; adherence: number | null; missed_slots: string[] }[]
   triggers?: {

@@ -58,3 +58,5 @@ Counting PVCs is arrhythmia detection, which is a medical-device claim. Until re
 to the doctor, labelled as an estimate (the web strip view, "research" tag). Patients never see it. In wellness mode
 it is switched off. The numbers above come from one public database (MIT-BIH, 1980s Holter, 2 leads, our lead =
 MLII). How it performs on our chest patch is unknown until a clinical comparison with a cardiologist's annotation.
+
+> **Update (Notebook 14):** the decision threshold is now 0.8. On DS2, PPV rose from 89.1 to 95.5 % and sensitivity fell from 95.4 to 92.6 % (ml/PVC_GATE.md).
