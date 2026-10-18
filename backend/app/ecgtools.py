@@ -149,6 +149,7 @@ def analyze(x: list[float], fs: int = 125) -> dict:
 
 
 # "Check me in 30 seconds" (wellness wording): rules fixed before validation, see ml/CHECK30_CINC2017.md
+# CinC 2017 (never tuned on it): 91.4 % of AF recordings irregular, 14.1 % of normal ones too; noise is not caught.
 CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR = 16, 0.4, 0.10
 
 
