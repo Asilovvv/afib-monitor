@@ -519,7 +519,7 @@ static void finishCheck() {
     chkFirstIrrMs = 0;
     drawCheck("RESULTS DIFFER", 0x4208, "Repeat later at rest");
   } else if (r.verdict == 1) { snprintf(sub, sizeof sub, "%d bpm - 30 s regular", r.bpm); drawCheck("REGULAR RHYTHM", 0x0320, sub); }
-  else if (r.verdict == 2) { chkFirstIrrMs = 0; snprintf(sub, sizeof sub, "%d bpm - twice; not a diagnosis, see a doctor", r.bpm); drawCheck("IRREGULAR RHYTHM", 0xC400, sub); }
+  else if (r.verdict == 2) { chkFirstIrrMs = 0; snprintf(sub, sizeof sub, "%d bpm, twice in a row - see a doctor", r.bpm); drawCheck("IRREGULAR RHYTHM", 0xC400, sub); }
   else drawCheck("REPEAT THE CHECK", 0x4208, "Sit still, check the electrodes");
   chkShownMs = millis();
   Serial.printf("CHECK verdict=%d beats=%d sqi=%.2f irr=%.3f bsqi=%.3f bpm=%d calc_us=%lu free_heap=%lu\n", r.verdict, r.beats,
