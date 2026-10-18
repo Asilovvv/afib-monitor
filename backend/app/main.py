@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text, delete, func, select
 from sqlalchemy.orm import Session
 
-from . import analytics, ecgtools, risk, telegram
+from . import analytics, ecgtools, ectopy, risk, telegram
 from .auth import (check_password, current_user, hash_password, make_token, new_invite_code,
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
@@ -475,7 +475,12 @@ def get_ecg(ecg_id: int, user: User = Depends(current_user), db: Session = Depen
     if user.id != p.id:
         log_access(db, p.id, user, "ecg")
     x = json.loads(e.samples)
-    return {**ecg_meta(e), "samples": x, **ecgtools.analyze(x, e.fs)}
+    a = ecgtools.analyze(x, e.fs)
+    out = {**ecg_meta(e), "samples": x, **a}
+    # research estimate of early ventricular beats, for the doctor only (a PVC count is a medical-device claim)
+    if user.role == "doctor" and PRODUCT_MODE == "research" and a["quality"]["sqi"] >= 0.4:
+        out["pvc_estimate"] = ectopy.count_pvc(x, a["r_peaks"], e.fs)
+    return out
 
 
 def strips_poincare(strips: list[EcgStrip]) -> dict:

@@ -31,6 +31,7 @@ export type Quality = { sqi: number; level: 'good' | 'fair' | 'poor'; reasons: s
 export type PcStats = { sd1: number | null; sd2: number | null; ratio: number | null }
 export type EcgStrip = EcgMeta & {
   samples: number[]; r_peaks: number[]; rr: number[]; irregularity: number | null; quality: Quality
+  pvc_estimate?: { beats: number; pvc: number; pvc_at_s: number[] } | null
   poincare: PcStats & { points: number[][] }
 }
 export type RiskItem = { key: string; points: number; label: string; on: boolean; auto: boolean }

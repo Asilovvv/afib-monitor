@@ -250,6 +250,10 @@ function EcgModal({ id, onClose }: { id: number; onClose: () => void }) {
               <QualityBadge q={s.quality} />
               <p><b>SD1</b> {s.poincare.sd1 ?? '—'} ms · <b>SD2</b> {s.poincare.sd2 ?? '—'} ms · <b>SD1/SD2</b> {s.poincare.ratio ?? '—'}</p>
               <p className="muted">{f.tr('Нерегулярность RR', 'RR irregularity', 'RR туруксуздугу')}: <b className={s.irregularity && s.irregularity > 0.1 ? 'af-t' : ''}>{s.irregularity ?? '—'}</b> {f.tr('(> 0,10 — типично для ФП)', '(> 0.10 is typical for AF)', '(> 0,10 — ФП үчүн мүнөздүү)')}</p>
+              {s.pvc_estimate && <p className="muted"><span className="tag-research">{f.tr('исследование', 'research', 'изилдөө')}</span>{' '}
+                {f.tr('Ранние желудочковые удары (оценка)', 'Early ventricular beats (estimate)', 'Эрте карынча согуулары (баалоо)')}: <b>{s.pvc_estimate.pvc}</b> {f.tr('из', 'of', '/')} {s.pvc_estimate.beats}
+                {s.pvc_estimate.pvc > 0 && <> · {s.pvc_estimate.pvc_at_s.slice(0, 6).map(t => `${t} ${f.t('с')}`).join(', ')}</>}
+                <br /><span className="fine">{f.tr('Модель проверена на 22 людях MIT-BIH (DS2); не диагноз, сверьте с кривой.', 'Model tested on 22 people of MIT-BIH (DS2); not a diagnosis, check against the trace.', 'Модель MIT-BIH 22 адамда текшерилген (DS2); диагноз эмес, ийри сызык менен салыштырыңыз.')}</span></p>}
             </div>
           </div>
           <p className="fine">RR, ms — {f.tr('интервалы между ударами подписаны под кривой. Нерегулярные RR без зубцов P — главный признак ФП.', 'intervals between beats are printed under the trace. Irregular RR without P waves is the hallmark of AF.', 'согуулардын ортосундагы аралыктар ийри сызыктын астында жазылган. P тиштери жок туруксуз RR — ФПнын негизги белгиси.')}</p>

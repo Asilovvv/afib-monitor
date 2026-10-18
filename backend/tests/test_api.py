@@ -419,3 +419,26 @@ def test_medications_and_adherence():
     other = c.post("/api/auth/register", json={"email": "meds2@x.kg", "password": "secret1", "name": "O", "role": "patient"}).json()["token"]
     assert c.delete(f"/api/me/meds/{m2['id']}", headers=auth(other)).status_code == 404
     assert c.delete(f"/api/me/meds/{m2['id']}", headers=h).json() == {"ok": True}
+
+
+def test_pvc_research_estimate_doctor_only():
+    import hashlib
+    from app import ectopy
+    from app import main as m
+    from app.ecgsynth import synth_ecg
+    # the committed model is exactly the one Notebook 13 printed (ml/PVC_SMALL.md)
+    raw = open(ectopy._MODEL_PATH).read().rstrip("\n")
+    assert hashlib.sha256(raw.encode()).hexdigest()[:16] == "f719e22616a9928d"
+    assert ectopy.load_model()["kind"] == "trees" and len(ectopy.load_model()["trees"]) == 100
+    dt, pt, _ = _pair("pvc")
+    e = c.post("/api/ecg", json={"ts": time.time() - 40, "samples": synth_ecg(30, afib=False, bpm=75, seed=5), "state": 0,
+                                 "reason": "manual"}, headers=auth(pt)).json()
+    s = c.get(f"/api/ecg/{e['id']}", headers=auth(dt)).json()
+    est = s["pvc_estimate"]
+    assert est["beats"] > 20 and 0 <= est["pvc"] <= est["beats"] and len(est["pvc_at_s"]) == est["pvc"]
+    assert "pvc_estimate" not in c.get(f"/api/ecg/{e['id']}", headers=auth(pt)).json()     # never to the patient
+    m.PRODUCT_MODE = "wellness"
+    try:
+        assert "pvc_estimate" not in c.get(f"/api/ecg/{e['id']}", headers=auth(dt)).json()  # not in wellness mode
+    finally:
+        m.PRODUCT_MODE = "research"

@@ -1,7 +1,7 @@
 name: Firmware
 on:
   push:
-    paths: ["firmware/**", "backend/app/ecgtools.py", "tools/parity/**", ".github/workflows/firmware.yml"]
+    paths: ["firmware/**", "backend/app/ecgtools.py", "backend/app/ectopy.py", "backend/app/pvc_model.json", "tools/pvc_export.py", "tools/parity/**", ".github/workflows/firmware.yml"]
   workflow_dispatch:
 
 # Compiles the M5Stack CoreS3 SE firmware exactly as the README tells a person to do in Arduino IDE
@@ -18,6 +18,12 @@ jobs:
         run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
       - name: Device code on a PC, same strips
         run: g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/check30_host.cpp -o /tmp/c30 && /tmp/c30 < /tmp/parity.txt
+      - name: Device PVC header is generated from the committed model
+        run: python tools/pvc_export.py backend/app/pvc_model.json /tmp/pvc_model.h && diff -q /tmp/pvc_model.h firmware/AFibMonitor/pvc_model.h
+      - name: PVC features and model on the device = server, bit for bit (research estimate)
+        run: |
+          PYTHONPATH=backend python tools/parity/ectopy_cases.py backend/app/pvc_model.json /tmp/ecto.txt
+          g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/ectopy_host.cpp -o /tmp/ecto && /tmp/ecto < /tmp/ecto.txt
   build:
     runs-on: ubuntu-latest
     steps:
