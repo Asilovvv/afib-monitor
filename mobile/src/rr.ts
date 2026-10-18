@@ -98,12 +98,27 @@ export function analyze(x: ArrayLike<number>, fs = 125) {
   return { peaks: p, rr, poincare: poincare(rr), irregularity: irr == null ? null : Math.round(irr * 1000) / 1000, quality: quality(x, fs, p) }
 }
 
+function movmean(x: ArrayLike<number>, w: number): number[] {
+  const n = x.length, h = w >> 1, pre = new Float64Array(n + 1)
+  for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + x[i]
+  const out = new Array<number>(n)
+  for (let i = 0; i < n; i++) { const a = Math.max(0, i - h), b = Math.min(n, i + h + 1); out[i] = (pre[b] - pre[a]) / (b - a) }
+  return out
+}
+
+/** Second detector settings: smoothing samples, baseline window s, threshold fraction, refractory s —
+ *  the same as ecgtools.AMP_DEFAULT and firmware check30.h (chosen on MIT-BIH, Notebook 9). */
+export const AMP: [number, number, number, number] = [3, 0.12, 0.5, 0.3]
+
 /** Second, independent R-peak detector (amplitude, not slope energy) — same as ecgtools.r_peaks_amp(). */
-export function rPeaksAmp(x: ArrayLike<number>, fs = 125): number[] {
+export function rPeaksAmp(x: ArrayLike<number>, fs = 125, params = AMP): number[] {
+  const [w1, w2s, frac, refrS] = params
   const n = x.length
   if (n < fs) return []
-  const a = highpass(x, fs).map(Math.abs)
-  const decay = Math.pow(0.5, 1 / (2 * fs)), refr = Math.floor(0.25 * fs), look = Math.floor(0.1 * fs)
+  const y = w1 > 1 ? movmean(x, w1) : Array.from(x)
+  const base = movmean(y, Math.max(3, Math.floor(w2s * fs)) | 1)
+  const a = y.map((v, i) => Math.abs(v - base[i]))
+  const decay = Math.pow(0.5, 1 / (2 * fs)), refr = Math.floor(refrS * fs), look = Math.floor(0.1 * fs)
   let pk = 0
   for (let i = 0; i < Math.min(n, 2 * fs); i++) pk = Math.max(pk, a[i])
   if (!pk) pk = 1e-12
@@ -111,7 +126,7 @@ export function rPeaksAmp(x: ArrayLike<number>, fs = 125): number[] {
   let i = 0
   while (i < n) {
     pk = Math.max(pk * decay, a[i])
-    if (a[i] > 0.5 * pk && (!out.length || i - out[out.length - 1] > refr)) {
+    if (a[i] > frac * pk && (!out.length || i - out[out.length - 1] > refr)) {
       let j = i
       for (let k = i; k < Math.min(n, i + look); k++) if (a[k] > a[j]) j = k
       if (!out.length || j - out[out.length - 1] > refr) out.push(j)

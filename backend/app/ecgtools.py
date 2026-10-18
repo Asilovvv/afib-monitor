@@ -157,8 +157,8 @@ def _movmean(x: list[float], w: int) -> list[float]:
     return [(pre[min(n, i + h + 1)] - pre[max(0, i - h)]) / (min(n, i + h + 1) - max(0, i - h)) for i in range(n)]
 
 
-# second detector settings (smooth samples, baseline window s, threshold fraction, refractory s); v2 = the first
-AMP_DEFAULT = (1, 0.6, 0.5, 0.25)
+# second detector settings (smooth samples, baseline window s, threshold fraction, refractory s)
+AMP_DEFAULT = (3, 0.12, 0.5, 0.30)   # v3: best F1 on MIT-BIH of 16 settings (Notebook 9); v2 was (1, 0.6, 0.5, 0.25)
 
 
 def r_peaks_amp(x: list[float], fs: int = 125, params: tuple = AMP_DEFAULT) -> list[int]:
@@ -214,6 +214,8 @@ def bsqi(p1: list[int], p2: list[int], fs: int = 125, tol_s: float = 0.15) -> fl
 # v2 adds the two-detector agreement gate (bSQI >= 0.8), rules fixed before Notebook 8: false "irregular" on clean
 # normal rhythm 14.1 % -> 3.3 %, noise caught (97.5 % of noisy recordings -> "could not read"), but 44 % of clean
 # normal checks need a repeat and AF found drops 91.4 -> 69.4 %. See ml/CHECK30_BSQI.md.
+# v3 (current): second detector chosen on MIT-BIH (Notebook 9). CinC 2017 clean: AF found 85.6 %, normal called
+# irregular 8.9 %, repeats 11 %; catches noise less well than v2. See ml/CHECK30_V3.md.
 CHECK_MIN_BEATS, CHECK_MIN_SQI, CHECK_IRR, CHECK_MIN_BSQI = 16, 0.4, 0.10, 0.8
 
 

@@ -15,8 +15,8 @@ static const int    MIN_BEATS = 16;
 static const double MIN_SQI = 0.4, IRR = 0.10, MIN_BSQI = 0.8;
 // second detector: smoothing samples, baseline window s, threshold fraction, refractory s
 // (chosen on MIT-BIH Arrhythmia in Notebook 9; must match ecgtools.AMP_DEFAULT and rr.ts)
-static const int    AMP_W1 = 1;
-static const double AMP_W2S = 0.6, AMP_FRAC = 0.5, AMP_REFR_S = 0.25;
+static const int    AMP_W1 = 3;
+static const double AMP_W2S = 0.12, AMP_FRAC = 0.5, AMP_REFR_S = 0.30;
 
 typedef std::vector<double> Vec;
 typedef std::vector<int> Idx;
