@@ -513,4 +513,4 @@ def test_static_files_cannot_escape_the_portal_folder():
         r = c.get(p)
         assert r.status_code in (200, 404)
         assert b"<!doctype html>" in r.content.lower() or r.status_code == 404, p      # index.html or 404, never the file
-    assert os.environ.get("JWT_SECRET", "x").encode() not in c.get(f"/{up}proc%2Fself%2Fenviron").content
+    assert b"PATH=" not in c.get(f"/{up}proc%2Fself%2Fenviron").content       # the environment never leaks
