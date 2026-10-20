@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 from .db import get_db
 from .models import User
 
-SECRET = os.getenv("JWT_SECRET", "dev-secret-change-me-in-production-0123456789")
+SECRET = os.getenv("JWT_SECRET") or ""
+if len(SECRET) < 32:
+    # No (or a weak) secret configured: use a random one for this process. The old fixed fallback was published with the
+    # code, so anyone could have signed tokens with it. Logins then last until the server restarts. Render sets JWT_SECRET.
+    import logging
+    logging.getLogger("afib").warning("JWT_SECRET missing or shorter than 32 characters: using a random secret for this run")
+    SECRET = secrets.token_urlsafe(48)
 TOKEN_DAYS = 30
 bearer = HTTPBearer(auto_error=False)
 

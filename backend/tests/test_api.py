@@ -514,3 +514,32 @@ def test_static_files_cannot_escape_the_portal_folder():
         assert r.status_code in (200, 404)
         assert b"<!doctype html>" in r.content.lower() or r.status_code == 404, p      # index.html or 404, never the file
     assert b"PATH=" not in c.get(f"/{up}proc%2Fself%2Fenviron").content       # the environment never leaks
+
+
+def test_demo_doctor_code_only_for_demo_patients():
+    d = c.post("/api/auth/register", json={"email": "doctor@demo.kg", "password": "demo1234", "name": "Demo",
+                                           "role": "doctor"}).json()
+    code = d["user"]["invite_code"]
+    r = c.post("/api/auth/register", json={"email": "real@x.kg", "password": "secret1", "name": "Real",
+                                           "role": "patient", "doctor_code": code})
+    assert r.status_code == 400
+    assert c.post("/api/auth/register", json={"email": "p5@demo.kg", "password": "secret1", "name": "P5",
+                                              "role": "patient", "doctor_code": code}).status_code == 200
+    p = c.post("/api/auth/register", json={"email": "real2@x.kg", "password": "secret1", "name": "Real2",
+                                           "role": "patient"}).json()
+    assert c.put("/api/me/doctor", json={"doctor_code": code}, headers=auth(p["token"])).status_code == 400
+
+
+def test_login_is_limited_after_many_wrong_passwords():
+    from app import main
+    c.post("/api/auth/register", json={"email": "brute@x.kg", "password": "secret1", "name": "B", "role": "patient"})
+    for _ in range(10):
+        assert c.post("/api/auth/login", json={"email": "brute@x.kg", "password": "nope00"}).status_code == 401
+    assert c.post("/api/auth/login", json={"email": "brute@x.kg", "password": "secret1"}).status_code == 429
+    main._login_fails.clear()
+    assert c.post("/api/auth/login", json={"email": "brute@x.kg", "password": "secret1"}).status_code == 200
+
+
+def test_no_public_fallback_jwt_secret():
+    from app import auth as a
+    assert "dev-secret-change-me" not in a.SECRET and len(a.SECRET) >= 32

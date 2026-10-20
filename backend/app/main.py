@@ -239,6 +239,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
         doc = db.scalar(select(User).where(User.invite_code == body.doctor_code.strip().upper()))
         if not doc:
             raise HTTPException(404, "Doctor code not found")
+        demo_guard(doc, u.email)
         u.doctor_id = doc.id
     db.add(u)
     db.commit()
@@ -248,12 +249,40 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     return {"token": make_token(u), "user": user_out(u)}
 
 
+LOGIN_WINDOW = timedelta(minutes=15)
+LOGIN_MAX_FAILS = {"e": 10, "ip": 50}      # per account; per address (a clinic may share one address)
+_login_fails: dict[str, list[datetime]] = {}
+
+
+def _too_many(key: str) -> bool:
+    now = utcnow()
+    recent = [t for t in _login_fails.get(key, []) if now - t < LOGIN_WINDOW]
+    _login_fails[key] = recent
+    return len(recent) >= LOGIN_MAX_FAILS[key.split(":", 1)[0]]
+
+
 @app.post("/api/auth/login")
-def login(body: LoginIn, db: Session = Depends(get_db)):
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    # 10 wrong passwords for one account (50 from one address) in 15 minutes -> wait (password guessing)
+    keys = ["e:" + body.email.lower(), "ip:" + (request.client.host if request.client else "?")]
+    if any(_too_many(k) for k in keys):
+        raise HTTPException(429, "Too many attempts, try again in 15 minutes")
     u = db.scalar(select(User).where(User.email == body.email.lower()))
     if not u or not check_password(body.password, u.password_hash):
+        for k in keys:
+            _login_fails.setdefault(k, []).append(utcnow())
         raise HTTPException(401, "Wrong email or password")
+    _login_fails.pop(keys[0], None)
     return {"token": make_token(u), "user": user_out(u)}
+
+
+DEMO_DOCTOR_EMAIL = "doctor@demo.kg"
+
+
+def demo_guard(doc: User, patient_email: str):
+    """The demo doctor's password is public, so a real patient must not be linked to that account."""
+    if doc.email == DEMO_DOCTOR_EMAIL and not patient_email.lower().endswith("@demo.kg"):
+        raise HTTPException(400, "The demo doctor code is for viewing only. Ask your own doctor for a code.")
 
 
 @app.get("/api/me")
@@ -279,6 +308,7 @@ def link_doctor(body: LinkDoctorIn, user: User = Depends(require_role("patient")
     doc = db.scalar(select(User).where(User.invite_code == body.doctor_code))
     if not doc:
         raise HTTPException(404, "Doctor code not found")
+    demo_guard(doc, user.email)
     user = db.merge(user)
     user.doctor_id = doc.id
     db.commit()
