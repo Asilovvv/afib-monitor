@@ -20,10 +20,12 @@
  *   C        "check me in 30 s": record 30 s, then print the verdict (also started by tapping the status bar)
  *
  * Board: "M5CoreS3" (esp32 core 3.x). Libraries: M5Unified, M5GFX.
+ * Our own patch (hardware/patch_v1, no screen): board "ESP32S3 Dev Module" and -DBOARD_PATCH_V1, see board.h;
+ * the 30-s check then starts from the button and the verdict goes to Serial and the phone.
  * TFLite Micro comes bundled with the esp32 core (esp-tflite-micro).
  */
 
-#include <M5Unified.h>
+#include "board.h"           // pins and screen of the prototype or of our patch
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
@@ -35,9 +37,6 @@
 #include "pvc_model.h"        // research: early ventricular beats, Serial only (not shown on screen)
 
 // ---------------------------------------------------------------- settings
-static const int   PIN_ECG       = 10;     // AD8232 OUTPUT -> G10 (ADC1)
-static const int   PIN_LO_PLUS   = -1;     // AD8232 LO+ (optional, -1 = not wired)
-static const int   PIN_LO_MINUS  = -1;     // AD8232 LO- (optional)
 static const int   FS_RAW        = 250;    // sampling rate, Hz
 static const int   FS            = 125;    // model rate, Hz
 static const int   WIN           = 1250;   // 10 s window
@@ -372,7 +371,7 @@ static void bleSend(uint8_t state, float prob, float bpm, uint32_t inferUs) {
   uint16_t us = (uint16_t)min<uint32_t>(inferUs, 65535);
   b[0] = 1; b[1] = state;
   memcpy(b + 2, &p, 2); memcpy(b + 4, &h, 2); memcpy(b + 6, &t, 4); memcpy(b + 10, &us, 2);
-  int bat = M5.Power.getBatteryLevel();
+  int bat = boardBattery();
   b[12] = (uint8_t)constrain(bat, 0, 100);
   bleStatus->setValue(b, sizeof b);
   if (bleConnected) bleStatus->notify();
@@ -408,14 +407,21 @@ static const int W = 320, H = 240;
 static const int PLOT_Y = 34, PLOT_H = 120;
 static int sweepX = 0, lastPy = -1;
 static float plotMin = -1, plotMax = 1, runMin = 1e9, runMax = -1e9;
+#if HAS_DISPLAY
 static const uint16_t COL_BG = TFT_BLACK, COL_GRID = 0x18E3, COL_ECG = 0x07E0;
+#endif
 
 static void drawGridColumn(int x) {
+#if HAS_DISPLAY
   M5.Display.drawFastVLine(x, PLOT_Y, PLOT_H, (x % 25 == 0) ? COL_GRID : COL_BG);
   if (x % 25 != 0) for (int y = PLOT_Y; y < PLOT_Y + PLOT_H; y += 25) M5.Display.drawPixel(x, y, COL_GRID);
+#else
+  (void)0;
+#endif
 }
 
 static void plotSample(float v) {
+#if HAS_DISPLAY
   // auto-scale every sweep
   runMin = min(runMin, v); runMax = max(runMax, v);
   float range = max(plotMax - plotMin, 0.05f);
@@ -430,9 +436,13 @@ static void plotSample(float v) {
     if (runMax > runMin) { plotMin = runMin; plotMax = runMax; }
     runMin = 1e9; runMax = -1e9;
   }
+#else
+  (void)v;
+#endif
 }
 
 static void drawHeader() {
+#if HAS_DISPLAY
   M5.Display.fillRect(0, 0, W, PLOT_Y, COL_BG);
   M5.Display.setTextColor(TFT_WHITE, COL_BG);
   M5.Display.setFont(&fonts::FreeSansBold9pt7b);
@@ -442,9 +452,13 @@ static void drawHeader() {
   M5.Display.setTextColor(usbMode() ? TFT_CYAN : TFT_LIGHTGREY, COL_BG);
   M5.Display.setCursor(196, 10);
   M5.Display.print(usbMode() ? "SRC: USB (MIT-BIH)" : "SRC: AD8232 G10  ");
+#else
+  (void)0;
+#endif
 }
 
 static void drawStatus(const Prediction& p, float progress, bool leadOff) {
+#if HAS_DISPLAY
   const int y0 = PLOT_Y + PLOT_H + 4;
   uint16_t bg; const char* label;
   if (leadOff || p.flat)        { bg = 0x7BE0; label = "CHECK ELECTRODES"; }
@@ -479,6 +493,9 @@ static void drawStatus(const Prediction& p, float progress, bool leadOff) {
   M5.Display.setCursor(200, y1);
   snprintf(buf, sizeof buf, "int8 %s", p.valid ? (String(p.inferUs / 1000.0f, 1) + " ms").c_str() : "--");
   M5.Display.print(buf);
+#else
+  (void)0;
+#endif
 }
 
 static void startCheck() {
@@ -489,6 +506,7 @@ static void startCheck() {
 }
 
 static void drawCheck(const char* label, uint16_t bg, const char* sub) {
+#if HAS_DISPLAY
   const int y0 = PLOT_Y + PLOT_H + 4;
   M5.Display.fillRoundRect(6, y0, W - 12, 40, 6, bg);
   M5.Display.setTextColor(TFT_WHITE, bg);
@@ -502,6 +520,10 @@ static void drawCheck(const char* label, uint16_t bg, const char* sub) {
   M5.Display.setTextColor(TFT_WHITE, COL_BG);
   M5.Display.setCursor(8, y1);
   M5.Display.print(sub);
+#else
+  (void)bg;
+  Serial.printf("SHOW %s | %s\n", label, sub);   // no screen: the phone shows the verdict
+#endif
 }
 
 static void finishCheck() {
@@ -590,13 +612,15 @@ static Prediction lastPred;
 static bool lastUsb = false;
 
 void setup() {
-  auto cfg = M5.config();
-  M5.begin(cfg);
+  boardBegin();
   Serial.begin(115200);
   Serial.setRxBufferSize(4096);
+#if HAS_DISPLAY
   M5.Display.setRotation(1);
   M5.Display.fillScreen(COL_BG);
   for (int x = 0; x < W; x++) drawGridColumn(x);
+#endif
+  Serial.printf("AFib Monitor on %s\n", BOARD_NAME);
 
   analogReadResolution(12);
   analogSetPinAttenuation(PIN_ECG, ADC_11db);
@@ -607,8 +631,10 @@ void setup() {
   rDecay = powf(0.5f, 1.0f / (2.0f * FS));
   resetDetector();
   if (!setupModel()) {
+#if HAS_DISPLAY
     M5.Display.setTextColor(TFT_RED, COL_BG);
     M5.Display.drawString("Model init failed - see Serial", 10, 100);
+#endif
     while (true) delay(1000);
   }
   detectModelKind();
@@ -629,8 +655,13 @@ void loop() {
   if (usb != lastUsb) { lastUsb = usb; resetWindow(); drawHeader(); }
 
   // 30-second check: tap the status bar to start; the verdict stays on screen for 10 s
+#if HAS_DISPLAY
   auto td = M5.Touch.getDetail();
-  if (td.wasClicked() && td.y > PLOT_Y + PLOT_H && !chkActive) { startCheck(); Serial.println("CHECK started: 30 s"); }
+  bool tapped = td.wasClicked() && td.y > PLOT_Y + PLOT_H;
+#else
+  bool tapped = false;
+#endif
+  if ((tapped || boardButtonPressed()) && !chkActive) { startCheck(); Serial.println("CHECK started: 30 s"); }
   if (chkActive) {
     static int lastShown = -1;
     int left = 30 - chkN / FS;
@@ -639,9 +670,9 @@ void loop() {
       char sub[40]; snprintf(sub, sizeof sub, "%d s left - sit still, do not talk", left);
       drawCheck("CHECKING...", 0x0010, sub); lastShown = left;
     }
-    M5.update(); delay(1); return;
+    boardUpdate(); delay(1); return;
   }
-  if (chkShownMs && millis() - chkShownMs < 10000) { M5.update(); delay(1); return; }
+  if (chkShownMs && millis() - chkShownMs < 10000) { boardUpdate(); delay(1); return; }
   chkShownMs = 0;
 
   static uint32_t lastStatusMs = 0;
@@ -665,6 +696,6 @@ void loop() {
     }
     lastStatusMs = millis();
   }
-  M5.update();
+  boardUpdate();
   delay(1);
 }

@@ -91,6 +91,16 @@ with open(os.path.join(HERE, 'bom_jlcpcb.csv'), 'w', newline='') as f:
     w = csv.writer(f); w.writerow(['Comment', 'Designator', 'Footprint', 'LCSC Part #'])
     for (v, fp, lc), refs in sorted(groups.items(), key=lambda x: x[1][0]):
         w.writerow([v, ','.join(sorted(refs, key=lambda r: (r.rstrip('0123456789'), int(''.join(c for c in r if c.isdigit()) or 0)))), fp, lc or 'TO CHOOSE'])
+# firmware/AFibMonitor/board.h must use the same ESP32 pins
+import re
+bh = open(os.path.join(HERE, '..', '..', 'firmware', 'AFibMonitor', 'board.h')).read().split('#else')[0]
+fw = {k: int(v) for k, v in re.findall(r'static const int (PIN_\w+) = (\d+);', bh)}
+IO = {'PIN_ECG': 'ECG_OUT', 'PIN_LO_PLUS': 'LO_P', 'PIN_LO_MINUS': 'LO_N', 'PIN_SDN': 'ECG_SDN', 'PIN_VBAT': 'VBAT_SENSE', 'PIN_BUTTON': 'BOOT'}
+GPIO_OF_PIN = {4: 0, 5: 1, 6: 2, 7: 3, 8: 4, 9: 5, 10: 6}          # module pin -> IO number (datasheet Table 3-1)
+for name, net in IO.items():
+    mod_pins = [p for p, n in P['U2'][3].items() if n == net]
+    io = GPIO_OF_PIN.get(mod_pins[0]) if mod_pins else None
+    if fw.get(name) != io: errors.append(f'firmware {name}={fw.get(name)} but schematic puts {net} on IO{io}')
 print(f'parts: {len(P)}, nets: {len(nets)}, BOM lines: {len(groups)}, LCSC chosen: {sum(1 for k in groups if k[2])}')
 print('ERC:', 'OK' if not errors else f'{len(errors)} problems'); [print(' -', e) for e in errors]
 sys.exit(1 if errors else 0)

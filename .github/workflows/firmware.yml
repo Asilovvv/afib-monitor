@@ -1,7 +1,7 @@
 name: Firmware
 on:
   push:
-    paths: ["firmware/**", "backend/app/ecgtools.py", "backend/app/ectopy.py", "backend/app/pvc_model.json", "tools/pvc_export.py", "tools/parity/**", ".github/workflows/firmware.yml"]
+    paths: ["firmware/**", "hardware/**", "backend/app/ecgtools.py", "backend/app/ectopy.py", "backend/app/pvc_model.json", "tools/pvc_export.py", "tools/parity/**", ".github/workflows/firmware.yml"]
   workflow_dispatch:
 
 # Compiles the M5Stack CoreS3 SE firmware exactly as the README tells a person to do in Arduino IDE
@@ -14,6 +14,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
+      - name: Patch schematic rules check, firmware pins = schematic pins
+        run: python hardware/patch_v1/design.py
       - name: Server verdicts on 40 synthetic strips
         run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
       - name: Device code on a PC, same strips
@@ -45,8 +47,17 @@ jobs:
       - name: Size report
         if: always()
         run: grep -E "Sketch uses|Global variables" compile.log || true
+      - name: Compile for our patch (hardware/patch_v1, no screen)
+        run: |
+          arduino-cli compile --fqbn esp32:esp32:esp32s3:CDCOnBoot=cdc \
+            --build-property "compiler.cpp.extra_flags=-DBOARD_PATCH_V1" --build-property "compiler.c.extra_flags=-DBOARD_PATCH_V1" \
+            --output-dir build_patch --warnings default firmware/AFibMonitor 2>&1 | tee compile_patch.log
+          grep -E "Sketch uses|Global variables" compile_patch.log
+          ! grep -q "M5Unified" compile_patch.log || { echo "patch build must not use M5Unified"; exit 1; }
       - uses: actions/upload-artifact@v4
         if: success()
         with:
           name: afib-monitor-firmware
-          path: build/*.bin
+          path: |
+            build/*.bin
+            build_patch/*.bin
