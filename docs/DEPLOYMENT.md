@@ -50,3 +50,8 @@ come back into the repository (`firmware/AFibMonitor/afib_model_data.h`, `backen
 ## Hardware
 `hardware/patch_v1/design.py` writes the netlist, the JLCPCB BOM and the KiCad netlist (`hardware/patch_v1/kicad/`).
 Layout, routing and the IEC 60601-1 safety review are not done yet; they need an electronics engineer.
+
+## Screenshots
+`docs/screenshots/web/` (doctor portal) and `docs/screenshots/mobile/` (patient app, light and dark themes). Newest:
+`checkplan-desk.png` (scheduled 30-s checks on the patient page) and `report-v21-desk.png` (one-page A4 report with the
+check and PVC lines).
