@@ -501,3 +501,16 @@ def test_check_plan_control_mode():
     assert c.get("/api/me/report?hours=72", headers=auth(pt)).json()["checks"]["done"] == 4
     off = c.put("/api/me/checkplan", json={"times": []}, headers=auth(pt)).json()
     assert off["active"] is False
+
+
+def test_static_files_cannot_escape_the_portal_folder():
+    import os
+    from app import main as m
+    if not (m.WEB_DIST / "index.html").exists():
+        import pytest; pytest.skip("web portal not built")
+    up = "..%2F" * 12
+    for p in (f"/{up}etc%2Fhostname", f"/{up}proc%2Fself%2Fenviron", "/assets/" + up + "etc%2Fpasswd"):
+        r = c.get(p)
+        assert r.status_code in (200, 404)
+        assert b"<!doctype html>" in r.content.lower() or r.status_code == 404, p      # index.html or 404, never the file
+    assert os.environ.get("JWT_SECRET", "x").encode() not in c.get(f"/{up}proc%2Fself%2Fenviron").content

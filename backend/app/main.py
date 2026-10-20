@@ -1154,7 +1154,7 @@ if WEB_DIST.exists():
     def spa(path: str):
         if path.startswith("api/"):
             raise HTTPException(404, "Not found")
-        f = WEB_DIST / path
-        if path and f.is_file():
+        f = (WEB_DIST / path).resolve()            # resolve ".." and refuse anything outside the portal build
+        if path and f.is_relative_to(WEB_DIST.resolve()) and f.is_file():
             return FileResponse(f)
         return FileResponse(WEB_DIST / "index.html")
