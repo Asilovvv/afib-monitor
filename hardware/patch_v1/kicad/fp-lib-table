@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Espressif")(type "KiCad")(uri "${KIPRJMOD}/Espressif.pretty")(options "")(descr "ESP32-S3-MINI-1 footprint from github.com/espressif/kicad-libraries (CC-BY-SA 4.0 with the KiCad library exception)"))
+)

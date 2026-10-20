@@ -16,12 +16,13 @@ The current result is **ERC OK, 46 parts, 35 nets**.
 | Battery sense | 100 k / 100 k + 100 nF | VBAT/2 to IO1; draws about 21 µA all the time. |
 
 ## Not done yet (needs KiCad and a person)
-* **Layout and routing.** Footprints are named but not placed. The CPL (placement) file for JLCPCB needs the layout, so it does not exist yet.
-* **17 BOM lines say "TO CHOOSE".** Their LCSC numbers were not checked on lcsc.com, so I left them empty instead of guessing.
+* **Layout and routing.** The KiCad netlist is ready (`kicad/`, steps in `kicad/README.md`), but the parts are not placed. The CPL (placement) file for JLCPCB needs the layout, so it does not exist yet.
+* **BOM:** all 26 lines have LCSC numbers checked on lcsc.com (20 Oct 2026); parts on the board $10.18, of which small parts $1.16.
+  The 10 MΩ resistors are ±5 % (the ±1 % ones were out of stock); this shifts the 0.5 Hz high-pass corner by up to about 5 %.
 * **Values from secondary sources, to check before ordering:**
   * 4.7 µF on the charger (the Microchip datasheet could not be fetched);
   * ESP32 3V3 decoupling (22 µF + 0.1 µF; the datasheet extract did not tie them to 3V3).
-* **Firmware pins.** The firmware now reads the M5Stack prototype's pins and must be switched to these: IO2 ECG, IO4/IO5 leads-off, IO6 SDN, IO1 battery.
+* **Firmware:** `firmware/AFibMonitor/board.h` already has these pins (build with `-DBOARD_PATCH_V1`); CI checks they match this schematic.
 * **Medical device safety.** An ECG device on a patient needs the safety standard IEC 60601-1, which covers leakage current and isolation. USB-powered measurement while charging must be blocked or isolated. **An electronics engineer has to review this before anything is worn.**
 
 ## Sources

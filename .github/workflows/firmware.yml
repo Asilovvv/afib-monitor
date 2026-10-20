@@ -14,8 +14,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - name: Patch schematic rules check, firmware pins = schematic pins
-        run: python hardware/patch_v1/design.py
+      - name: Patch schematic rules check, firmware pins = schematic pins, pins = footprint pads
+        run: |
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/KiCad/kicad-footprints.git /tmp/kfp
+          git -C /tmp/kfp sparse-checkout set Package_CSP.pretty Package_TO_SOT_SMD.pretty Resistor_SMD.pretty Capacitor_SMD.pretty LED_SMD.pretty Connector_USB.pretty Connector_JST.pretty
+          KICAD_FOOTPRINTS=/tmp/kfp python hardware/patch_v1/design.py
       - name: Server verdicts on 40 synthetic strips
         run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
       - name: Device code on a PC, same strips
