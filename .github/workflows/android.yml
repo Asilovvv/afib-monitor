@@ -1,0 +1,39 @@
+name: Android APK
+on:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/android.yml"]
+  workflow_dispatch:
+
+# Builds the phone app as an installable APK without an Expo account: expo prebuild + Gradle on the GitHub runner
+# (Android SDK is preinstalled there). Signed with the debug key, which is fine for installing on our own phones,
+# not for Google Play. Published as the "android-latest" pre-release.
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: mobile/package-lock.json }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Generate the native Android project
+        working-directory: mobile
+        run: npm ci && npx expo prebuild --platform android --no-install
+      - name: Build release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+      - name: Publish
+        env: { GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}", SHA: "${{ github.sha }}" }
+        run: |
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk afib-monitor.apk
+          sha256sum afib-monitor.apk > SHA256SUMS
+          ls -l afib-monitor.apk
+          gh api -X PATCH "repos/$REPO/git/refs/tags/android-latest" -f sha="$SHA" -F force=true \
+            || gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/android-latest -f sha="$SHA"
+          gh release view android-latest -R "$REPO" >/dev/null 2>&1 \
+            || gh release create android-latest -R "$REPO" --prerelease --title "Android app (latest build)" --notes "placeholder"
+          gh release edit android-latest -R "$REPO" --notes "Built automatically from commit $SHA. Install: open afib-monitor.apk on the phone and allow installing from this source. Debug-signed, for testing only. Not a medical device."
+          gh release upload android-latest -R "$REPO" --clobber afib-monitor.apk SHA256SUMS
