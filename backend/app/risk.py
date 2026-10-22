@@ -31,13 +31,10 @@ def score(birth_year: int | None, sex: str | None, f: dict) -> dict:
     pts = {k: (p if flags[k] else 0) for k, p, _ in ITEMS}
     vasc = sum(pts.values())
     va = vasc - pts["female"]
-    # ESC 2024 uses CHA2DS2-VA: >=2 -> OAC recommended, 1 -> should be considered, 0 -> not indicated
-    if va >= 2:
-        rec, level = "Антикоагулянты рекомендованы (CHA₂DS₂-VA ≥ 2)", "high"
-    elif va == 1:
-        rec, level = "Антикоагулянты следует рассмотреть (CHA₂DS₂-VA = 1)", "moderate"
-    else:
-        rec, level = "Антикоагулянты не показаны по шкале (CHA₂DS₂-VA = 0)", "low"
+    # level only colours the card (ESC 2024 CHA2DS2-VA bands 0 / 1 / >=2). No treatment advice is generated:
+    # that would be clinical decision support, which the software is not registered for. The doctor decides.
+    level = "high" if va >= 2 else "moderate" if va == 1 else "low"
+    rec = "Шкала справочно. Решение об антикоагулянтах принимает врач по клиническим рекомендациям."
     return {
         "age": age, "sex": sex, "flags": flags, "points": pts,
         "items": [{"key": k, "points": p, "label": lbl, "on": flags[k],

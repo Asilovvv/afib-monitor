@@ -1,5 +1,5 @@
 import { PermissionsAndroid, Platform } from 'react-native'
-import { BleManager, type Device, type Subscription } from 'react-native-ble-plx'
+import { BleManager, State, type Device, type Subscription } from 'react-native-ble-plx'
 import { base64ToBytes, DEVICE_NAME, ECG_UUID, parseEcg, parseStatus, SERVICE_UUID, STATUS_UUID, type EcgPacket, type Status } from './protocol'
 
 export type LinkState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error'
@@ -36,16 +36,36 @@ export class DeviceLink {
     return Object.values(res).every(r => r === PermissionsAndroid.RESULTS.GRANTED)
   }
 
+  /** iOS reports "Unknown" for a moment after the manager is created; scanning then fails. Wait until the radio
+   *  is ready (up to 5 s) and turn the other states into messages the person can act on. */
+  private async radioReady(): Promise<string | null> {
+    const why = (st: State) => st === State.PoweredOn ? null : st === State.PoweredOff ? 'bt_off'
+      : st === State.Unauthorized ? 'bt_unauthorized' : st === State.Unsupported ? 'bt_unsupported' : 'ble_error'
+    let st = await this.ble.state()
+    if (st === State.Unknown || st === State.Resetting) {
+      st = await new Promise<State>(res => {
+        let done = false
+        const sub = this.ble.onStateChange(x => {
+          if (x !== State.Unknown && x !== State.Resetting && !done) { done = true; sub.remove(); res(x) }
+        }, true)
+        setTimeout(() => { if (!done) { done = true; sub.remove(); res(State.Unknown) } }, 5000)
+      })
+    }
+    return why(st)
+  }
+
   async connect() {
     this.wantConnected = true
     if (!(await this.permissions())) { this.onState('error', 'no_permission'); return }
+    const notReady = await this.radioReady()
+    if (notReady) { this.onState('error', notReady); return }
     this.onState('scanning')
     const timeout = setTimeout(() => {
       this.ble.stopDeviceScan()
       if (!this.device) this.onState('error', 'not_found')
     }, 15000)
     this.ble.startDeviceScan([SERVICE_UUID], null, async (err, dev) => {
-      if (err) { clearTimeout(timeout); this.onState('error', err.message); return }
+      if (err) { clearTimeout(timeout); console.warn('BLE scan', err.message); this.onState('error', 'ble_error'); return }
       if (!dev || (dev.name && dev.name !== DEVICE_NAME && dev.localName !== DEVICE_NAME)) return
       this.ble.stopDeviceScan(); clearTimeout(timeout)
       try {
@@ -71,7 +91,8 @@ export class DeviceLink {
         })
         this.onState('connected', d.name ?? DEVICE_NAME)
       } catch (e) {
-        this.onState('error', (e as Error).message)
+        console.warn('BLE connect', (e as Error).message)
+        this.onState('error', 'ble_error')
       }
     })
   }

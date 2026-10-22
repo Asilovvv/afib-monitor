@@ -9,6 +9,8 @@ import { translate, type Key, type Lang } from './i18n'
 import { ECG_FS, RhythmState, type EcgPacket, type Status } from './protocol'
 import { check, CHECK_SECONDS, type CheckVerdict } from './rr'
 import { Simulator } from './simulator'
+import { EcgBus } from './ecgbus'
+export { EcgBus }
 import { dark, light, type Theme } from './theme'
 
 if (Platform.OS !== 'web') {
@@ -25,34 +27,6 @@ export type LocalEpisode = { start: number; end: number; maxProb: number; maxBpm
 export type LocalSymptom = { ts: number; kinds: string[]; severity: number; note?: string; synced: boolean }
 export type Toast = { id: number; text: string; tone: 'ok' | 'af' | 'info' }
 
-/** Live ECG ring buffer, read by the waveform view without re-rendering the whole app. */
-export class EcgBus {
-  readonly size = ECG_FS * 64          // 64 s: live trace, 10-s recordings and the 60-s Poincaré plot
-  buf = new Float32Array(this.size)
-  total = 0                 // samples received since start
-  packets = 0
-  lost = 0
-  private lastSeq = -1
-  private subs = new Set<() => void>()
-  push(p: EcgPacket) {
-    if (this.lastSeq >= 0) {
-      const gap = (p.seq - this.lastSeq - 1 + 65536) % 65536
-      if (gap > 0 && gap < 1000) this.lost += gap
-    }
-    this.lastSeq = p.seq
-    for (const x of p.samples) { this.buf[this.total % this.size] = x; this.total++ }
-    this.packets++
-    this.subs.forEach(f => f())
-  }
-  last(n: number): number[] {
-    n = Math.min(n, this.total, this.size)
-    const out = new Array<number>(n)
-    for (let i = 0; i < n; i++) out[i] = this.buf[(this.total - n + i) % this.size]
-    return out
-  }
-  reset() { this.total = 0; this.packets = 0; this.lost = 0; this.lastSeq = -1; this.buf.fill(0) }
-  subscribe(f: () => void) { this.subs.add(f); return () => { this.subs.delete(f) } }
-}
 
 type Ctx = {
   // prefs
@@ -101,7 +75,7 @@ type Ctx = {
   toast: (text: string, tone?: Toast['tone']) => void
 }
 
-export type CheckResult = { verdict: CheckVerdict; bpm: number; sqi: number; irregularity: number | null; at: number }
+export type CheckResult = { verdict: CheckVerdict; bpm: number; sqi: number; irregularity: number | null; at: number; gaps?: boolean }
 
 const C = createContext<Ctx | null>(null)
 export const useApp = () => useContext(C)!
@@ -241,6 +215,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setChecking(null)
     if (!ok) { toast(translate(langRef.current, 'check_lost'), 'info'); return null }
     const samples = ecg.last(need).map(x => Math.round(x * 1e4) / 1e4)
+    // a strip with lost Bluetooth packets has unknown beats in the holes: no verdict, ask to repeat (not saved)
+    if (ecg.holes(need) > 0) { return { verdict: 'no_verdict', bpm: 0, sqi: 0, irregularity: null, at: Date.now(), gaps: true } }
     const r = check(samples, ECG_FS)
     const s = lastStatus.current
     ecgQueue.current.push({ ts: Date.now() / 1000 - samples.length / ECG_FS, fs: ECG_FS, samples, reason: 'check',

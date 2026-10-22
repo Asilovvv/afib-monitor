@@ -421,11 +421,6 @@ function RiskCard({ pid }: { pid: number }) {
     vascular: ['Vascular disease (MI, PAD, aortic plaque)', 'Кан тамыр оорусу (МИ, ПАО, аорта бляшкасы)'],
     age65: ['Age 65–74', 'Жашы 65–74'], female: ['Female sex', 'Аял жынысы'],
   }
-  const REC: Record<string, [string, string, string]> = {
-    high: ['Антикоагулянты рекомендованы', 'Oral anticoagulation recommended', 'Антикоагулянттар сунушталат'],
-    moderate: ['Антикоагулянты следует рассмотреть', 'Oral anticoagulation should be considered', 'Антикоагулянттарды кароо керек'],
-    low: ['Антикоагулянты не показаны по шкале', 'No anticoagulation indicated by the score', 'Шкала боюнча антикоагулянттар көрсөтүлгөн эмес'],
-  }
   return (
     <section className={`card risk lvl-${r.level}`}>
       <div className="card-head"><h2>{Icon.shield(18)} {f.t('Риск инсульта')} · CHA₂DS₂-VASc</h2>{saving && <span className="muted">…</span>}</div>
@@ -434,7 +429,11 @@ function RiskCard({ pid }: { pid: number }) {
         <div><b>{r.cha2ds2_va}</b><span>CHA₂DS₂-VA (ESC 2024)</span></div>
         <div><b>{r.annual_stroke_risk_pct != null ? `${String(r.annual_stroke_risk_pct).replace('.', f.lang === 'en' ? '.' : ',')}%` : '—'}</b><span>{f.t('Годовой риск инсульта без антикоагулянтов')}</span></div>
       </div>
-      <p className={`risk-rec`}>{f.tr(...REC[r.level])}</p>
+      {/* the score is reference information; the treatment decision is the doctor's (a recommendation here would be a
+          clinical decision-support claim the software is not registered for) */}
+      <p className={`risk-rec`}>{f.tr('Шкала справочно. Решение об антикоагулянтах принимает врач по клиническим рекомендациям.',
+        'Reference only. The anticoagulation decision is the doctor\'s, following clinical guidelines.',
+        'Шкала маалымат үчүн. Антикоагулянттар боюнча чечимди дарыгер клиникалык сунуштар боюнча кабыл алат.')}</p>
       <ul className="risk-items">
         {r.items.map(i => (
           <li key={i.key} className={i.on ? 'on' : ''}>

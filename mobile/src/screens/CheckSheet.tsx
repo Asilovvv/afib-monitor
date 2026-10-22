@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
+import { Linking } from 'react-native'
 import { Button, Icon, Ring, Sheet, T } from '../components/ui'
 import { CHECK_SECONDS } from '../rr'
 import { useApp, type CheckResult } from '../store'
@@ -14,7 +15,8 @@ const CONFIRM_WINDOW_MS = 10 * 60e3
 let firstIrregularAt = 0            // survives closing the sheet; a repeat within 10 minutes confirms it
 type Shown = CheckResult & { stage: 'final' | 'confirm' | 'mixed' }
 export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { theme: tm, t, checking, checkMe } = useApp()
+  const { theme: tm, t, checking, checkMe, user } = useApp()
+  const doctorPhone = user?.doctor?.phone?.replace(/\s/g, '')
   const [res, setRes] = useState<Shown | null>(null)
 
   const run = async () => {
@@ -56,11 +58,15 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
           <View style={[s.badge, { backgroundColor: look.soft }]}><Icon name={look.icon} color={look.c} size={54} /></View>
           <T style={[s.verdict, { color: look.c }]}>{confirm ? t('check_confirm') : res.stage === 'mixed' ? t('check_mixed') : t(`check_${res.verdict}`)}</T>
           {res.verdict !== 'no_verdict' && <T v="num" style={{ fontSize: 22, marginTop: 4 }}>{res.bpm} {t('bpm')}</T>}
-          <T style={[s.sub, { color: tm.ink2 }]}>{confirm ? t('check_confirm_sub') : res.stage === 'mixed' ? t('check_mixed_sub') : t(`check_${res.verdict}_sub`)}</T>
-          {res.verdict !== 'no_verdict' && <T v="small" style={{ marginTop: 10 }}>✓ {t('check_saved')}</T>}
+          <T style={[s.sub, { color: tm.ink2 }]}>{res.gaps ? t('check_gaps') : confirm ? t('check_confirm_sub') : res.stage === 'mixed' ? t('check_mixed_sub') : t(`check_${res.verdict}_sub`)}</T>
+          {res.verdict !== 'no_verdict' && <T v="small" style={{ marginTop: 10 }}>✓ {t(user?.doctor ? 'check_saved' : 'check_saved_local')}</T>}
           <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 22 }}>
-            {res.verdict === 'irregular' && !confirm && <Button title="SOS · 103" kind="danger" icon="phone" onPress={() => callSos(t)} />}
-            <Button title={t('check_again')} kind={res.verdict === 'irregular' && !confirm ? 'ghost' : 'primary'} icon="sync" onPress={run} />
+            {/* an irregular rhythm without symptoms is a reason to show the doctor, not an emergency: doctor first,
+                103 only with the warning symptoms named on the button */}
+            {res.verdict === 'irregular' && !confirm && doctorPhone &&
+              <Button title={t('call_doctor')} kind="primary" icon="stetho" onPress={() => Linking.openURL(`tel:${doctorPhone}`).catch(() => undefined)} />}
+            <Button title={t('check_again')} kind={res.verdict === 'irregular' && !confirm && doctorPhone ? 'soft' : 'primary'} icon="sync" onPress={run} />
+            {res.verdict === 'irregular' && !confirm && <Button title={t('sos_if')} kind="ghost" icon="phone" onPress={() => callSos(t)} />}
             <Button title={t('close')} kind="ghost" onPress={onClose} />
           </View>
         </View>
