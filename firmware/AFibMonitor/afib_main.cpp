@@ -77,6 +77,9 @@ static portMUX_TYPE ringMux = portMUX_INITIALIZER_UNLOCKED;
 
 // display sweep (receives every 125 Hz sample)
 static QueueHandle_t plotQueue;
+static QueueHandle_t rawQueue;            // raw 250 Hz mV for "E 1" recording (bench test: SNR, live ECG figure)
+static volatile bool rawStream = false;
+static volatile uint32_t rawDropped = 0;   // samples lost because the queue was full (reported on "E 0")
 
 static volatile uint32_t rawCount = 0;     // raw samples since the last reset
 
@@ -140,6 +143,7 @@ static uint32_t chkFirstIrrMs = 0;         // "irregular" is shown only after tw
 
 static void pushRaw(float mv) {            // called at 250 Hz from either source
   rawCount++;
+  if (rawStream && xQueueSend(rawQueue, &mv, 0) != pdTRUE) rawDropped++;
   float y = filterSample(mv);
   decimToggle = !decimToggle;
   if (!decimToggle) return;                // keep every 2nd sample -> 125 Hz
@@ -590,6 +594,11 @@ static void handleLine(char* s) {
   } else if (s[0] == 'C') {
     startCheck();
     Serial.println("CHECK started: 30 s");
+  } else if (s[0] == 'E') {               // "E 1" / "E 0": send raw ADC samples as "E <mV>" lines at 250 Hz
+    bool on = s[1] == ' ' && s[2] == '1';
+    if (on) rawDropped = 0;
+    rawStream = on;
+    Serial.printf("RAW %s fs=%d dropped=%lu\n", on ? "on" : "off", FS_RAW, (unsigned long)rawDropped);
   } else if (s[0] == 'I') {
     Serial.printf("INFO model=%s model_B=%u arena_B=%u fs=%d\n", rrModel ? "RR" : "RAW", afib_model_len,
                   (unsigned)interpreter->arena_used_bytes(), FS);
@@ -628,6 +637,7 @@ void setup() {
   if (PIN_LO_MINUS >= 0) pinMode(PIN_LO_MINUS, INPUT);
 
   plotQueue = xQueueCreate(256, sizeof(float));
+  rawQueue = xQueueCreate(512, sizeof(float));
   rDecay = powf(0.5f, 1.0f / (2.0f * FS));
   resetDetector();
   if (!setupModel()) {
@@ -650,6 +660,7 @@ void loop() {
   float v;
   int n = 0;
   while (n < 16 && xQueueReceive(plotQueue, &v, 0) == pdTRUE) { plotSample(v); bleEcgSample(v); n++; }
+  for (int k = 0; k < 32 && xQueueReceive(rawQueue, &v, 0) == pdTRUE; k++) Serial.printf("E %.1f\n", v);
 
   bool usb = usbMode();
   if (usb != lastUsb) { lastUsb = usb; resetWindow(); drawHeader(); }

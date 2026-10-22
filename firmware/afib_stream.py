@@ -15,6 +15,10 @@ On-device evaluation (fast, many windows, prints sensitivity / specificity):
 
 Benchmark (inference time and RAM on the chip):
     python afib_stream.py --port /dev/cu.usbmodem101 --bench
+
+Live ECG from the AD8232 (laptop on battery, sit still), saved as CSV at 250 Hz, then its SNR:
+    python afib_stream.py --port /dev/cu.usbmodem101 --live 30 --out gel_1.csv
+    python afib_stream.py --snr gel_1.csv reusable_1.csv
 """
 import argparse
 import csv
@@ -24,8 +28,6 @@ import threading
 import time
 
 import numpy as np
-import serial
-import wfdb
 
 FS_RAW = 250
 WIN_RAW = 2500                      # 10 s at 250 Hz
@@ -37,6 +39,7 @@ CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'afdb_cache')
 
 def load_record(rec):
     """Channel 0 in mV + list of (start_sample, end_sample, label) rhythm segments."""
+    import wfdb
     os.makedirs(CACHE, exist_ok=True)
     if not os.path.exists(os.path.join(CACHE, rec + '.hea')):
         print(f'Downloading record {rec} from PhysioNet...')
@@ -62,6 +65,7 @@ def label_of(segs, a, b):
 
 class Device:
     def __init__(self, port):
+        import serial
         self.ser = serial.Serial(port, 115200, timeout=0.1)
         time.sleep(2.0)                       # board may reset when the port opens
         self.ser.reset_input_buffer()
@@ -113,6 +117,63 @@ class Device:
         time.sleep(0.5)
         self.stop = True
         self.ser.close()
+
+
+def live(args):
+    """Record the device's own raw ECG (command "E 1") for N seconds into a CSV: t_s, mv."""
+    dev = Device(args.port)
+    dev.send('E 1\n')
+    t0 = time.time()
+    while time.time() - t0 < args.live:
+        time.sleep(0.5)
+        print(f'\r  recording {time.time() - t0:4.0f} / {args.live:.0f} s', end='', flush=True)
+    dev.send('E 0\n')
+    time.sleep(1.0)
+    dev.close()
+    mv = [float(l.split()[1]) for l in dev.lines if l.startswith('E ') and len(l.split()) == 2]
+    status = [l for l in dev.lines if l.startswith('RAW')]
+    out = args.out or time.strftime('live_%Y%m%d_%H%M%S.csv')
+    with open(out, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['t_s', 'mv'])
+        for i, v in enumerate(mv):
+            w.writerow([f'{i / FS_RAW:.3f}', v])
+    print(f'\nsaved {out}: {len(mv)} samples = {len(mv) / FS_RAW:.1f} s;', status[-1] if status else 'no RAW status line')
+    if status and 'dropped=0' not in status[-1]:
+        print('  WARNING: samples were dropped on the device, repeat the recording')
+
+
+def snr_of(path):
+    """SNR defined as in Notebook 16 (band-passed 0.5-40 Hz signal power / noise power, whole recording).
+    Noise = what is left of each beat after subtracting the average beat; signal power = total power - noise power."""
+    from scipy.signal import butter, sosfiltfilt, find_peaks
+    mv = np.loadtxt(path, delimiter=',', skiprows=1, usecols=1)
+    y = sosfiltfilt(butter(2, [0.5, 40], btype='band', fs=FS_RAW, output='sos'), mv)
+    e = np.gradient(y) ** 2
+    pk, _ = find_peaks(e, distance=int(0.3 * FS_RAW), height=0.3 * np.percentile(e, 99))
+    h = int(0.3 * FS_RAW)
+    r = [int(p - 10 + np.argmax(np.abs(y[max(0, p - 10):p + 10]))) for p in pk]
+    r = [p for p in r if h <= p < len(y) - h]
+    if len(r) < 10:
+        return None, len(r)
+    beats = np.array([y[p - h:p + h] for p in r])
+    idx = np.arange(2 * h, dtype=float)
+    shifts = np.arange(-2, 2.001, 0.05)              # sub-sample alignment, else timing jitter counts as "noise"
+    for _ in range(3):
+        tmpl = beats.mean(axis=0)
+        beats = np.array([min((np.interp(idx + d, idx, b) for d in shifts), key=lambda v: np.sum((v - tmpl) ** 2))
+                          for b in np.array([y[p - h:p + h] for p in r])])
+    tmpl = beats.mean(axis=0)
+    pn = float(np.mean((beats[:, 10:-10] - tmpl[10:-10]) ** 2))
+    ps = float(y.var()) - pn
+    return (10 * np.log10(ps / pn) if ps > 0 else float('-inf')), len(r)
+
+
+def snr(args):
+    for p in args.snr:
+        v, n = snr_of(p)
+        print(f'{p}: ' + (f'SNR {v:.1f} dB from {n} beats' if v is not None else f'too few beats ({n}), repeat'))
+    print('Requirement (ml/SNR_REQUIREMENT.md): >= 9 dB for electrode motion, >= 18 dB for muscle noise.')
 
 
 def demo(args):
@@ -204,7 +265,7 @@ def bench(args):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--port', required=True, help='e.g. /dev/cu.usbmodem101 or COM5')
+    ap.add_argument('--port', help='e.g. /dev/cu.usbmodem101 or COM5')
     ap.add_argument('--record', default='08215')
     ap.add_argument('--rhythm', choices=['N', 'AFIB'], help='jump to the first 1+ min segment of this rhythm')
     ap.add_argument('--start', type=float, default=0, help='start time, seconds')
@@ -213,8 +274,18 @@ if __name__ == '__main__':
     ap.add_argument('--eval', action='store_true')
     ap.add_argument('--records', help='comma-separated records for --eval')
     ap.add_argument('--bench', action='store_true')
+    ap.add_argument('--live', type=float, help='record the device ECG for this many seconds')
+    ap.add_argument('--out', help='CSV file for --live')
+    ap.add_argument('--snr', nargs='+', help='CSV files from --live')
     a = ap.parse_args()
-    if a.bench:
+    if a.snr:
+        snr(a)
+        sys.exit()
+    if not a.port:
+        ap.error('--port is required')
+    if a.live:
+        live(a)
+    elif a.bench:
         bench(a)
     elif a.eval:
         evaluate(a)

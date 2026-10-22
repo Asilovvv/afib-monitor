@@ -64,3 +64,25 @@ jobs:
           path: |
             build/*.bin
             build_patch/*.bin
+  release:
+    # Public download for the day the board arrives: tools/flash_m5.sh takes the newest build from here, no login needed.
+    needs: [parity, build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions: { contents: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: afib-monitor-firmware, path: fw }
+      - name: Update the "firmware-latest" pre-release
+        env: { GH_TOKEN: "${{ github.token }}", REPO: "${{ github.repository }}", SHA: "${{ github.sha }}" }
+        run: |
+          ls -R fw
+          cp fw/build/AFibMonitor.ino.merged.bin afib-m5-cores3se.bin
+          cp fw/build_patch/AFibMonitor.ino.merged.bin afib-patch-v1.bin
+          sha256sum afib-m5-cores3se.bin afib-patch-v1.bin > SHA256SUMS
+          gh api -X PATCH "repos/$REPO/git/refs/tags/firmware-latest" -f sha="$SHA" -F force=true \
+            || gh api -X POST "repos/$REPO/git/refs" -f ref=refs/tags/firmware-latest -f sha="$SHA"
+          gh release view firmware-latest -R "$REPO" >/dev/null 2>&1 \
+            || gh release create firmware-latest -R "$REPO" --prerelease --title "Firmware (latest build)" --notes "placeholder"
+          gh release edit firmware-latest -R "$REPO" --notes "Built automatically from commit $SHA. Flash: tools/flash_m5.sh (see firmware/README.md). Not a medical device."
+          gh release upload firmware-latest -R "$REPO" --clobber afib-m5-cores3se.bin afib-patch-v1.bin SHA256SUMS
