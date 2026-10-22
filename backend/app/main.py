@@ -47,7 +47,7 @@ CONSENT_KINDS = ("terms", "data", "research")
 PRODUCT_MODE = os.getenv("PRODUCT_MODE", "research").strip().lower()
 if PRODUCT_MODE not in ("research", "wellness"):
     PRODUCT_MODE = "research"
-CONSENT_VERSION = "2026-10"          # bump when the privacy policy / terms text changes
+CONSENT_VERSION = "2026-10b"         # bump when the privacy policy / terms text changes (b: who sees AF estimates)
 
 
 def log_access(db: Session, patient_id: int, actor: User, action: str):
@@ -207,9 +207,28 @@ class ReviewIn(BaseModel):
     verdict: str = Field(pattern="^(confirmed|false_alarm|clear)$")
 
 
-def user_out(u: User) -> dict:
+def patient_mode(db: Session, u: User) -> str:
+    """What this patient may see. AF verdicts, episodes and AF alerts ("research") are shown only to pilot participants:
+    research consent given and not withdrawn, and linked to a doctor. Everyone else gets "wellness" (rhythm check
+    without a diagnosis), because the AF function is not registered as a medical device. The public demo accounts
+    (@demo.kg) keep "research" so the demonstration shows the whole system."""
+    if PRODUCT_MODE != "research" or u.role != "patient":
+        return PRODUCT_MODE if u.role == "patient" else "research"
+    if u.email.endswith("@demo.kg"):
+        return "research"
+    if not u.doctor_id:
+        return "wellness"
+    # consent must be to the current text: older consents only covered data use, not seeing AF estimates
+    ok = db.scalar(select(Consent.id).where(Consent.user_id == u.id, Consent.kind == "research",
+                                            Consent.version == CONSENT_VERSION, Consent.withdrawn_at.is_(None)).limit(1))
+    return "research" if ok else "wellness"
+
+
+def user_out(u: User, db: Session | None = None) -> dict:
     d = {"id": u.id, "email": u.email, "name": u.name, "role": u.role, "birth_year": u.birth_year,
          "sex": u.sex, "phone": u.phone}
+    if db is not None and u.role == "patient":
+        d["mode"] = patient_mode(db, u)
     if u.role == "doctor":
         d.update(invite_code=u.invite_code, clinic=u.clinic, specialty=u.specialty)
     else:
@@ -246,7 +265,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     for k in set(body.consents) & set(CONSENT_KINDS):
         db.add(Consent(user_id=u.id, kind=k, version=CONSENT_VERSION, ts=utcnow()))
     db.commit()
-    return {"token": make_token(u), "user": user_out(u)}
+    return {"token": make_token(u), "user": user_out(u, db)}
 
 
 LOGIN_WINDOW = timedelta(minutes=15)
@@ -273,7 +292,7 @@ def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
             _login_fails.setdefault(k, []).append(utcnow())
         raise HTTPException(401, "Wrong email or password")
     _login_fails.pop(keys[0], None)
-    return {"token": make_token(u), "user": user_out(u)}
+    return {"token": make_token(u), "user": user_out(u, db)}
 
 
 DEMO_DOCTOR_EMAIL = "doctor@demo.kg"
@@ -286,8 +305,8 @@ def demo_guard(doc: User, patient_email: str):
 
 
 @app.get("/api/me")
-def me(user: User = Depends(current_user)):
-    return user_out(user)
+def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return user_out(user, db)
 
 
 @app.put("/api/me")
@@ -299,7 +318,7 @@ def update_me(body: ProfileIn, user: User = Depends(current_user), db: Session =
         setattr(user, k, v)
     db.commit()
     db.refresh(user)
-    return user_out(user)
+    return user_out(user, db)
 
 
 @app.put("/api/me/doctor")
@@ -314,7 +333,7 @@ def link_doctor(body: LinkDoctorIn, user: User = Depends(require_role("patient")
     db.commit()
     db.refresh(user)
     broker.publish(doc.id, "patients", {"patient_id": user.id})
-    return user_out(user)
+    return user_out(user, db)
 
 
 @app.post("/api/me/invite")
@@ -335,10 +354,11 @@ def ingest(db: Session, user: User, items: list) -> tuple[int, int]:
                                                  Reading.ts < from_unix(items[0].ts))
                      .order_by(Reading.ts.desc()).limit(1))
     rows, alerts = [], []
+    mode = patient_mode(db, user)          # AF alerts only for pilot participants
     for r in items:
         ts = from_unix(r.ts)
         rows.append(Reading(patient_id=user.id, ts=ts, state=r.state, prob=r.prob, bpm=r.bpm, battery=r.battery))
-        if r.state == STATE_AFIB and prev != STATE_AFIB and PRODUCT_MODE == "research":
+        if r.state == STATE_AFIB and prev != STATE_AFIB and mode == "research":
             alerts.append(Alert(patient_id=user.id, ts=ts, prob=r.prob, bpm=r.bpm))
         if r.state in (1, 2):              # ignore 'collecting' / 'no signal' gaps
             prev = r.state
@@ -655,7 +675,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
     symptoms = db.scalars(select(Symptom).where(Symptom.patient_id == patient.id, Symptom.ts >= since)
                           .order_by(Symptom.ts.desc()))
     return {
-        "patient": user_out(patient),
+        "patient": user_out(patient, db),
         "range": {"from": iso(since), "to": iso(until), "hours": hours},
         "stats": stats,
         "last": ({"ts": iso(last.ts), "state": last.state, "prob": last.prob, "bpm": last.bpm,

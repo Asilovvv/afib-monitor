@@ -90,8 +90,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scheme = useColorScheme()
   const [ready, setReady] = useState(false)
   const [lang, setLangS] = useState<Lang>('ru')
-  const [mode, setMode] = useState<'research' | 'wellness'>('research')
-  const modeRef = useRef<'research' | 'wellness'>('research')
+  // what this person may see: the server decides per patient (AF verdicts only for pilot participants with research
+  // consent and a doctor). Not signed in / unknown -> wellness: rhythm check without a diagnosis.
+  const [mode, setMode] = useState<'research' | 'wellness'>('wellness')
+  const modeRef = useRef<'research' | 'wellness'>('wellness')
   const [themePref, setThemePrefS] = useState<ThemePref>('system')
   const [big, setBigS] = useState(false)
   const [onboarded, setOnboarded] = useState(false)
@@ -318,8 +320,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ------------------------------------------------ prefs + start-up
   const loadConfig = useCallback(() => {
     api.config().then(c => {
-      const m = c.mode === 'wellness' ? 'wellness' : 'research'
-      setMode(m); modeRef.current = m; AsyncStorage.setItem(K.mode, m).catch(() => undefined)
+      if (c.mode === 'wellness') { setMode('wellness'); modeRef.current = 'wellness'; AsyncStorage.setItem(K.mode, 'wellness').catch(() => undefined) }
     }).catch(() => undefined)
   }, [])
   const setLang = useCallback((l: Lang) => { setLangS(l); langRef.current = l; AsyncStorage.setItem(K.lang, l).catch(() => undefined) }, [])
@@ -340,7 +341,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (kv[K.lang] === 'en' || kv[K.lang] === 'ru' || kv[K.lang] === 'ky') { setLangS(kv[K.lang] as Lang); langRef.current = kv[K.lang] as Lang }
         if (kv[K.theme]) setThemePrefS(kv[K.theme] as ThemePref)
         setBigS(kv[K.big] === '1')
-        if (kv[K.mode] === 'wellness') { setMode('wellness'); modeRef.current = 'wellness' }
+        if (kv[K.mode] === 'research' && settings.token) { setMode('research'); modeRef.current = 'research' }   // last known, until the server answers
         setOnboarded(kv[K.onboarded] === '1'); setOfflineS(kv[K.offline] === '1')
         if (Platform.OS !== 'web') Notifications.requestPermissionsAsync().catch(() => undefined)
         if (settings.token && settings.server) {
@@ -350,6 +351,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } finally { setReady(true) }
     })()
   }, [])
+
+  useEffect(() => {                         // follow the server's decision for this patient
+    if (!ready) return
+    const m = user?.role === 'patient' && user.mode === 'research' ? 'research' : 'wellness'
+    setMode(m); modeRef.current = m; AsyncStorage.setItem(K.mode, m).catch(() => undefined)
+  }, [user, ready])
 
   const signIn = useCallback(async (u: User, token: string) => {
     await settings.setToken(token); setUser(u); setOffline(false); syncNow(); loadConfig()

@@ -1,7 +1,7 @@
 import { locOf } from '../i18n'
 import { useEffect, useState } from 'react'
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Switch, TextInput, View, Platform } from 'react-native'
-import { api, settings, type Risk, type TgLink } from '../api'
+import { api, researchGiven, settings, type Risk, type TgLink } from '../api'
 import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
 import { F } from '../theme'
@@ -200,7 +200,7 @@ function FeedbackCard() {
 }
 
 function MyDataCard() {
-  const { theme: tm, t, toast, signOut, lang } = useApp()
+  const { theme: tm, t, toast, signOut, lang, setUser } = useApp()
   const [log, setLog] = useState<{ ts: string; who: string; action: string }[] | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [research, setResearch] = useState<boolean | null>(null)
@@ -209,7 +209,7 @@ function MyDataCard() {
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     api.accessLog().then(setLog).catch(() => setLog([]))
-    api.consents().then(c => setResearch(c.consents.some(x => x.kind === 'research' && !x.withdrawn_at))).catch(() => undefined)
+    api.consents().then(c => setResearch(researchGiven(c))).catch(() => undefined)
   }, [])
   const exportData = async () => {
     try { const r = await api.exportLink(); await Linking.openURL(r.url) } catch (e) { toast((e as Error).message, 'af') }
@@ -217,8 +217,10 @@ function MyDataCard() {
   const toggleResearch = async () => {
     const next = !research
     try {
+      if (next) await api.setConsent('research', false)     // retire consents to older texts first
       const r = await api.setConsent('research', next)
-      setResearch(r.consents.some(x => x.kind === 'research' && !x.withdrawn_at))
+      setResearch(researchGiven(r))
+      setUser(await api.me())               // consent changes what the app may show (research / wellness)
     } catch (e) { toast((e as Error).message, 'af') }
   }
   const remove = async () => {

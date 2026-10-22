@@ -5,7 +5,7 @@ import { LANG_LABEL, nextLang, useT, type Lang } from '../i18n'
 /** Privacy policy and terms of use (version 2026-10). Plain language, three languages.
  *  Research prototype: describes what the system actually does today — update together with CONSENT_VERSION. */
 type Sec = [string, string[]]
-const VERSION = '2026-10'
+const VERSION = '2026-10b'
 
 const PRIVACY: Record<Lang, { title: string; lead: string; sections: Sec[] }> = {
   ru: {
@@ -113,7 +113,8 @@ const TERMS: Record<Lang, { title: string; lead: string; sections: Sec[] }> = {
         'Не принимайте решений о лечении без врача. При боли в груди, обмороке или сильной одышке звоните 103.',
       ]],
       ['Исследование', [
-        'Если вы согласились участвовать в исследовании, обезличенные данные ритма могут использоваться для улучшения алгоритма. Согласие можно отозвать в профиле.',
+        'Оценку ритма «возможная фибрилляция» и уведомления врачу получают только участники исследования: те, кто дал согласие и привязан к своему врачу. Остальные видят проверку ритма без диагноза.',
+        'Обезличенные данные участников могут использоваться для улучшения алгоритма. Согласие можно отозвать в профиле, тогда приложение вернётся к проверке без диагноза.',
       ]],
       ['Аккаунт', [
         'Вы отвечаете за сохранность пароля. Аккаунт и все данные можно удалить в любой момент в профиле.',
@@ -132,7 +133,8 @@ const TERMS: Record<Lang, { title: string; lead: string; sections: Sec[] }> = {
         'Дарыгерсиз дарылоо чечимдерин кабыл албаңыз. Көкүрөк ооруса, эс-учуңузду жоготсоңуз же катуу ентиксеңиз 103кө чалыңыз.',
       ]],
       ['Изилдөө', [
-        'Изилдөөгө катышууга макул болсоңуз, ритмдин жашыруун маалыматтары алгоритмди жакшыртуу үчүн колдонулушу мүмкүн. Макулдукту профилден кайтарып алса болот.',
+        '«Мүмкүн болгон фибрилляция» баасын жана дарыгерге билдирүүнү изилдөөгө катышуучулар гана алышат: макулдук берген жана өз дарыгерине байланган адамдар. Калгандары диагнозсуз ритм текшерүүсүн көрүшөт.',
+        'Катышуучулардын жашыруун маалыматтары алгоритмди жакшыртуу үчүн колдонулушу мүмкүн. Макулдукту профилден кайтарып алса болот, анда тиркеме диагнозсуз текшерүүгө кайтат.',
       ]],
       ['Аккаунт', [
         'Сырсөздүн коопсуздугуна сиз жооптуусуз. Аккаунтту жана бардык маалыматтарды профилден каалаган убакта өчүрсө болот.',
@@ -151,7 +153,8 @@ const TERMS: Record<Lang, { title: string; lead: string; sections: Sec[] }> = {
         'Do not make treatment decisions without a doctor. For chest pain, fainting or severe shortness of breath call 103.',
       ]],
       ['Research', [
-        'If you agreed to take part in research, de-identified rhythm data may be used to improve the algorithm. You can withdraw consent in your profile.',
+        'Only study participants (consent given and linked to their own doctor) see the "possible atrial fibrillation" estimate, and only their doctor is notified. Everyone else gets a rhythm check without a diagnosis.',
+        'De-identified data of participants may be used to improve the algorithm. You can withdraw consent in your profile; the app then returns to the check without a diagnosis.',
       ]],
       ['Account', [
         'You are responsible for keeping your password safe. You can delete your account and all data at any time in your profile.',

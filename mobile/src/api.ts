@@ -1,10 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export type Doctor = { id: number; name: string; clinic?: string | null; phone?: string | null }
+export type Consents = { version: string; consents: { kind: string; version: string; ts: string; withdrawn_at: string | null }[] }
+/** Research consent counts only for the current text (older texts did not cover seeing AF estimates). */
+export const researchGiven = (c: Consents) => c.consents.some(x => x.kind === 'research' && !x.withdrawn_at && x.version === c.version)
 export type User = {
   id: number; email: string; name: string; role: 'patient' | 'doctor'
   birth_year?: number | null; sex?: 'm' | 'f' | null; phone?: string | null
   doctor?: Doctor | null
+  mode?: 'research' | 'wellness'     // patients: decided by the server (pilot participants only get AF verdicts)
 }
 export type Episode = {
   start: string; end: string; duration_s: number; max_prob: number; mean_bpm: number | null
@@ -109,8 +113,8 @@ export const api = {
   telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),
   risk: () => call<Risk>('/api/me/risk'),
   accessLog: () => call<{ ts: string; who: string; action: string }[]>('/api/me/access-log'),
-  consents: () => call<{ version: string; consents: { kind: string; ts: string; withdrawn_at: string | null }[] }>('/api/me/consents'),
-  setConsent: (kind: string, given: boolean) => call<{ consents: { kind: string; withdrawn_at: string | null }[] }>('/api/me/consents', { method: 'POST', body: JSON.stringify({ kind, given }) }),
+  consents: () => call<Consents>('/api/me/consents'),
+  setConsent: (kind: string, given: boolean) => call<Consents>('/api/me/consents', { method: 'POST', body: JSON.stringify({ kind, given }) }),
   exportLink: () => call<{ url: string }>('/api/me/export-link', { method: 'POST' }),
   deleteMe: (password: string) => call<{ deleted: boolean }>('/api/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
 }

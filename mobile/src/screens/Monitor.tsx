@@ -144,11 +144,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
                   <T v="small" style={{ textAlign: 'center', marginTop: 4, paddingHorizontal: 10 }}>
                     {status && !stale ? t(`${tone.key}_sub`) : t('st_nosignal_sub')}
                   </T>
-                  {status && status.state !== RhythmState.Collecting && !stale && !wellness && (
-                    <Row style={{ justifyContent: 'center', marginTop: 12 }}>
-                      <Pill text={`${Math.round(status.prob * 100)}% · ${t('confidence')}`} fg={tm.ink2} bg={tm.dark ? 'rgba(255,255,255,.07)' : 'rgba(255,255,255,.7)'} dot={false} />
-                    </Row>
-                  )}
+                  {/* no "AF probability" for patients: a model score reads as certainty; the doctor sees it in the portal */}
                 </>
               )}
             </Card>

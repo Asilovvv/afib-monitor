@@ -24,7 +24,8 @@ def test_full_flow():
     assert len(code) == 6
 
     r = c.post("/api/auth/register", json={"email": "pat@x.kg", "password": "secret1", "name": "Pat",
-                                           "role": "patient", "doctor_code": code.lower()})
+                                           "role": "patient", "doctor_code": code.lower(),
+                                           "consents": ["terms", "data", "research"]})
     assert r.status_code == 200, r.text
     pat_tok = r.json()["token"]
     assert r.json()["user"]["doctor"]["name"] == "Doc"
@@ -80,7 +81,8 @@ def test_v2_features():
                                              "role": "doctor", "clinic": "NCC"}).json()
     dt, code = doc["token"], doc["user"]["invite_code"]
     pat = c.post("/api/auth/register", json={"email": "p2@x.kg", "password": "secret1", "name": "Pat Two",
-                                             "role": "patient", "doctor_code": code}).json()
+                                             "role": "patient", "doctor_code": code,
+                                             "consents": ["terms", "data", "research"]}).json()
     pt, pid = pat["token"], pat["user"]["id"]
     now = time.time()
     # normal -> AFib -> no signal -> AFib : only ONE alert (signal gap is not a new onset)
@@ -144,7 +146,7 @@ def _pair(tag):
     d = c.post("/api/auth/register", json={"email": f"doc{tag}@x.kg", "password": "secret1", "name": f"Dr {tag}",
                                            "role": "doctor"}).json()
     p = c.post("/api/auth/register", json={"email": f"pat{tag}@x.kg", "password": "secret1", "name": f"Pat {tag}",
-                                           "role": "patient", "doctor_code": d["user"]["invite_code"],
+                                           "role": "patient", "doctor_code": d["user"]["invite_code"], "consents": ["terms", "data", "research"],
                                            "birth_year": 1950, "sex": "f"}).json()
     return d["token"], p["token"], p["user"]["id"]
 
@@ -293,7 +295,7 @@ def test_feedback_metrics_and_wellness_mode():
     from app import main as m
     d = c.post("/api/auth/register", json={"email": "docm@x.kg", "password": "secret1", "name": "Dr M", "role": "doctor"}).json()
     p = c.post("/api/auth/register", json={"email": "patm@x.kg", "password": "secret1", "name": "Pat M", "role": "patient",
-                                           "doctor_code": d["user"]["invite_code"]}).json()
+                                           "doctor_code": d["user"]["invite_code"], "consents": ["terms", "data", "research"]}).json()
     dt, pt, pid = d["token"], p["token"], p["user"]["id"]
     assert c.get("/api/config").json()["mode"] == "research"
     assert c.post("/api/feedback", json={"rating": 5, "text": "  Удобно  ", "platform": "ios"}, headers=auth(pt)).json() == {"ok": True}
@@ -543,3 +545,27 @@ def test_login_is_limited_after_many_wrong_passwords():
 def test_no_public_fallback_jwt_secret():
     from app import auth as a
     assert "dev-secret-change-me" not in a.SECRET and len(a.SECRET) >= 32
+
+
+def test_af_verdicts_only_for_pilot_participants():
+    """AF alerts and the "research" view only with research consent and a doctor; demo accounts keep the full demo."""
+    d = c.post("/api/auth/register", json={"email": "dpilot@x.kg", "password": "secret1", "name": "D", "role": "doctor"}).json()
+    code = d["user"]["invite_code"]
+    af = [{"ts": time.time() - 60 + i, "state": 2, "prob": 0.9, "bpm": 110} for i in range(3)]
+    def reg(email, consents, with_doctor=True):
+        body = {"email": email, "password": "secret1", "name": "P", "role": "patient", "consents": consents}
+        if with_doctor:
+            body["doctor_code"] = code
+        return c.post("/api/auth/register", json=body).json()
+    nores = reg("nores@x.kg", ["terms", "data"])
+    assert nores["user"]["mode"] == "wellness"
+    assert c.post("/api/readings", json={"readings": af}, headers=auth(nores["token"])).json()["alerts"] == 0
+    nodoc = reg("nodoc@x.kg", ["terms", "data", "research"], with_doctor=False)
+    assert nodoc["user"]["mode"] == "wellness"
+    pilot = reg("pilot@x.kg", ["terms", "data", "research"])
+    assert pilot["user"]["mode"] == "research"
+    assert c.post("/api/readings", json={"readings": af}, headers=auth(pilot["token"])).json()["alerts"] == 1
+    c.post("/api/me/consents", json={"kind": "research", "given": False}, headers=auth(pilot["token"]))
+    assert c.get("/api/me", headers=auth(pilot["token"])).json()["mode"] == "wellness"
+    demo = reg("p7@demo.kg", ["terms", "data"], with_doctor=False)
+    assert demo["user"]["mode"] == "research"

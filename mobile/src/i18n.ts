@@ -4,9 +4,9 @@ const ru = {
   // tabs
   tab_monitor: 'Монитор', tab_history: 'История', tab_diary: 'Дневник', tab_profile: 'Профиль',
   // onboarding
-  ob1_t: 'Сердце под присмотром', ob1_b: 'Носимый монитор ЭКГ сам распознаёт фибрилляцию предсердий — нейросеть работает прямо в датчике.',
-  ob2_t: 'Мгновенное предупреждение', ob2_b: 'Телефон получает ритм по Bluetooth, вибрирует при начале приступа и сам записывает ЭКГ для врача.',
-  ob3_t: 'Врач всегда в курсе', ob3_b: 'Эпизоды, пульс и ваши симптомы попадают в кабинет врача в реальном времени.',
+  ob1_t: 'Сердце под присмотром', ob1_b: 'Носимый монитор ЭКГ проверяет, ровный ли ритм сердца. Расчёт идёт прямо в датчике. Это не медицинское изделие и не ставит диагноз.',
+  ob2_t: 'Напоминания и записи', ob2_b: 'Телефон получает ЭКГ по Bluetooth, напоминает о проверках и сохраняет записи для врача.',
+  ob3_t: 'Врач всегда в курсе', ob3_b: 'Проверки, пульс и ваши симптомы попадают в кабинет врача.',
   next: 'Далее', start: 'Начать', skip: 'Пропустить',
   // auth
   welcome: 'Добро пожаловать', signin: 'Вход', signup: 'Регистрация', email: 'Email', password: 'Пароль',
@@ -59,7 +59,7 @@ const ru = {
   st_recording: 'Запись идёт', st_recording_sub: 'Пульс и ЭКГ записываются для вашего врача', wellness_note: 'Режим без диагностики: приложение записывает пульс и ЭКГ, но не определяет нарушения ритма. Покажите записи врачу.',
   rate_app: 'Оценить приложение', rate_sub: 'Что улучшить? Отзыв читает разработчик', rate_ph: 'Что понравилось, что неудобно…', send: 'Отправить', thanks: 'Спасибо за отзыв!',
   consent_terms_a: 'Я принимаю', consent_terms_link: 'условия и политику конфиденциальности', consent_terms_b: 'и согласен на обработку моих медицинских данных.', terms: 'Условия', privacy: 'Конфиденциальность',
-  consent_research: 'Разрешаю использовать мои обезличенные данные ритма для улучшения алгоритма (по желанию).',
+  consent_research: 'Участвую в исследовании вместе со своим врачом (по желанию): приложение покажет исследовательскую оценку ритма и сообщит врачу о возможной ФП; мои обезличенные данные можно использовать для улучшения алгоритма.',
   my_data: 'Мои данные', export_data: 'Скачать мои данные', export_sub: 'Один JSON-файл: профиль, ритм, ЭКГ, симптомы', who_viewed: 'Кто смотрел мои данные', nobody_viewed: 'Пока никто', research_toggle: 'Участие в исследовании',
   delete_account: 'Удалить аккаунт', delete_title: 'Удалить аккаунт навсегда?', delete_text: 'Будут удалены профиль, ритм, ЭКГ, симптомы и подключения Telegram. Это нельзя отменить. Введите пароль для подтверждения.', delete_btn: 'Удалить навсегда', deleted: 'Аккаунт удалён',
   check_btn: 'Проверь меня · 30 с', check_sub: 'Сидите спокойно и не разговаривайте', check_running: 'Проверяю… {s} с', check_lost: 'Датчик потерял сигнал — повторите',
@@ -86,9 +86,9 @@ export type Key = keyof typeof ru
 
 const en: Record<Key, string> = {
   tab_monitor: 'Monitor', tab_history: 'History', tab_diary: 'Diary', tab_profile: 'Profile',
-  ob1_t: 'Your heart, watched over', ob1_b: 'A wearable ECG monitor that recognises atrial fibrillation on its own — the neural network runs inside the sensor.',
-  ob2_t: 'Instant warning', ob2_b: 'Your phone gets the rhythm over Bluetooth, vibrates when an episode starts and records the ECG for your doctor.',
-  ob3_t: 'Your doctor stays informed', ob3_b: 'Episodes, heart rate and your symptoms reach the doctor portal in real time.',
+  ob1_t: 'Your heart, watched over', ob1_b: 'A wearable ECG monitor that checks whether your heart rhythm is regular. The calculation runs inside the sensor. It is not a medical device and does not diagnose.',
+  ob2_t: 'Reminders and recordings', ob2_b: 'Your phone gets the ECG over Bluetooth, reminds you to check and keeps recordings for your doctor.',
+  ob3_t: 'Your doctor stays informed', ob3_b: 'Checks, heart rate and your symptoms reach the doctor portal.',
   next: 'Next', start: 'Get started', skip: 'Skip',
   welcome: 'Welcome', signin: 'Sign in', signup: 'Sign up', email: 'Email', password: 'Password',
   name: 'Full name', doctor_code: 'Doctor code (optional)', birth_year: 'Year of birth',
@@ -134,7 +134,7 @@ const en: Record<Key, string> = {
   st_recording: 'Recording', st_recording_sub: 'Heart rate and ECG are recorded for your doctor', wellness_note: 'No-diagnosis mode: the app records heart rate and ECG but does not detect rhythm disorders. Show the recordings to your doctor.',
   rate_app: 'Rate the app', rate_sub: 'What should we improve? The developer reads every note', rate_ph: 'What you liked, what was awkward…', send: 'Send', thanks: 'Thank you for the feedback!',
   consent_terms_a: 'I accept the', consent_terms_link: 'terms and privacy policy', consent_terms_b: 'and agree to the processing of my health data.', terms: 'Terms', privacy: 'Privacy',
-  consent_research: 'Allow my de-identified rhythm data to be used to improve the algorithm (optional).',
+  consent_research: 'I take part in the study with my doctor (optional): the app shows a research rhythm estimate and tells my doctor about possible AF; my de-identified data may be used to improve the algorithm.',
   my_data: 'My data', export_data: 'Download my data', export_sub: 'One JSON file: profile, rhythm, ECG, symptoms', who_viewed: 'Who viewed my data', nobody_viewed: 'Nobody yet', research_toggle: 'Research participation',
   delete_account: 'Delete account', delete_title: 'Delete your account forever?', delete_text: 'Your profile, rhythm, ECG, symptoms and Telegram connections will be deleted. This cannot be undone. Enter your password to confirm.', delete_btn: 'Delete forever', deleted: 'Account deleted',
   check_btn: 'Check me · 30 s', check_sub: 'Sit still and do not talk', check_running: 'Checking… {s} s', check_lost: 'The sensor lost the signal — try again',
@@ -160,9 +160,9 @@ const en: Record<Key, string> = {
 
 const ky: Record<Key, string> = {
   tab_monitor: 'Монитор', tab_history: 'Тарых', tab_diary: 'Күндөлүк', tab_profile: 'Профиль',
-  ob1_t: 'Жүрөк көзөмөлдө', ob1_b: 'Кийилүүчү ЭКГ монитору жүрөктүн дирилдөөсүн (ФП) өзү тааныйт — нейротармак сенсордун ичинде иштейт.',
-  ob2_t: 'Дароо эскертүү', ob2_b: 'Телефон ритмди Bluetooth аркылуу алат, талма башталганда дирилдейт жана дарыгер үчүн ЭКГны өзү жазат.',
-  ob3_t: 'Дарыгер дайыма кабардар', ob3_b: 'Эпизоддор, пульс жана белгилериңиз дарыгердин кабинетине реалдуу убакытта жетет.',
+  ob1_t: 'Жүрөк көзөмөлдө', ob1_b: 'Кийилүүчү ЭКГ монитору жүрөктүн ритми бирдей экенин текшерет. Эсептөө сенсордун ичинде жүрөт. Бул медициналык буюм эмес жана диагноз койбойт.',
+  ob2_t: 'Эскертүүлөр жана жазуулар', ob2_b: 'Телефон ЭКГны Bluetooth аркылуу алат, текшерүүнү эске салат жана жазууларды дарыгер үчүн сактайт.',
+  ob3_t: 'Дарыгер дайыма кабардар', ob3_b: 'Текшерүүлөр, пульс жана белгилериңиз дарыгердин кабинетине жетет.',
   next: 'Кийинки', start: 'Баштоо', skip: 'Өткөрүү',
   welcome: 'Кош келиңиз', signin: 'Кирүү', signup: 'Катталуу', email: 'Email', password: 'Сырсөз',
   name: 'Аты-жөнү', doctor_code: 'Дарыгердин коду (милдеттүү эмес)', birth_year: 'Туулган жылы',
@@ -208,7 +208,7 @@ const ky: Record<Key, string> = {
   st_recording: 'Жазылууда', st_recording_sub: 'Пульс жана ЭКГ дарыгериңиз үчүн жазылууда', wellness_note: 'Диагностикасыз режим: тиркеме пульсту жана ЭКГны жазат, бирок ритмдин бузулушун аныктабайт. Жазууларды дарыгерге көрсөтүңүз.',
   rate_app: 'Тиркемеге баа берүү', rate_sub: 'Эмнени жакшыртуу керек? Пикирди иштеп чыгуучу окуйт', rate_ph: 'Эмне жакты, эмне ыңгайсыз…', send: 'Жөнөтүү', thanks: 'Пикириңиз үчүн рахмат!',
   consent_terms_a: 'Мен', consent_terms_link: 'шарттарды жана купуялуулук саясатын', consent_terms_b: 'кабыл алам жана медициналык маалыматтарымды иштетүүгө макулмун.', terms: 'Шарттар', privacy: 'Купуялуулук',
-  consent_research: 'Ритмдин жашыруун маалыматтарын алгоритмди жакшыртуу үчүн колдонууга уруксат берем (каалоо боюнча).',
+  consent_research: 'Дарыгерим менен изилдөөгө катышам (каалоо боюнча): тиркеме ритмдин изилдөө баасын көрсөтөт жана мүмкүн болгон ФП жөнүндө дарыгерге билдирет; жашыруун маалыматтарым алгоритмди жакшыртууга колдонулушу мүмкүн.',
   my_data: 'Менин маалыматтарым', export_data: 'Маалыматымды жүктөө', export_sub: 'Бир JSON файл: профиль, ритм, ЭКГ, белгилер', who_viewed: 'Маалыматымды ким көрдү', nobody_viewed: 'Азырынча эч ким', research_toggle: 'Изилдөөгө катышуу',
   delete_account: 'Аккаунтту өчүрүү', delete_title: 'Аккаунтту биротоло өчүрөсүзбү?', delete_text: 'Профиль, ритм, ЭКГ, белгилер жана Telegram туташуулары өчүрүлөт. Муну кайтаруу мүмкүн эмес. Ырастоо үчүн сырсөздү киргизиңиз.', delete_btn: 'Биротоло өчүрүү', deleted: 'Аккаунт өчүрүлдү',
   check_btn: 'Мени текшер · 30 с', check_sub: 'Тынч отуруңуз, сүйлөбөңүз', check_running: 'Текшерип жатам… {s} с', check_lost: 'Датчик сигналды жоготту — кайталаңыз',
