@@ -569,3 +569,7 @@ def test_af_verdicts_only_for_pilot_participants():
     assert c.get("/api/me", headers=auth(pilot["token"])).json()["mode"] == "wellness"
     demo = reg("p7@demo.kg", ["terms", "data"], with_doctor=False)
     assert demo["user"]["mode"] == "research"
+    rows = {r["email"]: r for r in c.get("/api/patients", headers=auth(d["token"])).json()}
+    assert rows["nores@x.kg"]["mode"] == "wellness" and rows["pilot@x.kg"]["mode"] == "wellness"   # pilot withdrew
+    assert rows["nores@x.kg"]["checks_today"] == {"due": 0, "done": 0, "checks": 0, "irregular": 0,
+                                                "confirmed_irregular": 0, "plan": False, "last": None}

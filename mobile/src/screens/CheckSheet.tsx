@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Linking } from 'react-native'
-import { Button, Icon, Ring, Sheet, T } from '../components/ui'
+import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg'
+import { QualityPill, useLiveAnalysis } from '../components/Poincare'
+import { Button, Icon, Ring, Row, Sheet, T } from '../components/ui'
 import { CHECK_SECONDS } from '../rr'
 import { useApp, type CheckResult } from '../store'
 import { F } from '../theme'
@@ -15,11 +17,14 @@ const CONFIRM_WINDOW_MS = 10 * 60e3
 let firstIrregularAt = 0            // survives closing the sheet; a repeat within 10 minutes confirms it
 type Shown = CheckResult & { stage: 'final' | 'confirm' | 'mixed' }
 export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { theme: tm, t, checking, checkMe, user } = useApp()
+  const { theme: tm, t, checking, checkMe, user, ecg } = useApp()
   const doctorPhone = user?.doctor?.phone?.replace(/\s/g, '')
   const [res, setRes] = useState<Shown | null>(null)
+  const [prep, setPrep] = useState(true)
+  const live = useLiveAnalysis(ecg, 8)          // last 8 s: is the signal good enough right now?
 
   const run = async () => {
+    setPrep(false)
     setRes(null)
     const r = await checkMe()
     if (!r) { onClose(); return }
@@ -32,7 +37,13 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
     }
     setRes({ ...r, stage: 'final' })
   }
-  useEffect(() => { if (open) run(); else setRes(null) }, [open])  // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!open) { setRes(null); setPrep(true) } }, [open])
+  const signal = !live ? <T v="small" c={tm.ink3}>{t('signal_wait')}</T> : (
+    <View style={{ alignItems: 'center', gap: 6 }}>
+      <QualityPill q={live.quality} />
+      {live.quality.level === 'poor' && <T v="small" c={tm.af} style={{ textAlign: 'center' }}>{t('signal_poor')}</T>}
+    </View>
+  )
 
   const confirm = res?.stage === 'confirm'
   const look = confirm ? { c: tm.accent, soft: tm.accentSoft, icon: 'sync' as const }
@@ -43,7 +54,21 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
 
   return (
     <Sheet open={open} onClose={onClose} title={t('check_btn')}>
-      {!res ? (
+      {prep ? (
+        <View style={s.center}>
+          <ElectrodeMap />
+          <View style={{ alignSelf: 'stretch', gap: 8, marginTop: 14 }}>
+            {(['check_prep_1', 'check_prep_2', 'check_prep_3'] as const).map(k => (
+              <Row key={k} gap={10}><Icon name="check" color={tm.ok} size={18} /><T style={{ flex: 1, fontSize: 16, lineHeight: 22 }}>{t(k)}</T></Row>
+            ))}
+          </View>
+          <View style={{ marginTop: 16 }}>{signal}</View>
+          <View style={{ alignSelf: 'stretch', gap: 10, marginTop: 18 }}>
+            <Button title={t('check_start')} icon="heart" onPress={run} />
+            <Button title={t('close')} kind="ghost" onPress={onClose} />
+          </View>
+        </View>
+      ) : !res ? (
         <View style={s.center}>
           <View style={s.ring}>
             <Ring size={190} stroke={12} progress={checking ?? 0} color={tm.accent} track={tm.bg2} />
@@ -52,6 +77,7 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
           </View>
           <T v="h3" style={{ marginTop: 18, textAlign: 'center' }}>{t('check_running', { s: secs })}</T>
           <T v="small" style={{ marginTop: 6, textAlign: 'center' }}>{t('check_sub')}</T>
+          <View style={{ marginTop: 12 }}>{signal}</View>
         </View>
       ) : (
         <View style={s.center}>
@@ -72,6 +98,29 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
         </View>
       )}
     </Sheet>
+  )
+}
+
+/** Where the three electrodes go (front view: the person's right side is on the left of the picture). */
+function ElectrodeMap() {
+  const { theme: tm, t } = useApp()
+  const dot = (cx: number, cy: number, c: string, l: string) => (<>
+    <Circle cx={cx} cy={cy} r={9} fill={c} stroke="#fff" strokeWidth={2} />
+    <SvgText x={cx} y={cy + 4} fontSize={10} fontWeight="bold" fill="#fff" textAnchor="middle">{l}</SvgText>
+  </>)
+  return (
+    <Row gap={14} style={{ alignSelf: 'stretch', alignItems: 'center' }}>
+      <Svg width={120} height={140} viewBox="0 0 120 140">
+        <Circle cx={60} cy={22} r={16} fill={tm.bg2} stroke={tm.line} />
+        <Path d="M22 50 Q60 34 98 50 L104 132 L16 132 Z" fill={tm.bg2} stroke={tm.line} />
+        {dot(38, 56, '#E0433F', 'R')}{dot(82, 56, '#E8B400', 'L')}{dot(80, 112, '#1F9D55', 'F')}
+      </Svg>
+      <View style={{ flex: 1, gap: 6 }}>
+        <T v="small" c="#E0433F">● {t('el_r')}</T>
+        <T v="small" c={tm.warn}>● {t('el_l')}</T>
+        <T v="small" c={tm.ok}>● {t('el_f')}</T>
+      </View>
+    </Row>
   )
 }
 

@@ -48,7 +48,7 @@ export default function Patients({ me }: { me: User }) {
         <div className="card table">
           <div className="tr th">
             <span>{th('name', f.t('Пациент'))}</span><span>{f.t('Сейчас')}</span><span>{f.t('Пульс')}</span>
-            <span>{f.t('Тренд')}</span><span>{th('burden', f.t('Нагрузка ФП'))}</span><span>{f.t('Эпизоды')}</span>
+            <span>{f.t('Тренд')}</span><span>{th('burden', f.t('Нагрузка ФП'))}</span><span>{f.tr('Проверки сегодня', 'Checks today', 'Бүгүнкү текшерүүлөр')}</span><span>{f.t('Эпизоды')}</span>
             <span>{th('seen', f.t('Связь'))}</span>
           </div>
           {list.map((r, i) => (
@@ -62,6 +62,7 @@ export default function Patients({ me }: { me: User }) {
               <span className="num big">{r.last_bpm ? Math.round(r.last_bpm) : '—'}</span>
               <span><Spark data={r.spark} alert={r.alert} /></span>
               <span className="burden"><span className="bar"><span style={{ width: `${Math.min(100, r.af_burden_24h * 100)}%` }} /></span><span className="num">{f.pct(r.af_burden_24h)}</span></span>
+              <CheckCell c={r.checks_today} />
               <span className="num">{r.episodes_24h}{r.new_alerts > 0 && <b className="badge sm">{r.new_alerts}</b>}</span>
               <span className={r.online ? 'ok' : 'muted'}>{r.online ? `● ${f.t('онлайн')}` : f.ago(r.last_seen)}</span>
             </div>
@@ -70,5 +71,20 @@ export default function Patients({ me }: { me: User }) {
         </div>
       )}
     </div>
+  )
+}
+
+/** Control mode at a glance: planned checks done today and the last verdict; "irregular" twice in a row is highlighted. */
+function CheckCell({ c }: { c: PatientRow['checks_today'] }) {
+  const f = useFmt()
+  if (!c || (!c.plan && c.checks === 0)) return <span className="muted">—</span>
+  const V = { regular: ['ok', f.tr('ровный', 'regular', 'бирдей')], irregular: ['af', f.tr('неровный', 'irregular', 'бирдей эмес')],
+    no_verdict: ['muted', f.tr('не прочитано', 'unreadable', 'окулган жок')] } as const
+  const behind = c.plan && c.done < c.due
+  return (
+    <span className="checks-cell">
+      <b className={`num ${c.confirmed_irregular ? 'r-af' : behind ? 'warn' : c.plan ? 'ok' : ''}`}>{c.plan ? `${c.done}/${c.due}` : c.checks}</b>
+      {c.last && <small className={V[c.last.verdict][0]}>{V[c.last.verdict][1]} · {f.time(c.last.ts)}</small>}
+    </span>
   )
 }

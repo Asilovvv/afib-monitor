@@ -14,7 +14,7 @@ from . import analytics
 from .auth import hash_password
 from .db import Base, SessionLocal, engine
 from .ecgsynth import synth_ecg
-from .models import (DAY_TAGS, Alert, DayTag, MedDose, Medication, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
+from .models import (DAY_TAGS, CheckPlan, Alert, DayTag, MedDose, Medication, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
                      STATE_NO_SIGNAL)
 
 DAYS = 7
@@ -95,6 +95,31 @@ SYMPTOM_SETS = [(["palpitations"], 2, "Сердце колотится посл�
                 (["anxiety"], 1, None)]
 
 
+# control mode demo: known AF checked on a schedule (separate and idempotent, so an existing demo database gets it too)
+CHECK_DEMO = [("gulmira@demo.kg", "08:00,14:00,20:00", True, 0.85), ("aibek@demo.kg", "09:00,21:00", False, 0.9)]
+
+
+def seed_check_plans(db):
+    for email, times, afib, keep in CHECK_DEMO:
+        p = db.scalar(select(User).where(User.email == email))
+        if not p or db.scalar(select(CheckPlan).where(CheckPlan.patient_id == p.id)):
+            continue
+        rng = random.Random(email)
+        start = utcnow() - timedelta(days=3)
+        db.add(CheckPlan(patient_id=p.id, times=times, active=True, set_by="doctor", updated_at=start))
+        for k, slot in enumerate(analytics.dose_slots(times.split(","), start, utcnow(), 6)):
+            if rng.random() > keep:
+                continue                                     # a missed check
+            ts = datetime.strptime(slot, "%Y-%m-%dT%H:%M") - timedelta(hours=6) + timedelta(minutes=rng.uniform(-20, 40))
+            if ts > utcnow():
+                continue
+            bpm = rng.uniform(88, 112) if afib else rng.uniform(62, 78)
+            db.add(EcgStrip(patient_id=p.id, ts=ts, fs=125, reason="check", state=STATE_AFIB if afib else STATE_NORMAL,
+                            prob=0.9 if afib else 0.05, bpm=bpm,
+                            samples=json.dumps(synth_ecg(30, afib=afib, bpm=bpm, seed=1000 + k))))
+        db.commit()
+
+
 def run():
     Base.metadata.create_all(engine)
     db = SessionLocal()
@@ -168,6 +193,7 @@ def run():
                                      verdict="false_alarm" if (pattern == "rare" or k % 5 == 3) else "confirmed"))
         db.commit()
         print(f"{name}: {len(rows)} readings, {len(onsets)} alerts ({pattern})")
+    seed_check_plans(db)
     if not db.scalar(select(Note).limit(1)):
         a = db.scalar(select(User).where(User.email == "aibek@demo.kg"))
         g = db.scalar(select(User).where(User.email == "gulmira@demo.kg"))

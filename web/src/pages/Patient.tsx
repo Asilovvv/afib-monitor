@@ -32,6 +32,8 @@ export default function PatientPage() {
         <Avatar name={p.name} size={64} alert={rep.last?.state === 2} />
         <div className="p-id">
           <h1>{p.name}</h1>
+          {p.mode === 'wellness' && <span className="tag-research" title={f.tr('Пациент видит только проверку ритма без диагноза: нет согласия на исследование текущей версии.', 'The patient sees only a rhythm check without a diagnosis: no consent to the current study text.', 'Бейтап диагнозсуз текшерүүнү гана көрөт: изилдөөнүн учурдагы текстине макулдук жок.')}>
+            {f.tr('не участник исследования', 'not in the study', 'изилдөөгө катышпайт')}</span>}
           <p className="muted">
             {[f.age(p.birth_year), p.sex === 'f' ? '♀' : p.sex === 'm' ? '♂' : '', p.email].filter(Boolean).join(' · ')}
             {p.phone && <> · <a href={`tel:${p.phone}`} className="tel">{Icon.phone(14)} {p.phone}</a></>}
@@ -54,7 +56,7 @@ export default function PatientPage() {
         ['ecg', f.t('ЭКГ'), rep.ecg.length], ['analysis', f.t('Анализ')], ['symptoms', f.t('Симптомы'), rep.symptoms.length], ['notes', f.t('Заметки'), rep.notes?.length],
       ]} />
 
-      {tab === 'overview' && <OverviewTab rep={rep} hours={hours} onEcg={setEcgId} />}
+      {tab === 'overview' && <><CheckPlanCard rep={rep} pid={Number(id)} /><OverviewTab rep={rep} hours={hours} onEcg={setEcgId} /></>}
       {tab === 'episodes' && <EpisodesTab rep={rep} pid={Number(id)} onEcg={setEcgId} reload={reload} />}
       {tab === 'ecg' && <EcgTab rep={rep} onEcg={setEcgId} />}
       {tab === 'analysis' && <AnalysisTab rep={rep} pid={Number(id)} />}
@@ -347,7 +349,6 @@ function AnalysisTab({ rep, pid }: { rep: Report; pid: number }) {
         </>}
       </section>
       <RiskCard pid={pid} />
-      <CheckPlanCard rep={rep} pid={pid} />
     </div>
   )
 }

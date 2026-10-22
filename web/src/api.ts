@@ -2,12 +2,16 @@ export type User = {
   id: number; email: string; name: string; role: 'doctor' | 'patient'
   birth_year: number | null; sex: 'm' | 'f' | null; phone: string | null
   invite_code?: string; clinic?: string | null; specialty?: string | null
+  mode?: 'research' | 'wellness'
 }
 export type PatientRow = {
   id: number; name: string; email: string; birth_year: number | null; sex: string | null; phone: string | null
   last_seen: string | null; last_state: number | null; last_bpm: number | null
   online: boolean; alert: boolean; new_alerts: number; af_burden_24h: number; episodes_24h: number
   monitored_minutes_24h: number; hr_mean_24h: number | null; spark: (number | null)[]
+  mode?: 'research' | 'wellness'
+  checks_today?: { due: number; done: number; checks: number; irregular: number; confirmed_irregular: number; plan: boolean
+    last: { ts: string; verdict: 'regular' | 'irregular' | 'no_verdict' } | null }
 }
 export type Alert = {
   id: number; patient_id: number; patient_name: string | null; ts: string; kind: string

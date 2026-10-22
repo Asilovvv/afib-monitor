@@ -706,7 +706,13 @@ def patient_row(db: Session, p: User, now: datetime) -> dict:
     last = rows[-1] if rows else None
     s = analytics.summary(rows)
     new_alerts = db.scalar(select(func.count(Alert.id)).where(Alert.patient_id == p.id, Alert.status == "new"))
+    day0 = datetime.combine((now + timedelta(hours=TZ_HOURS)).date(), datetime.min.time()) - timedelta(hours=TZ_HOURS)
+    ck = checks_summary(db, p.id, day0, now)                      # control mode: today's planned 30-s checks
     return {
+        "mode": patient_mode(db, p),
+        "checks_today": {"due": ck["due"], "done": ck["done"], "checks": ck["checks"], "irregular": ck["irregular"],
+                         "confirmed_irregular": ck["confirmed_irregular"], "plan": bool(ck["plan"] and ck["plan"]["active"]),
+                         "last": ck["last"][0] if ck["last"] else None},
         "id": p.id, "name": p.name, "email": p.email, "birth_year": p.birth_year, "sex": p.sex, "phone": p.phone,
         "last_seen": iso(last.ts) if last else None,
         "last_state": last.state if last else None,
