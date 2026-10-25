@@ -652,3 +652,8 @@ td.ok { color: var(--ok); } td.af { color: var(--af); } td.muted { color: var(--
 .checks-cell { display: flex; flex-direction: column; gap: 1px; line-height: 1.2; } .checks-cell small { font-size: 11.5px; }
 .checks-cell .warn { color: var(--warn); } .checks-cell .ok { color: var(--ok); } .checks-cell .r-af { color: var(--af-ink); }
 .p-id .tag-research { display: inline-block; margin: 4px 0 2px; }
+
+.report.simple h1 { font-size: 20px; } .report.simple p { margin: 4px 0 6px; line-height: 1.45; }
+.r-strip { margin: 6px 0; } .r-strip-h { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 2px; }
+.r-strip svg { max-width: 100%; height: auto; }
+@media print { .report.simple { padding: 20px 26px; } .report.simple section { break-inside: avoid; } }

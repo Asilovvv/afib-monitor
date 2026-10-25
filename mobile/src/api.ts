@@ -44,6 +44,10 @@ export type Report = {
   symptoms: Symptom[]
   ecg: EcgMeta[]
   battery: number | null
+  checks?: { plan: CheckPlan | null; due: number; done: number; adherence: number | null; checks: number; regular: number
+    irregular: number; no_verdict: number; confirmed_irregular: number; last: { ts: string; verdict: 'regular' | 'irregular' | 'no_verdict' }[] }
+  vitals?: VitalsSummary
+  medications?: { id: number; name: string; dose: string | null; anticoagulant: boolean; due: number; taken: number; adherence: number | null }[]
 }
 export type ReadingOut = { ts: number; state: number; prob: number; bpm: number; battery?: number | null }
 export type EcgOut = { ts: number; fs: number; samples: number[]; state: number; prob: number; bpm: number; reason: 'afib_onset' | 'manual' | 'symptom' | 'check' }

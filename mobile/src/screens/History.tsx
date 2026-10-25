@@ -8,6 +8,7 @@ import { PoincarePlot, QualityPill } from '../components/Poincare'
 import { analyze } from '../rr'
 import { Card, Empty, Icon, Pill, Row, Seg, Sheet, Stat, T } from '../components/ui'
 import { useApp } from '../store'
+import { F } from '../theme'
 import { fmtDur } from './Monitor'
 
 function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => void }) {
@@ -93,6 +94,7 @@ export default function History() {
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 14 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}>
         <T v="h1">{t('tab_history')}</T>
         <Seg value={hours} onChange={setHours} items={[[24, t('h24')], [168, t('d7')], [720, t('d30')]]} />
+        {hours === 168 && rep && <WeekCard rep={rep} />}
         {err ? <T v="small" c={tm.af}>{err}</T> : null}
         {!rep ? <ActivityIndicator style={{ marginTop: 40 }} /> : (
           <>
@@ -193,3 +195,45 @@ const s = StyleSheet.create({
   ecgBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   ecgIco: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 })
+
+
+/** "My week" in plain words: checks and their words, typed-in blood pressure, pills. No AF figures, no conclusions. */
+function WeekCard({ rep }: { rep: Report }) {
+  const { theme: tm, t } = useApp()
+  const ck = rep.checks, v = rep.vitals, meds = rep.medications ?? []
+  const empty = !ck?.checks && !v?.bp && !meds.some(m => m.due)
+  return (
+    <Card>
+      <Row gap={8}><T style={{ fontSize: 20 }}>📅</T><T v="h3">{t('week_title')}</T></Row>
+      <T v="small" style={{ marginTop: 4, marginBottom: 10 }}>{t('week_sub')}</T>
+      {empty ? <T v="small" c={tm.ink3}>{t('week_none')}</T> : (
+        <View style={{ gap: 10 }}>
+          {ck && ck.checks + ck.due > 0 && (
+            <View>
+              <T v="label">{t('week_checks')}</T>
+              <T style={{ fontSize: 17, lineHeight: 24 }}>
+                <T style={{ fontFamily: F.displayBold, fontSize: 22 }}>{ck.checks}</T>
+                {ck.due > 0 ? ` · ${ck.done} ${t('week_of')} ${ck.due} ${t('week_plan')}` : ''}
+              </T>
+              <T v="small">{ck.regular} {t('week_regular')} · {ck.irregular} {t('week_irregular')} · {ck.no_verdict} {t('week_unread')}
+                {ck.confirmed_irregular ? ` · ${t('week_twice')}: ${ck.confirmed_irregular}` : ''}</T>
+              {ck.due > 0 && <T v="small" c={ck.done >= ck.due ? tm.ok : tm.warn} style={{ marginTop: 4 }}>{ck.done >= ck.due ? t('week_good') : t('week_some')}</T>}
+            </View>
+          )}
+          {v?.bp && (
+            <View>
+              <T v="label">{t('week_bp')}</T>
+              <T style={{ fontSize: 17 }}><T style={{ fontFamily: F.displayBold, fontSize: 22 }}>{v.bp.sys_mean}/{v.bp.dia_mean}</T> {t('week_bp_mean')} · {v.bp.sys_min}–{v.bp.sys_max}/{v.bp.dia_min}–{v.bp.dia_max} · {v.bp.n} {t('vit_entries')}</T>
+            </View>
+          )}
+          {meds.filter(m => m.due).length > 0 && (
+            <View>
+              <T v="label">{t('week_meds')}</T>
+              {meds.filter(m => m.due).map(m => <T key={m.id} v="small">{m.name}: {t('week_taken')} {m.taken} {t('week_of')} {m.due}</T>)}
+            </View>
+          )}
+        </View>
+      )}
+    </Card>
+  )
+}

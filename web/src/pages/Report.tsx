@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, XAxis, YAxis } from 'recharts'
-import type { Report as Rep, User } from '../api'
+import { api, type Report as Rep, type User } from '../api'
+import { EcgStrip } from '../components/Ecg'
 import { Icon, STATE, SYMPTOM_LABEL, useFmt } from '../components/ui'
 import { useLive } from './Overview'
 
@@ -23,8 +25,10 @@ export default function Report({ me }: { me: User }) {
   const [sp] = useSearchParams()
   const hours = Number(sp.get('hours') ?? 168)
   const f = useFmt()
+  const simple = sp.get('view') === 'simple'
   const [rep] = useLive<Rep>(`/api/patients/${id}/report?hours=${hours}`)
   if (!rep) return <div className="page"><div className="skeleton tall" /></div>
+  if (simple) return <SimpleReport rep={rep} me={me} hours={hours} id={id!} />
   const p = rep.patient, s = rep.stats
   const data = rep.series.map(x => ({ ...x, ts: new Date(x.t).getTime() }))
   const dom = [new Date(rep.range.from).getTime(), new Date(rep.range.to).getTime()]
@@ -48,6 +52,7 @@ export default function Report({ me }: { me: User }) {
         <div className="row-gap">
           {[24, 168, 720].map(h => <Link key={h} to={`?hours=${h}`} className={`btn ${h === hours ? 'primary' : 'ghost'}`}>
             {h === 24 ? f.tr('Сутки', 'Day', 'Сутка') : h === 168 ? f.tr('Неделя', 'Week', 'Жума') : f.tr('Месяц', 'Month', 'Ай')}</Link>)}
+          <Link to={`?hours=${hours}&view=simple`} className="btn ghost">{f.tr('Для участкового', 'For the local doctor', 'Участок дарыгери үчүн')}</Link>
           <button className="btn primary" onClick={() => window.print()}>{Icon.print()} {f.t('Печать / PDF')}</button>
         </div>
       </div>
@@ -164,6 +169,103 @@ export default function Report({ me }: { me: User }) {
           'Wearable single-lead monitor; the algorithm is not registered as a medical device. Diagnosis and treatment are decided by the physician from the ECG and clinical picture.',
           'Тагынуучу бир каналдуу монитор; алгоритм медициналык буюм катары катталган эмес. Диагноз жана дарылоо боюнча чечимди дарыгер ЭКГ жана клиникалык көрүнүш боюнча кабыл алат.')}
           {' '}{f.tr('Последнее состояние', 'Last state', 'Акыркы абалы')}: {rep.last ? f.t(STATE[rep.last.state].label) : '—'}</footer>
+      </article>
+    </div>
+  )
+}
+
+
+/** One A4 page for a local doctor who has never seen this portal: the plan, what was done, the words the check gave,
+ *  typed-in blood pressure, pills, and two or three 30-s strips. No AF probability, no diagnosis, no advice. */
+function SimpleReport({ rep, me, hours, id }: { rep: Rep; me: User; hours: number; id: string }) {
+  const f = useFmt()
+  const p = rep.patient
+  const ck = rep.checks, v = rep.vitals
+  const [strips, setStrips] = useState<{ id: number; ts: string; samples: number[]; fs: number; verdict: string }[]>([])
+  useEffect(() => {
+    const picks = rep.ecg.filter(e => e.reason === 'check').slice(0, 3)
+    Promise.all(picks.map(e => api<{ samples: number[]; fs: number; irregularity: number | null }>(`/api/ecg/${e.id}`)
+      .then(x => ({ id: e.id, ts: e.ts, samples: x.samples, fs: x.fs, verdict: x.irregularity == null ? 'no_verdict' : x.irregularity > 0.1 ? 'irregular' : 'regular' }))))
+      .then(setStrips).catch(() => setStrips([]))
+  }, [rep])
+  const day = (iso: string) => new Date(iso).toLocaleDateString(f.loc, { day: 'numeric', month: 'short', year: 'numeric' })
+  const V: Record<string, string> = { regular: f.tr('ровный', 'regular', 'бирдей'), irregular: f.tr('неровный', 'irregular', 'бирдей эмес'), no_verdict: f.tr('не прочитано', 'unreadable', 'окулган жок') }
+  // checks per local day
+  const byDay = new Map<string, string[]>()
+  for (const x of (ck?.last ?? []).slice().reverse()) {
+    const d = new Date(x.ts).toLocaleDateString(f.loc, { day: 'numeric', month: 'short' })
+    byDay.set(d, [...(byDay.get(d) ?? []), V[x.verdict]])
+  }
+  return (
+    <div className="report-wrap">
+      <div className="report-tools no-print">
+        <Link to={`/app/patients/${id}/report?hours=${hours}`} className="btn ghost">{Icon.back()} {f.tr('Полный отчёт', 'Full report', 'Толук отчёт')}</Link>
+        <div className="row-gap">
+          {[168, 336, 720].map(h => <Link key={h} to={`?hours=${h}&view=simple`} className={`btn ${h === hours ? 'primary' : 'ghost'}`}>
+            {h === 168 ? f.tr('7 дней', '7 days', '7 күн') : h === 336 ? f.tr('14 дней', '14 days', '14 күн') : f.tr('30 дней', '30 days', '30 күн')}</Link>)}
+          <button className="btn primary" onClick={() => window.print()}>{Icon.print()} {f.t('Печать / PDF')}</button>
+        </div>
+      </div>
+      <article className="report one-page simple">
+        <header>
+          <div className="r-brand">{Icon.pulse(20)} AFib<b>Monitor</b></div>
+          <div className="r-meta">{f.t('Сформирован')}: {f.dt(new Date().toISOString())}</div>
+        </header>
+        <h1>{f.tr('Сводка домашних проверок ритма', 'Summary of home rhythm checks', 'Үйдөгү ритм текшерүүлөрүнүн корутундусу')}</h1>
+        <table className="r-head"><tbody>
+          <tr><th>{f.t('Пациент')}</th><td><b>{p.name}</b>{p.birth_year ? `, ${f.age(p.birth_year)}` : ''}</td>
+            <th>{f.t('Период')}</th><td>{day(rep.range.from)} — {day(rep.range.to)}</td></tr>
+          <tr><th>{f.tr('Наблюдающий врач', 'Supervising doctor', 'Байкоочу дарыгер')}</th><td>{me.name}{me.clinic ? `, ${me.clinic}` : ''}</td>
+            <th>{f.tr('Прибор', 'Device', 'Прибор')}</th><td>{f.tr('одноканальная ЭКГ 30 с, исследовательский прототип', 'single-lead 30-s ECG, research prototype', 'бир каналдуу 30 с ЭКГ, изилдөө прототиби')}</td></tr>
+        </tbody></table>
+
+        <section>
+          <h2>{f.tr('Проверки ритма по 30 секунд', '30-second rhythm checks', '30 секунддук ритм текшерүүлөрү')}</h2>
+          {ck && (ck.checks > 0 || ck.due > 0) ? (<>
+            <p>{ck.plan?.active ? <>{f.tr('План', 'Plan', 'План')}: <b>{ck.plan.times.join(', ')}</b>. </> : null}
+              {ck.due > 0 && <>{f.tr('Сделано по плану', 'Done as planned', 'План боюнча жасалды')}: <b>{ck.done} {f.tr('из', 'of', '/')} {ck.due}</b>{ck.adherence != null ? ` (${f.pct(ck.adherence)})` : ''}. </>}
+              {f.tr('Всего проверок', 'All checks', 'Бардык текшерүүлөр')}: <b>{ck.checks}</b> — {ck.regular} {V.regular}, <b className={ck.irregular ? 'r-af' : ''}>{ck.irregular} {V.irregular}</b>, {ck.no_verdict} {V.no_verdict}.
+              {' '}{f.tr('Неровный дважды подряд (в течение 10 минут)', 'Irregular twice in a row (within 10 minutes)', 'Катары менен эки жолу бирдей эмес (10 мүнөт ичинде)')}: <b className={ck.confirmed_irregular ? 'r-af' : ''}>{ck.confirmed_irregular}</b>.</p>
+            {byDay.size > 0 && <table className="r-table"><tbody>
+              {[...byDay.entries()].map(([d, vs]) => <tr key={d}><td>{d}</td><td>{vs.join(' · ')}</td></tr>)}
+            </tbody></table>}
+            <p className="r-fine">{f.tr('«Неровный» — правило: средняя разница соседних интервалов между ударами больше 10 % от среднего интервала. Это повод посмотреть запись, а не диагноз. Последние проверки показаны по дням, не больше шести.',
+              '"Irregular" is a rule: mean difference between neighbouring beat intervals above 10 % of the mean interval. A reason to look at the strip, not a diagnosis. The last checks are listed by day, at most six.',
+              '«Бирдей эмес» — эреже: коңшу согуу аралыктарынын орточо айырмасы орточо аралыктын 10 %ынан көп. Бул жазууну кароого себеп, диагноз эмес.')}</p>
+          </>) : <p className="muted">{f.tr('Проверок за период не было.', 'No checks in this period.', 'Бул мезгилде текшерүү болгон жок.')}</p>}
+        </section>
+
+        {strips.length > 0 && <section>
+          <h2>{f.tr('Последние записи (25 мм/с, 10 мм/мВ)', 'Latest strips (25 mm/s, 10 mm/mV)', 'Акыркы жазуулар (25 мм/с, 10 мм/мВ)')}</h2>
+          {strips.map(st => (
+            <div key={st.id} className="r-strip">
+              <div className="r-strip-h"><span>{f.dt(st.ts)}</span><b className={st.verdict === 'irregular' ? 'r-af' : ''}>{V[st.verdict]}</b></div>
+              <EcgStrip samples={st.samples.slice(0, st.fs * 10)} fs={st.fs} pxPerMm={2.6} height={26} />
+            </div>
+          ))}
+          <p className="r-fine">{f.tr('Показаны первые 10 секунд каждой 30-секундной записи.', 'The first 10 seconds of each 30-second strip are shown.', 'Ар бир 30 секунддук жазуунун биринчи 10 секунду көрсөтүлгөн.')}</p>
+        </section>}
+
+        <div className="r-cols">
+          <section>
+            <h2>{f.tr('Давление (ввёл пациент с тонометра)', 'Blood pressure (typed in by the patient)', 'Кан басымы (бейтап тонометрден киргизген)')}</h2>
+            {v?.bp ? <p>{f.tr('Среднее', 'Mean', 'Орточо')} <b>{v.bp.sys_mean}/{v.bp.dia_mean}</b>, {f.tr('от', 'from', 'мин')} {v.bp.sys_min}/{v.bp.dia_min} {f.tr('до', 'to', 'макс')} {v.bp.sys_max}/{v.bp.dia_max}, {v.bp.n} {f.tr('записей', 'entries', 'жазуу')}.
+              {v.glucose ? <><br />{f.tr('Сахар', 'Glucose', 'Кант')}: {f.tr('среднее', 'mean', 'орточо')} {v.glucose.mean} {f.tr('ммоль/л', 'mmol/L', 'ммоль/л')}, {v.glucose.n} {f.tr('записей', 'entries', 'жазуу')}.</> : null}
+              {v.weight ? <><br />{f.tr('Вес', 'Weight', 'Салмак')}: {v.weight.last.value} {f.tr('кг', 'kg', 'кг')}.</> : null}</p>
+              : <p className="muted">{f.tr('Записей нет.', 'No entries.', 'Жазуу жок.')}</p>}
+          </section>
+          <section>
+            <h2>{f.tr('Лекарства (по отметкам пациента)', 'Medicines (patient-reported)', 'Дарылар (бейтаптын белгилери)')}</h2>
+            {rep.medications?.length ? <table className="r-table"><tbody>{rep.medications.map(m => <tr key={m.id}>
+              <td>{m.name}{m.dose ? ` ${m.dose}` : ''}{m.anticoagulant ? <span className="r-af"> · {f.tr('антикоагулянт', 'anticoagulant', 'антикоагулянт')}</span> : ''}</td>
+              <td>{m.adherence == null ? '—' : <b className={m.anticoagulant && m.adherence < 0.9 ? 'r-af' : ''}>{f.pct(m.adherence)}</b>} ({m.taken}/{m.due})</td></tr>)}</tbody></table>
+              : <p className="muted">{f.tr('Лекарства в приложении не заведены.', 'No medicines set up in the app.', 'Тиркемеде дарылар киргизилген эмес.')}</p>}
+          </section>
+        </div>
+
+        <footer>{f.tr('AFib Monitor — учебный исследовательский прототип Международного университета Ала-Тоо, не медицинское изделие. Все значения записаны пациентом дома; результат проверки — правило по интервалам между ударами, не диагноз. Решения принимает врач.',
+          'AFib Monitor is a research prototype of Ala-Too International University, not a medical device. All values were recorded by the patient at home; the check result is a beat-interval rule, not a diagnosis. Decisions are the doctor\'s.',
+          'AFib Monitor — Ала-Тоо эл аралык университетинин окуу-изилдөө прототиби, медициналык буюм эмес. Бардык маанилерди бейтап үйдө жазган; текшерүүнүн жыйынтыгы — согуу аралыктары боюнча эреже, диагноз эмес. Чечимди дарыгер кабыл алат.')}</footer>
       </article>
     </div>
   )
