@@ -107,6 +107,7 @@ export default function Shell({ me, onLogout, children }: { me: User; onLogout: 
           <NavLink to="/app" end>{Icon.grid()}<span>{t('Обзор')}</span></NavLink>
           <NavLink to="/app/patients">{Icon.users()}<span>{t('Пациенты')}</span></NavLink>
           <NavLink to="/app/alerts">{Icon.bell()}<span>{t('Тревоги')}</span>{newAlerts > 0 && <b className="badge">{newAlerts}</b>}</NavLink>
+          <NavLink to="/app/devices">{Icon.box()}<span>{t('Датчики')}</span></NavLink>
           <NavLink to="/app/settings">{Icon.cog()}<span>{t('Настройки')}</span></NavLink>
         </nav>
         <div className={`live ${live ? 'on' : ''}`}><i />{live ? 'LIVE' : 'offline'}</div>

@@ -14,6 +14,7 @@ import { CheckSheet } from './CheckSheet'
 import { CheckPlanCard } from './CheckPlan'
 import { MedsCard } from './Meds'
 import { VitalsCard } from './Vitals'
+import { LoanCard } from './Loan'
 
 export function useNow(ms = 1000) {
   const [now, setNow] = useState(Date.now())
@@ -201,6 +202,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
         <CheckPlanCard />
         <MedsCard big={big} />
         <VitalsCard big={big} />
+        <LoanCard />
 
         {/* quick actions */}
         <Row style={{ marginTop: 14 }} gap={12}>

@@ -104,6 +104,7 @@ export const api = {
     call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, WAKE),
   register: (b: { email: string; password: string; name: string; doctor_code?: string; family_code?: string; birth_year?: number; sex?: string; consents?: string[]; role?: 'patient' | 'family' }) =>
     call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ role: 'patient', ...b }) }, WAKE),
+  myDevice: () => call<{ label: string | null; chip_id: string | null; issued_at: string; due_at: string; overdue: boolean } | null>('/api/me/device'),
   mySeen: () => call<{ id: number; ecg_id: number; action: 'seen' | 'call'; ts: string; strip_ts: string; doctor: string }[]>('/api/me/seen?days=7'),
   familyInvite: () => call<{ code: string; expires_days: number }>('/api/me/family/invite', { method: 'POST' }),
   myFamily: () => call<{ id: number; name: string; email: string | null; since: string }[]>('/api/me/family'),

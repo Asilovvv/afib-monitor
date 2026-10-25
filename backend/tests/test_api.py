@@ -682,3 +682,40 @@ def test_doctor_seen_and_morning_queue():
     assert len(mine) == 1 and mine[0]["ecg_id"] == a["id"] and mine[0]["action"] == "call" and mine[0]["doctor"] == "Dr seen"
     assert any(x["action"] == "seen_call" for x in c.get("/api/me/access-log", headers=H).json())
     assert c.get("/api/checks/queue", headers=H).status_code == 403
+
+
+def test_clinic_device_rental():
+    """Rules committed before the code (docs/PRODUCT_PLAN.md row 8): a box cannot be out to two people at once, a patient
+    holds at most one box, electrodes are counted, history and CSV exist, the patient sees "issued until"."""
+    dt, pt, pid = _pair("rent")
+    D, H = auth(dt), auth(pt)
+    r = c.post("/api/devices", json={"chip_id": "a1b2c3", "label": "№1", "electrodes": 30}, headers=D)
+    assert r.status_code == 200 and r.json()["chip_id"] == "A1B2C3" and r.json()["issue"] is None
+    dev = r.json()["id"]
+    assert c.post("/api/devices", json={"chip_id": "A1B2C3"}, headers=D).status_code == 409        # same serial twice
+    dev2 = c.post("/api/devices", json={"chip_id": "FFEE01", "label": "№2"}, headers=D).json()["id"]
+    assert c.get("/api/me/device", headers=H).json() is None
+    assert c.post(f"/api/devices/{dev}/issue", json={"patient_id": pid, "days": 14, "electrodes": 45}, headers=D).status_code == 409  # not enough pads
+    i = c.post(f"/api/devices/{dev}/issue", json={"patient_id": pid, "days": 14, "electrodes": 20}, headers=D)
+    assert i.status_code == 200 and i.json()["overdue"] is False and i.json()["patient"] == "Pat rent"
+    assert c.post(f"/api/devices/{dev}/issue", json={"patient_id": pid, "days": 7}, headers=D).status_code == 409   # already out
+    assert c.post(f"/api/devices/{dev2}/issue", json={"patient_id": pid, "days": 7}, headers=D).status_code == 409  # patient has one
+    assert c.request("DELETE", f"/api/devices/{dev}", headers=D).status_code == 409                                  # cannot retire while out
+    me = c.get("/api/me/device", headers=H).json()
+    assert me["chip_id"] == "A1B2C3" and me["label"] == "№1" and me["due_at"]
+    devs = {d["id"]: d for d in c.get("/api/devices", headers=D).json()}
+    assert devs[dev]["electrodes"] == 10 and devs[dev]["issue"]["patient_id"] == pid and devs[dev2]["issue"] is None
+    other = c.post("/api/auth/register", json={"email": "drent2@x.kg", "password": "secret1", "name": "D2", "role": "doctor"}).json()["token"]
+    assert c.get("/api/devices", headers=auth(other)).json() == []
+    assert c.post(f"/api/issues/{i.json()['id']}/return", headers=auth(other)).status_code == 404                     # not his box
+    assert c.post(f"/api/issues/{i.json()['id']}/return", headers=D).json()["returned_at"]
+    assert c.post(f"/api/issues/{i.json()['id']}/return", headers=D).status_code == 409
+    assert c.get("/api/me/device", headers=H).json() is None
+    hist = c.get("/api/issues", headers=D).json()
+    assert len(hist) == 1 and hist[0]["returned_at"] and c.get("/api/issues?open_only=true", headers=D).json() == []
+    csv_ = c.get("/api/issues.csv", headers=D)
+    assert csv_.status_code == 200 and "A1B2C3;№1;Pat rent" in csv_.text
+    assert c.request("DELETE", f"/api/devices/{dev}", headers=D).json()["ok"]
+    assert c.get("/api/devices", headers=H).status_code == 403
+    assert any(x["action"] == "device_issue" for x in c.get("/api/me/access-log", headers=H).json())
+    assert len(c.get("/api/me/export", headers=H).json()["device_loans"]) == 1

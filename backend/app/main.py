@@ -21,7 +21,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
 from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink, StripSeen)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink, StripSeen, Device, DeviceIssue)
 
 Base.metadata.create_all(engine)
 
@@ -1165,6 +1165,7 @@ def export_data(db: Session, u: User) -> dict:
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
         "vitals": [vital_out(v) for v in q(Vital, Vital.patient_id)],
+        "device_loans": [{"issued_at": iso(i.issued_at), "due_at": iso(i.due_at), "returned_at": iso(i.returned_at)} for i in q(DeviceIssue, DeviceIssue.patient_id)],
         "doctor_seen": [{"ecg_id": x.ecg_id, "action": x.action, "ts": iso(x.ts)} for x in q(StripSeen, StripSeen.patient_id)],
         "family": [{"watcher_id": l.watcher_id, "since": iso(l.created_at), "revoked_at": iso(l.revoked_at)} for l in q(FamilyLink, FamilyLink.patient_id)],
         "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
@@ -1223,6 +1224,9 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(FamilyLink).where((FamilyLink.patient_id == uid) | (FamilyLink.watcher_id == uid)),
         delete(StripSeen).where((StripSeen.patient_id == uid) | (StripSeen.doctor_id == uid)),
         delete(FamilyInvite).where(FamilyInvite.patient_id == uid),
+        delete(DeviceIssue).where(DeviceIssue.patient_id == uid),
+        delete(DeviceIssue).where(DeviceIssue.device_id.in_(select(Device.id).where(Device.owner_id == uid))),
+        delete(Device).where(Device.owner_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
         delete(MedDose).where(MedDose.patient_id == uid),
         delete(CheckPlan).where(CheckPlan.patient_id == uid),
@@ -1244,6 +1248,144 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
     db.execute(delete(User).where(User.id == uid))
     db.commit()
     return {"deleted": True}
+
+
+# ---------------------------------------------------------------- clinic rental: devices lent to patients
+class DeviceIn(BaseModel):
+    chip_id: str = Field(min_length=3, max_length=32, pattern=r"^[A-Za-z0-9:_-]+$")
+    label: str | None = Field(None, max_length=60)
+    electrodes: int = Field(0, ge=0, le=10000)
+
+
+class IssueIn(BaseModel):
+    patient_id: int
+    days: int = Field(14, ge=1, le=120)
+    electrodes: int = Field(0, ge=0, le=1000)
+    note: str | None = Field(None, max_length=200)
+
+
+def device_out(db: Session, d: Device, now: datetime) -> dict:
+    open_ = db.scalar(select(DeviceIssue).where(DeviceIssue.device_id == d.id, DeviceIssue.returned_at.is_(None)))
+    return {"id": d.id, "chip_id": d.chip_id.upper(), "label": d.label, "electrodes": d.electrodes,
+            "retired": d.retired_at is not None, "issue": issue_out(db, open_, now) if open_ else None}
+
+
+def issue_out(db: Session, i: DeviceIssue, now: datetime) -> dict:
+    p = db.get(User, i.patient_id)
+    d = db.get(Device, i.device_id)
+    return {"id": i.id, "device_id": i.device_id, "chip_id": d.chip_id.upper() if d else None, "label": d.label if d else None,
+            "patient_id": i.patient_id, "patient": p.name if p else "—",
+            "issued_at": iso(i.issued_at), "due_at": iso(i.due_at), "returned_at": iso(i.returned_at),
+            "overdue": i.returned_at is None and now > i.due_at, "electrodes_given": i.electrodes_given, "note": i.note}
+
+
+def own_device(db: Session, doctor: User, device_id: int) -> Device:
+    d = db.get(Device, device_id)
+    if not d or d.owner_id != doctor.id:
+        raise HTTPException(404, "Device not found")
+    return d
+
+
+@app.get("/api/devices")
+def list_devices(doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    now = utcnow()
+    rows = db.scalars(select(Device).where(Device.owner_id == doctor.id).order_by(Device.retired_at.is_not(None), Device.label, Device.chip_id))
+    return [device_out(db, d, now) for d in rows]
+
+
+@app.post("/api/devices")
+def add_device(body: DeviceIn, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    chip = body.chip_id.upper()
+    if db.scalar(select(Device).where(Device.owner_id == doctor.id, func.upper(Device.chip_id) == chip)):
+        raise HTTPException(409, "Device with this chip ID already exists")
+    d = Device(owner_id=doctor.id, chip_id=chip, label=body.label, electrodes=body.electrodes)
+    db.add(d); db.commit()
+    return device_out(db, d, utcnow())
+
+
+@app.patch("/api/devices/{device_id}")
+def edit_device(device_id: int, body: DeviceIn, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    d = own_device(db, doctor, device_id)
+    d.label = body.label; d.electrodes = body.electrodes
+    db.commit()
+    return device_out(db, d, utcnow())
+
+
+@app.delete("/api/devices/{device_id}")
+def retire_device(device_id: int, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    """Retire (lost / broken). History stays; an open issue blocks it."""
+    d = own_device(db, doctor, device_id)
+    if db.scalar(select(DeviceIssue).where(DeviceIssue.device_id == d.id, DeviceIssue.returned_at.is_(None))):
+        raise HTTPException(409, "Device is issued; take it back first")
+    d.retired_at = utcnow(); db.commit()
+    return {"ok": True}
+
+
+@app.post("/api/devices/{device_id}/issue")
+def issue_device(device_id: int, body: IssueIn, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    """Lend to one of the doctor's own patients. Refused when the box is already out or the patient already holds one."""
+    d = own_device(db, doctor, device_id)
+    p = own_patient(db, doctor, body.patient_id)
+    if d.retired_at:
+        raise HTTPException(409, "Device is retired")
+    if db.scalar(select(DeviceIssue).where(DeviceIssue.device_id == d.id, DeviceIssue.returned_at.is_(None))):
+        raise HTTPException(409, "Device is already issued")
+    if db.scalar(select(DeviceIssue).where(DeviceIssue.patient_id == p.id, DeviceIssue.returned_at.is_(None))):
+        raise HTTPException(409, "Patient already has a device")
+    if body.electrodes > d.electrodes:
+        raise HTTPException(409, "Not enough electrodes with this device")
+    now = utcnow()
+    i = DeviceIssue(device_id=d.id, patient_id=p.id, doctor_id=doctor.id, issued_at=now, due_at=now + timedelta(days=body.days),
+                    electrodes_given=body.electrodes, note=body.note)
+    d.electrodes -= body.electrodes
+    db.add(i); db.commit()
+    log_access(db, p.id, doctor, "device_issue")
+    return issue_out(db, i, now)
+
+
+@app.post("/api/issues/{issue_id}/return")
+def return_device(issue_id: int, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    i = db.get(DeviceIssue, issue_id)
+    d = db.get(Device, i.device_id) if i else None
+    if not i or not d or d.owner_id != doctor.id:
+        raise HTTPException(404, "Issue not found")
+    if i.returned_at:
+        raise HTTPException(409, "Already returned")
+    i.returned_at = utcnow(); db.commit()
+    return issue_out(db, i, i.returned_at)
+
+
+@app.get("/api/issues")
+def list_issues(open_only: bool = Query(False), limit: int = Query(200, le=2000),
+                doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    """History of loans across the clinic's devices, newest first."""
+    now = utcnow()
+    q = select(DeviceIssue).join(Device, Device.id == DeviceIssue.device_id).where(Device.owner_id == doctor.id)
+    if open_only:
+        q = q.where(DeviceIssue.returned_at.is_(None))
+    return [issue_out(db, i, now) for i in db.scalars(q.order_by(DeviceIssue.issued_at.desc()).limit(limit))]
+
+
+@app.get("/api/issues.csv")
+def issues_csv(doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    import csv, io
+    now = utcnow()
+    q = select(DeviceIssue).join(Device, Device.id == DeviceIssue.device_id).where(Device.owner_id == doctor.id).order_by(DeviceIssue.issued_at)
+    buf = io.StringIO(); w = csv.writer(buf, delimiter=";")
+    w.writerow(["chip_id", "label", "patient", "issued_at", "due_at", "returned_at", "overdue", "electrodes_given", "note"])
+    for i in db.scalars(q):
+        o = issue_out(db, i, now)
+        w.writerow([o["chip_id"], o["label"] or "", o["patient"], o["issued_at"], o["due_at"], o["returned_at"] or "",
+                    "yes" if o["overdue"] else "", o["electrodes_given"], o["note"] or ""])
+    return StreamingResponse(iter(["\ufeff" + buf.getvalue()]), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": "attachment; filename=device_issues.csv"})
+
+
+@app.get("/api/me/device")
+def my_device(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    """What the patient sees: "device №3 issued until <date>" or null."""
+    i = db.scalar(select(DeviceIssue).where(DeviceIssue.patient_id == user.id, DeviceIssue.returned_at.is_(None)))
+    return issue_out(db, i, utcnow()) if i else None
 
 
 # ---------------------------------------------------------------- stroke risk (CHA2DS2-VASc)

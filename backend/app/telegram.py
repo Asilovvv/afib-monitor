@@ -21,7 +21,7 @@ from sqlalchemy import delete, select
 
 from .db import SessionLocal
 from .events import broker
-from .models import (STATE_AFIB, STATE_NORMAL, Alert, AlertAck, CheckPlan, EcgStrip, FamilyLink, Reading, TelegramCode,
+from .models import (STATE_AFIB, STATE_NORMAL, Alert, AlertAck, CheckPlan, Device, DeviceIssue, EcgStrip, FamilyLink, Reading, TelegramCode,
                      TelegramLink, TelegramMessage, User)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -238,6 +238,41 @@ async def _send_seen(patient_id: int, doctor_name: str, action: str, strip_ts: d
         await _call("sendMessage", {"chat_id": str(chat), "text": text})
 
 
+async def _return_reminders(now: datetime, local: datetime):
+    """Clinic rental: the day before a box is due and each day it is overdue, one message to the doctor's chat and one
+    to the patient's own chat (if linked). Once a day per loan; after 09:00 local."""
+    if local.hour < 9:
+        return
+    todo = []
+    with SessionLocal() as db:
+        q = select(DeviceIssue).where(DeviceIssue.returned_at.is_(None), DeviceIssue.due_at <= now + timedelta(hours=24))
+        for i in db.scalars(q):
+            if i.reminded_at and now - i.reminded_at < timedelta(hours=23):
+                continue
+            d = db.get(Device, i.device_id)
+            p = db.get(User, i.patient_id)
+            if not d or not p:
+                continue
+            doc_chats = list(db.scalars(select(TelegramLink.chat_id).where(TelegramLink.kind == "doctor", TelegramLink.user_id == d.owner_id)))
+            pat_chats = list(db.scalars(select(TelegramLink.chat_id).where(TelegramLink.kind == "patient", TelegramLink.user_id == p.id)))
+            if not doc_chats and not pat_chats:
+                continue
+            i.reminded_at = now
+            overdue = now > i.due_at
+            due = local_date(i.due_at)
+            todo.append((doc_chats, f"📦 Датчик {d.label or d.chip_id.upper()} у пациента {html.escape(p.name)}: "
+                                    + (f"срок возврата истёк {due}." if overdue else f"возврат завтра, {due}.")))
+            todo.append((pat_chats, f"📦 Напоминание: датчик нужно вернуть в клинику " + (f"— срок истёк {due}." if overdue else f"завтра, {due}.")))
+        db.commit()
+    for chats, text in todo:
+        for chat in chats:
+            await _call("sendMessage", {"chat_id": str(chat), "text": text})
+
+
+def local_date(dt: datetime) -> str:
+    return (dt + timedelta(hours=TZ_HOURS)).strftime("%d.%m.%Y")
+
+
 async def family_nudges():
     """Every 10 minutes: planned-check reminders to patients; after 14:00 local, if a patient with an active plan and
     relatives has not checked today, tell the relatives once. Gentle reminders, never alarms."""
@@ -247,6 +282,7 @@ async def family_nudges():
                 now = utcnow()
                 local = now + timedelta(hours=TZ_HOURS)
                 await _check_reminders(now, local)
+                await _return_reminders(now, local)
                 if local.hour >= NUDGE_LOCAL_HOUR:
                     day = local.date().isoformat()
                     day0 = datetime.combine(local.date(), datetime.min.time()) - timedelta(hours=TZ_HOURS)

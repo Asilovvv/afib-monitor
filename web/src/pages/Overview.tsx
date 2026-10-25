@@ -149,7 +149,7 @@ function QualityCard() {
   )
 }
 
-function Kpi({ label, value, sub, tone, link, fmt }: { label: string; value: number; sub?: string; tone?: 'af'; link?: string; fmt?: (v: number) => string }) {
+export function Kpi({ label, value, sub, tone, link, fmt }: { label: string; value: number; sub?: string; tone?: 'af'; link?: string; fmt?: (v: number) => string }) {
   const body = (
     <>
       <span className="kpi-l">{label}</span>

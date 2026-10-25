@@ -19,6 +19,7 @@ import PatientPage from './pages/Patient'
 import Patients from './pages/Patients'
 import Report from './pages/Report'
 import Settings from './pages/Settings'
+import Devices from './pages/Devices'
 import Shell from './pages/Shell'
 import { applyTheme, getTheme } from './theme'
 
@@ -48,6 +49,7 @@ function App() {
       <Route path="/app/patients/:id/report" element={me === undefined ? null : doctor ? <Report me={me} /> : <Navigate to="/login" />} />
       <Route path="/app/patients/:id/:tab?" element={app(<PatientPage />)} />
       <Route path="/app/alerts" element={app(<Alerts />)} />
+      <Route path="/app/devices" element={app(doctor && <Devices />)} />
       <Route path="/app/settings" element={app(doctor && <Settings me={me} onUpdate={setMe} />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

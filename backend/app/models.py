@@ -299,3 +299,34 @@ class StripSeen(Base):
     doctor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(10))                  # "seen" | "call"
     ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Device(Base):
+    """A sensor owned by a clinic (doctor account) and lent to patients. Serial = the chip ID the firmware
+    advertises over BLE (24-bit MAC tail, e.g. "A1B2C3"), so the doctor can match the box in hand to the row."""
+    __tablename__ = "devices"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)    # doctor / clinic account
+    chip_id: Mapped[str] = mapped_column(String(32))
+    label: Mapped[str | None] = mapped_column(String(60), nullable=True)         # "№3", sticker on the box
+    electrodes: Mapped[int] = mapped_column(Integer, default=0)                  # electrode pads kept with this box
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (Index("ix_device_owner_chip", "owner_id", "chip_id", unique=True),)
+
+
+class DeviceIssue(Base):
+    """One loan: device → patient for N days. A device has at most one open issue (returned_at is NULL);
+    the server enforces it, the portal only shows it."""
+    __tablename__ = "device_issues"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id"), index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    due_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    returned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    electrodes_given: Mapped[int] = mapped_column(Integer, default=0)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # return reminder sent (Telegram)
