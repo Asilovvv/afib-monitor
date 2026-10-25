@@ -6,6 +6,7 @@ import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../compon
 import { useApp, type ThemePref } from '../store'
 import { RelativesCard } from './Family'
 import { F } from '../theme'
+import { hasSystemVoice, say } from '../voice'
 import { DeviceSheet } from './DeviceSheet'
 
 function Item({ icon, title, sub, onPress, right }: { icon: IconName; title: string; sub?: string; onPress?: () => void; right?: React.ReactNode }) {
@@ -20,7 +21,9 @@ function Item({ icon, title, sub, onPress, right }: { icon: IconName; title: str
 }
 
 export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; onBack?: () => void }) {
-  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig } = useApp()
+  const [kyVoice, setKyVoice] = useState<boolean | null>(null)
+  useEffect(() => { hasSystemVoice('ky').then(setKyVoice).catch(() => setKyVoice(false)) }, [])
+  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig, voice, setVoice } = useApp()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [dev, setDev] = useState(false)
@@ -99,6 +102,11 @@ export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; on
         <Row style={{ justifyContent: 'space-between', marginTop: 16 }}>
           <View style={{ flex: 1, paddingRight: 12 }}><T v="h3">{t('big_mode')}</T><T v="small">{t('big_mode_sub')}</T></View>
           <Switch value={big} onValueChange={setBig} accessibilityLabel={t('big_mode')} />
+        </Row>
+        <Row style={{ justifyContent: 'space-between', marginTop: 16 }}>
+          <View style={{ flex: 1, paddingRight: 12 }}><T v="h3">{t('voice_mode')}</T><T v="small">{t('voice_mode_sub')}</T>
+            {voice && kyVoice === false && lang === 'ky' && <T v="small" c={tm.warn} style={{ marginTop: 4 }}>{t('voice_ky_missing')}</T>}</View>
+          <Switch value={voice} onValueChange={v => { setVoice(v); if (v) say('sit', lang) }} accessibilityLabel={t('voice_mode')} />
         </Row>
       </Card>
 

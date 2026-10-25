@@ -8,6 +8,7 @@ import { CHECK_SECONDS } from '../rr'
 import { useApp, type CheckResult } from '../store'
 import { F } from '../theme'
 import { callSos } from './Monitor'
+import { say, stopVoice } from '../voice'
 
 /** "Check me in 30 seconds": one big ring, then one big answer. Wording is wellness-only:
  *  "regular / irregular — show your doctor / could not read", never a diagnosis.
@@ -17,7 +18,7 @@ const CONFIRM_WINDOW_MS = 10 * 60e3
 let firstIrregularAt = 0            // survives closing the sheet; a repeat within 10 minutes confirms it
 type Shown = CheckResult & { stage: 'final' | 'confirm' | 'mixed' }
 export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { theme: tm, t, checking, checkMe, user, ecg } = useApp()
+  const { theme: tm, t, checking, checkMe, user, ecg, lang } = useApp()
   const doctorPhone = user?.doctor?.phone?.replace(/\s/g, '')
   const [res, setRes] = useState<Shown | null>(null)
   const [prep, setPrep] = useState(true)
@@ -26,6 +27,7 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
   const run = async () => {
     setPrep(false)
     setRes(null)
+    say('start', lang)
     const r = await checkMe()
     if (!r) { onClose(); return }
     const pending = Date.now() - firstIrregularAt < CONFIRM_WINDOW_MS
@@ -37,7 +39,16 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
     }
     setRes({ ...r, stage: 'final' })
   }
-  useEffect(() => { if (!open) { setRes(null); setPrep(true) } }, [open])
+  useEffect(() => { if (!open) { setRes(null); setPrep(true); stopVoice() } else say('sit', lang) }, [open, lang])
+  // spoken countdown and result; say() ignores repeats, so re-renders are safe
+  const secsLeft = CHECK_SECONDS - Math.round((checking ?? 0) * CHECK_SECONDS)
+  useEffect(() => { if (!prep && !res && checking != null) { if (secsLeft === 15) say('half', lang); else if (secsLeft === 10) say('ten', lang) } }, [secsLeft, prep, res, checking, lang])
+  useEffect(() => {
+    if (!res) return
+    if (res.gaps || res.verdict === 'no_verdict') say(res.stage === 'mixed' ? 'confirm' : 'no_verdict', lang)
+    else if (res.stage === 'confirm') say('confirm', lang)
+    else say(res.verdict === 'regular' ? 'regular' : 'irregular', lang)
+  }, [res, lang])
   const signal = !live ? <T v="small" c={tm.ink3}>{t('signal_wait')}</T> : (
     <View style={{ alignItems: 'center', gap: 6 }}>
       <QualityPill q={live.quality} />

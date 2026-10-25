@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
+import { setVoiceEnabled } from './voice'
 import * as Notifications from 'expo-notifications'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, useColorScheme } from 'react-native'
@@ -35,6 +36,7 @@ type Ctx = {
   mode: 'research' | 'wellness'   // wellness = no rhythm verdicts, no AF alerts (before medical-device registration)
   themePref: ThemePref; setThemePref: (p: ThemePref) => void
   big: boolean; setBig: (b: boolean) => void      // large mode: bigger text, essentials only
+  voice: boolean; setVoice: (b: boolean) => void  // spoken prompts during a check (src/voice.ts)
   theme: Theme
   t: (k: Key | string, vars?: Record<string, string | number>) => string
   onboarded: boolean; finishOnboarding: () => void
@@ -81,7 +83,7 @@ const C = createContext<Ctx | null>(null)
 export const useApp = () => useContext(C)!
 
 const K = { seen: 'afib.seen', queue: 'afib.queue', ecgQueue: 'afib.ecgq', symQueue: 'afib.symq', lang: 'afib.lang', theme: 'afib.theme',
-  onboarded: 'afib.onboarded', big: 'afib.big', mode: 'afib.mode', offline: 'afib.offline', symptoms: 'afib.symptoms', episodes: 'afib.episodes' }
+  onboarded: 'afib.onboarded', big: 'afib.big', voice: 'afib.voice', mode: 'afib.mode', offline: 'afib.offline', symptoms: 'afib.symptoms', episodes: 'afib.episodes' }
 const HISTORY_MS = 3 * 3600e3
 const SYNC_MS = 20e3
 const ECG_SECONDS = 10
@@ -96,6 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const modeRef = useRef<'research' | 'wellness'>('wellness')
   const [themePref, setThemePrefS] = useState<ThemePref>('system')
   const [big, setBigS] = useState(false)
+  const [voice, setVoiceS] = useState(false)
   const [onboarded, setOnboarded] = useState(false)
   const [offline, setOfflineS] = useState(false)
   const [user, setUser] = useState<User | null>(null)
@@ -350,6 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }).catch(() => undefined)
   }, [])
   const setLang = useCallback((l: Lang) => { setLangS(l); langRef.current = l; AsyncStorage.setItem(K.lang, l).catch(() => undefined) }, [])
+  const setVoice = useCallback((b: boolean) => { setVoiceS(b); setVoiceEnabled(b); AsyncStorage.setItem(K.voice, b ? '1' : '0').catch(() => undefined) }, [])
   const setBig = useCallback((b: boolean) => { setBigS(b); AsyncStorage.setItem(K.big, b ? '1' : '0').catch(() => undefined) }, [])
   const setThemePref = useCallback((p: ThemePref) => { setThemePrefS(p); AsyncStorage.setItem(K.theme, p).catch(() => undefined) }, [])
   const finishOnboarding = useCallback(() => { setOnboarded(true); AsyncStorage.setItem(K.onboarded, '1').catch(() => undefined) }, [])
@@ -366,7 +370,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSymptoms(j(K.symptoms, [])); setEpisodes(j(K.episodes, []))
         if (kv[K.lang] === 'en' || kv[K.lang] === 'ru' || kv[K.lang] === 'ky') { setLangS(kv[K.lang] as Lang); langRef.current = kv[K.lang] as Lang }
         if (kv[K.theme]) setThemePrefS(kv[K.theme] as ThemePref)
-        setBigS(kv[K.big] === '1')
+        setBigS(kv[K.big] === '1'); setVoiceS(kv[K.voice] === '1'); setVoiceEnabled(kv[K.voice] === '1')
         if (kv[K.mode] === 'research' && settings.token) { setMode('research'); modeRef.current = 'research' }   // last known, until the server answers
         setOnboarded(kv[K.onboarded] === '1'); setOfflineS(kv[K.offline] === '1')
         if (Platform.OS !== 'web') Notifications.requestPermissionsAsync().catch(() => undefined)
@@ -392,7 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value: Ctx = {
-    ready, lang, setLang, mode, themePref, setThemePref, big, setBig, theme, t, onboarded, finishOnboarding,
+    ready, lang, setLang, mode, themePref, setThemePref, big, setBig, voice, setVoice, theme, t, onboarded, finishOnboarding,
     user, offline, setOffline, signIn, signOut, setUser,
     source, link, status, battery, rssi, ecg, history, episodes, startDevice, startSimulator, stop, connectedAt,
     recording, recordEcg, checking, checkMe, symptoms, addSymptom,

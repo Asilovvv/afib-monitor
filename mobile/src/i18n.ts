@@ -103,6 +103,7 @@ const ru = {
   meds_ac_q: 'Это препарат против тромбов?', meds_ac_hint: 'Антикоагулянт: варфарин, апиксабан, ривароксабан, дабигатран. Врач увидит пропуски отдельно.',
   med_notif_t: 'Время принять лекарство', med_notif_ac: 'Не пропустите: препарат против тромбов',
   plan_title: 'Проверки по расписанию', plan_none: 'Плана нет — можно включить напоминания', plan_by_doctor: 'назначил врач', plan_by_me: 'выбрали вы', plan_change: 'Изменить', plan_off: 'Без напоминаний', plan_n: '{n} раза в день', plan_next: 'Следующая проверка в {t}', plan_hint: 'Режим для контроля уже известной фибрилляции. Если врач ищет редкие приступы, носите датчик постоянно.', check_notif_t: 'Время проверки ритма', check_notif_b: 'Сядьте спокойно и нажмите «Проверь меня» — 30 секунд',
+  voice_mode: 'Голосовые подсказки', voice_mode_sub: 'Во время проверки телефон говорит: сядьте, осталось 10 секунд, результат словами. Работает без интернета.', voice_ky_missing: 'На этом телефоне нет кыргызского голоса — пока подсказки звучат по-русски. Кыргызская запись появится после озвучки.',
   big_mode: 'Крупный режим', big_mode_sub: 'Большой шрифт и только главное на экране',
   act_report: 'открыл отчёт', act_ecg: 'смотрел ЭКГ', act_risk_edit: 'изменил шкалу риска',
 }
@@ -202,6 +203,7 @@ const en: Record<Key, string> = {
   meds_ac_q: 'Is it a blood thinner?', meds_ac_hint: 'Anticoagulant: warfarin, apixaban, rivaroxaban, dabigatran. Your doctor sees missed doses separately.',
   med_notif_t: 'Time to take your medicine', med_notif_ac: 'Do not miss it: blood thinner',
   plan_title: 'Scheduled checks', plan_none: 'No plan — you can turn on reminders', plan_by_doctor: 'set by your doctor', plan_by_me: 'chosen by you', plan_change: 'Change', plan_off: 'No reminders', plan_n: '{n} times a day', plan_next: 'Next check at {t}', plan_hint: 'For monitoring known atrial fibrillation. If your doctor is looking for rare episodes, wear the sensor all the time.', check_notif_t: 'Time for a rhythm check', check_notif_b: 'Sit still and tap “Check me” — 30 seconds',
+  voice_mode: 'Voice prompts', voice_mode_sub: 'During a check the phone says: sit down, 10 seconds left, the result in words. Works offline.', voice_ky_missing: 'This phone has no Kyrgyz voice — prompts are spoken in Russian for now. Kyrgyz recordings will follow.',
   big_mode: 'Large mode', big_mode_sub: 'Bigger text and only the essentials on screen',
   act_report: 'opened the report', act_ecg: 'viewed an ECG', act_risk_edit: 'edited the risk score',
 }
@@ -300,6 +302,7 @@ const ky: Record<Key, string> = {
   meds_ac_q: 'Бул тромбго каршы дарыбы?', meds_ac_hint: 'Антикоагулянт: варфарин, апиксабан, ривароксабан, дабигатран. Дарыгер өткөрүлгөндөрдү өзүнчө көрөт.',
   med_notif_t: 'Дары ичүү убактысы', med_notif_ac: 'Өткөрбөңүз: тромбго каршы дары',
   plan_title: 'Графиги менен текшерүү', plan_none: 'План жок — эскертмелерди күйгүзсөңүз болот', plan_by_doctor: 'дарыгер белгиледи', plan_by_me: 'өзүңүз тандадыңыз', plan_change: 'Өзгөртүү', plan_off: 'Эскертмесиз', plan_n: 'күнүнө {n} жолу', plan_next: 'Кийинки текшерүү {t}', plan_hint: 'Белгилүү фибрилляцияны көзөмөлдөө үчүн. Эгер дарыгер сейрек приступтарды издесе, датчикти дайыма тагыңыз.', check_notif_t: 'Ритмди текшерүү убактысы', check_notif_b: 'Тынч отуруп «Мени текшер» басыңыз — 30 секунд',
+  voice_mode: 'Үн менен эскертүүлөр', voice_mode_sub: 'Текшерүү учурунда телефон айтат: отуруңуз, 10 секунд калды, жыйынтык сөз менен. Интернетсиз иштейт.', voice_ky_missing: 'Бул телефондо кыргызча үн жок — азырынча эскертүүлөр орусча угулат. Кыргызча жазуу үн жазылгандан кийин кошулат.',
   big_mode: 'Ири режим', big_mode_sub: 'Чоң шрифт жана экранда эң керектүүсү гана',
   act_report: 'отчётту ачты', act_ecg: 'ЭКГны карады', act_risk_edit: 'тобокелдик шкаласын өзгөрттү',
 }
