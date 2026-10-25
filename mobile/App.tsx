@@ -13,6 +13,7 @@ import History from './src/screens/History'
 import Monitor from './src/screens/Monitor'
 import Profile from './src/screens/Profile'
 import { Auth, Onboarding } from './src/screens/Welcome'
+import { FamilyHome } from './src/screens/Family'
 import { AppProvider, useApp } from './src/store'
 import { F } from './src/theme'
 
@@ -49,6 +50,18 @@ function Root() {
   const bar = <StatusBar style={tm.dark ? 'light' : 'dark'} />
   if (!onboarded) return <>{bar}<Onboarding /></>
   if ((!user && !offline) || authOpen) return <>{bar}<Auth onDone={() => setAuthOpen(false)} /></>
+
+  if (user?.role === 'family') {                       // a relative: one screen, no sensor, no tabs
+    return (
+      <View style={{ flex: 1, backgroundColor: tm.bg }}>
+        {bar}
+        <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
+          {tab === 'profile' ? <Profile onSignIn={() => { setOffline(false); setAuthOpen(true) }} onBack={() => setTab('monitor')} /> : <FamilyHome onProfile={() => setTab('profile')} />}
+        </SafeAreaView>
+        <Toasts />
+      </View>
+    )
+  }
 
   const af = status?.state === RhythmState.AFib
   return (

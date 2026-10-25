@@ -597,3 +597,36 @@ def test_vitals_diary_typed_in_home_values():
     assert c.delete(f"/api/me/vitals/{w['id']}", headers=H).json() == {"deleted": True}
     assert c.get("/api/me/vitals", headers=H).json()["weight"] is None
     assert c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=H).json() == {"deleted": True}
+
+
+def test_family_mode_sees_plain_words_only():
+    """A relative links with a 6-letter code, sees checks/BP/meds in plain words, never the doctor's view; revocable."""
+    dt, pt, pid = _pair("fam")
+    H = auth(pt)
+    code = c.post("/api/me/family/invite", headers=H).json()["code"]
+    assert len(code) == 6
+    # relative registers with the code
+    w = c.post("/api/auth/register", json={"email": "daughter@x.kg", "password": "secret1", "name": "Aigul", "role": "family",
+                                           "family_code": code.lower()}).json()
+    W = auth(w["token"])
+    assert c.post("/api/auth/register", json={"email": "d2fam@x.kg", "password": "secret1", "name": "D2", "role": "family",
+                                              "family_code": code}).status_code == 404     # one use
+    # patient does a check and types blood pressure
+    x = [0.0] * 125 * 30
+    c.post("/api/ecg", json={"ts": time.time(), "fs": 125, "samples": x, "state": 1, "prob": 0.1, "bpm": 70, "reason": "check"}, headers=H)
+    c.post("/api/me/vitals", json={"kind": "bp", "systolic": 131, "diastolic": 79}, headers=H)
+    cards = c.get("/api/family/patients", headers=W).json()
+    assert len(cards) == 1 and cards[0]["name"] == "Pat fam"
+    assert cards[0]["bp"]["systolic"] == 131 and cards[0]["checks_today"]["checks"] == 1
+    assert set(cards[0]) == {"id", "name", "checks_today", "bp", "meds_today", "last_seen"}   # nothing from the doctor's view
+    # the relative cannot reach patient or doctor endpoints
+    assert c.get("/api/me/report", headers=W).status_code == 403
+    assert c.get(f"/api/patients/{pid}/report", headers=W).status_code == 403
+    # the patient sees who watches and the access log shows the view
+    fam = c.get("/api/me/family", headers=H).json()
+    assert fam[0]["name"] == "Aigul"
+    assert any(a["action"] == "family_view" for a in c.get("/api/me/access-log", headers=H).json())
+    # revoke -> the relative sees nothing
+    assert c.delete(f"/api/me/family/{fam[0]['id']}", headers=H).json() == {"revoked": True}
+    assert c.get("/api/family/patients", headers=W).json() == []
+    assert c.get("/api/me/family", headers=H).json() == []

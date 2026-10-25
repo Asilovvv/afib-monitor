@@ -20,7 +20,7 @@ from sqlalchemy import delete, select
 
 from .db import SessionLocal
 from .events import broker
-from .models import (STATE_AFIB, STATE_NORMAL, Alert, AlertAck, EcgStrip, Reading, TelegramCode,
+from .models import (STATE_AFIB, STATE_NORMAL, Alert, AlertAck, CheckPlan, EcgStrip, FamilyLink, Reading, TelegramCode,
                      TelegramLink, TelegramMessage, User)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -148,6 +148,78 @@ def recipients(db, patient: User) -> list[TelegramLink]:
             seen.add(l.chat_id)
             out.append(l)
     return out
+
+
+# ------------------------------------------------------------------ family: plain-word daily messages
+FAMILY_VERDICT = {"regular": "ритм ровный ✅", "irregular": "ритм неровный — приложение посоветовало показать запись врачу",
+                  "no_verdict": "записать не удалось, попросите повторить"}
+TZ_HOURS = float(os.getenv("TZ_OFFSET_HOURS", "6"))
+NUDGE_LOCAL_HOUR = 14
+_nudged: set[tuple[int, str]] = set()        # (patient_id, local day) already reminded, per process
+
+
+def family_chats(db, patient_id: int) -> list[int]:
+    """Telegram chats of relatives: linked straight to the patient (kind family) or to a watcher account."""
+    watchers = [l.watcher_id for l in db.scalars(select(FamilyLink).where(FamilyLink.patient_id == patient_id,
+                                                                            FamilyLink.revoked_at.is_(None)))]
+    q = select(TelegramLink.chat_id).where(TelegramLink.kind == "family",
+                                           TelegramLink.user_id.in_([patient_id] + watchers))
+    return sorted(set(db.scalars(q)))
+
+
+def notify_family_check(patient_id: int, verdict: str):
+    """After a 30-s check: one short message to the relatives, wellness words only."""
+    if not enabled():
+        return
+    _spawn(_send_family(patient_id, verdict))
+
+
+async def _send_family(patient_id: int, verdict: str):
+    with SessionLocal() as db:
+        p = db.get(User, patient_id)
+        chats = family_chats(db, patient_id)
+    if not p or not chats:
+        return
+    first = html.escape(p.name.split()[0])
+    text = f"{first}: проверка сделана, {FAMILY_VERDICT.get(verdict, verdict)}"
+    for chat in chats:
+        await _call("sendMessage", {"chat_id": str(chat), "text": text})
+
+
+async def family_nudges():
+    """Every 10 minutes: after 14:00 local, if a patient with an active plan and relatives has not checked today,
+    tell the relatives once. A gentle reminder for a phone call, never an alarm."""
+    while True:
+        try:
+            if enabled():
+                now = utcnow()
+                local = now + timedelta(hours=TZ_HOURS)
+                if local.hour >= NUDGE_LOCAL_HOUR:
+                    day = local.date().isoformat()
+                    day0 = datetime.combine(local.date(), datetime.min.time()) - timedelta(hours=TZ_HOURS)
+                    with SessionLocal() as db:
+                        todo = []
+                        for plan in db.scalars(select(CheckPlan).where(CheckPlan.active.is_(True))):
+                            if (plan.patient_id, day) in _nudged:
+                                continue
+                            chats = family_chats(db, plan.patient_id)
+                            if not chats:
+                                continue
+                            done = db.scalar(select(EcgStrip.id).where(EcgStrip.patient_id == plan.patient_id,
+                                                                       EcgStrip.reason == "check", EcgStrip.ts >= day0).limit(1))
+                            if done:
+                                _nudged.add((plan.patient_id, day))
+                                continue
+                            p = db.get(User, plan.patient_id)
+                            todo.append((plan.patient_id, p.name.split()[0] if p else "?", chats))
+                    for pid, first, chats in todo:
+                        _nudged.add((pid, day))
+                        for chat in chats:
+                            await _call("sendMessage", {"chat_id": str(chat),
+                                                        "text": f"{html.escape(first)}: сегодня проверки ритма ещё не было. Может, стоит позвонить и напомнить?"})
+        except Exception as e:                      # never let the loop die
+            print("family nudges", e)
+        await asyncio.sleep(600)
 
 
 # ------------------------------------------------------------------ alerts

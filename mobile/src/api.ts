@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export type Doctor = { id: number; name: string; clinic?: string | null; phone?: string | null }
+export type FamilyCard = {
+  id: number; name: string
+  checks_today: { done: number; due: number; checks: number; plan: boolean; last: { ts: string; verdict: 'regular' | 'irregular' | 'no_verdict' } | null }
+  bp: { systolic: number; diastolic: number; ts: string } | null
+  meds_today: { due: number; taken: number; total: number }
+  last_seen: string | null
+}
 export type VitalKind = 'bp' | 'glucose' | 'weight'
 export type Vital = { id: number; ts: string; kind: VitalKind; systolic: number | null; diastolic: number | null; pulse: number | null; value: number | null; source: string; note: string | null }
 export type VitalsSummary = {
@@ -13,7 +20,7 @@ export type Consents = { version: string; consents: { kind: string; version: str
 /** Research consent counts only for the current text (older texts did not cover seeing AF estimates). */
 export const researchGiven = (c: Consents) => c.consents.some(x => x.kind === 'research' && !x.withdrawn_at && x.version === c.version)
 export type User = {
-  id: number; email: string; name: string; role: 'patient' | 'doctor'
+  id: number; email: string; name: string; role: 'patient' | 'doctor' | 'family'
   birth_year?: number | null; sex?: 'm' | 'f' | null; phone?: string | null
   doctor?: Doctor | null
   mode?: 'research' | 'wellness'     // patients: decided by the server (pilot participants only get AF verdicts)
@@ -91,8 +98,14 @@ async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 20000):
 export const api = {
   login: (email: string, password: string) =>
     call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, WAKE),
-  register: (b: { email: string; password: string; name: string; doctor_code?: string; birth_year?: number; sex?: string; consents?: string[] }) =>
-    call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...b, role: 'patient' }) }, WAKE),
+  register: (b: { email: string; password: string; name: string; doctor_code?: string; family_code?: string; birth_year?: number; sex?: string; consents?: string[]; role?: 'patient' | 'family' }) =>
+    call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ role: 'patient', ...b }) }, WAKE),
+  familyInvite: () => call<{ code: string; expires_days: number }>('/api/me/family/invite', { method: 'POST' }),
+  myFamily: () => call<{ id: number; name: string; email: string | null; since: string }[]>('/api/me/family'),
+  revokeFamily: (id: number) => call<{ revoked: boolean }>(`/api/me/family/${id}`, { method: 'DELETE' }),
+  familyLink: (code: string) => call<FamilyCard[]>('/api/family/link', { method: 'POST', body: JSON.stringify({ code }) }),
+  familyPatients: () => call<FamilyCard[]>('/api/family/patients'),
+  familyLeave: (pid: number) => call<{ left: boolean }>(`/api/family/patients/${pid}`, { method: 'DELETE' }),
   me: () => call<User>('/api/me', {}, WAKE),
   updateMe: (b: Partial<Pick<User, 'name' | 'birth_year' | 'sex' | 'phone'>>) => call<User>('/api/me', { method: 'PUT', body: JSON.stringify(b) }),
   linkDoctor: (code: string) => call<User>('/api/me/doctor', { method: 'PUT', body: JSON.stringify({ doctor_code: code }) }),

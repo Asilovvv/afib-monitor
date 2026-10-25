@@ -4,6 +4,7 @@ import { Linking, Pressable, ScrollView, Share, StyleSheet, Switch, TextInput, V
 import { api, researchGiven, settings, type Risk, type TgLink } from '../api'
 import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
+import { RelativesCard } from './Family'
 import { F } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
 
@@ -18,7 +19,7 @@ function Item({ icon, title, sub, onPress, right }: { icon: IconName; title: str
   )
 }
 
-export default function Profile({ onSignIn }: { onSignIn: () => void }) {
+export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; onBack?: () => void }) {
   const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig } = useApp()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
@@ -35,7 +36,7 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 14 }}>
-      <T v="h1">{t('profile')}</T>
+      <Row gap={10}>{onBack && <Pressable onPress={onBack} hitSlop={10} style={{ transform: [{ rotate: '180deg' }] }}><Icon name="chev" color={tm.ink2} /></Pressable>}<T v="h1">{t('profile')}</T></Row>
 
       {user ? (
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
@@ -52,7 +53,7 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
         </Card>
       )}
 
-      {user && (
+      {user && user.role === 'patient' && (
         <Card>
           <T v="label" style={{ marginBottom: 10 }}>{t('my_doctor')}</T>
           {user.doctor ? (
@@ -78,15 +79,16 @@ export default function Profile({ onSignIn }: { onSignIn: () => void }) {
         </Card>
       )}
 
-      {user && <FamilyCard />}
-      {user && <RiskCard />}
+      {user?.role === 'patient' && <RelativesCard />}
+      {user?.role === 'patient' && <FamilyCard />}
+      {user?.role === 'patient' && <RiskCard />}
       {user && <MyDataCard />}
       {user && <FeedbackCard />}
 
-      <Card style={{ paddingVertical: 6 }}>
+      {user?.role !== 'family' && <Card style={{ paddingVertical: 6 }}>
         <Item icon="bt" title={t('device')} sub={source === 'none' ? '—' : source === 'simulator' ? t('source_sim') : t('source_dev')} onPress={() => setDev(true)} />
         <Item icon="server" title={t('server')} sub={settings.server || '—'} />
-      </Card>
+      </Card>}
 
       <Card>
         <T v="label" style={{ marginBottom: 10 }}>{t('appearance')}</T>

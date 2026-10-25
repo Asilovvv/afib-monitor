@@ -18,7 +18,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(200), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
-    role: Mapped[str] = mapped_column(String(10))            # "patient" | "doctor"
+    role: Mapped[str] = mapped_column(String(10))            # "patient" | "doctor" | "family" (a relative who watches)
     password_hash: Mapped[str] = mapped_column(String(200))
     invite_code: Mapped[str | None] = mapped_column(String(12), unique=True, nullable=True)  # doctors only
     doctor_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)    # patients only
@@ -265,3 +265,25 @@ class Vital(Base):
     value: Mapped[float | None] = mapped_column(Float, nullable=True)         # glucose mmol/L, weight kg
     source: Mapped[str] = mapped_column(String(10), default="manual")  # "manual" | "photo" (typed after a photo)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+
+class FamilyInvite(Base):
+    """Short code a patient gives to a relative; one use, 7 days."""
+    __tablename__ = "family_invites"
+    code: Mapped[str] = mapped_column(String(12), primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class FamilyLink(Base):
+    """A relative (User with role "family") allowed to see a patient's daily summary: checks done, verdict words,
+    typed-in blood pressure, medicines taken. Never the AF probability, alerts or ECG. The patient can revoke it."""
+    __tablename__ = "family_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    watcher_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (Index("ix_family_pair", "patient_id", "watcher_id"),)

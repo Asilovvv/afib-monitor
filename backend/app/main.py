@@ -21,7 +21,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
 from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink)
 
 Base.metadata.create_all(engine)
 
@@ -78,6 +78,7 @@ async def _startup():
         from .seed import run as _seed_demo
         asyncio.get_running_loop().run_in_executor(None, _seed_demo)
     asyncio.get_running_loop().create_task(telegram._guard(telegram.start()))
+    asyncio.get_running_loop().create_task(telegram.family_nudges())
 
 
 # ---------------------------------------------------------------- schemas
@@ -85,8 +86,9 @@ class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str = Field(min_length=1, max_length=200)
-    role: str = Field(pattern="^(patient|doctor)$")
+    role: str = Field(pattern="^(patient|doctor|family)$")
     doctor_code: str | None = None
+    family_code: str | None = None          # role "family": the code the patient gave
     birth_year: int | None = Field(default=None, ge=1900, le=2030)
     sex: str | None = Field(default=None, pattern="^(m|f)$")
     clinic: str | None = Field(default=None, max_length=200)
@@ -293,6 +295,8 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
         u.doctor_id = doc.id
     db.add(u)
     db.commit()
+    if body.role == "family" and body.family_code:
+        use_family_code(db, u, body.family_code)
     for k in set(body.consents) & set(CONSENT_KINDS):
         db.add(Consent(user_id=u.id, kind=k, version=CONSENT_VERSION, ts=utcnow()))
     db.commit()
@@ -373,6 +377,116 @@ def regenerate_invite(doctor: User = Depends(require_role("doctor")), db: Sessio
     doctor.invite_code = new_invite_code()
     db.commit()
     return {"invite_code": doctor.invite_code}
+
+
+# ---------------------------------------------------------------- family (relatives who watch)
+FAMILY_CODE_TTL = timedelta(days=7)
+
+
+def use_family_code(db: Session, watcher: User, code: str) -> FamilyLink:
+    inv = db.get(FamilyInvite, code.strip().upper())
+    if not inv or inv.used_at or utcnow() - inv.created_at > FAMILY_CODE_TTL:
+        raise HTTPException(404, "Family code not found or expired")
+    if inv.patient_id == watcher.id:
+        raise HTTPException(400, "This is your own code")
+    link = db.scalar(select(FamilyLink).where(FamilyLink.patient_id == inv.patient_id, FamilyLink.watcher_id == watcher.id,
+                                              FamilyLink.revoked_at.is_(None)))
+    if not link:
+        link = FamilyLink(patient_id=inv.patient_id, watcher_id=watcher.id, created_at=utcnow())
+        db.add(link)
+    inv.used_at = utcnow()
+    db.commit()
+    log_access(db, inv.patient_id, watcher, "family_link")
+    return link
+
+
+def family_watchers(db: Session, patient_id: int) -> list[FamilyLink]:
+    return list(db.scalars(select(FamilyLink).where(FamilyLink.patient_id == patient_id, FamilyLink.revoked_at.is_(None))))
+
+
+def family_card(db: Session, p: User, now: datetime) -> dict:
+    """What a relative may see: plain words only, nothing from the doctor's view."""
+    day0 = datetime.combine((now + timedelta(hours=TZ_HOURS)).date(), datetime.min.time()) - timedelta(hours=TZ_HOURS)
+    ck = checks_summary(db, p.id, day0, now)
+    last = ck["last"][0] if ck["last"] else None
+    bp = db.scalar(select(Vital).where(Vital.patient_id == p.id, Vital.kind == "bp").order_by(Vital.ts.desc()).limit(1))
+    today = (now + timedelta(hours=TZ_HOURS)).date().isoformat()
+    meds = list(db.scalars(select(Medication).where(Medication.patient_id == p.id, Medication.active.is_(True))))
+    slots = [(m.id, f"{today}T{t}") for m in meds for t in m.times.split(",")]
+    taken = {(d.medication_id, d.slot) for d in db.scalars(select(MedDose).where(MedDose.patient_id == p.id, MedDose.slot >= today,
+                                                                                  MedDose.status == "taken"))}
+    local_now = f"{today}T{(now + timedelta(hours=TZ_HOURS)):%H:%M}"
+    due_so_far = [sl for sl in slots if sl[1] <= local_now]
+    last_seen = db.scalar(select(Reading.ts).where(Reading.patient_id == p.id).order_by(Reading.ts.desc()).limit(1))
+    return {
+        "id": p.id, "name": p.name,
+        "checks_today": {"done": ck["done"], "due": ck["due"], "checks": ck["checks"], "plan": bool(ck["plan"] and ck["plan"]["active"]),
+                         "last": last},                        # last = {"ts", "verdict"}: regular / irregular / no_verdict
+        "bp": ({"systolic": bp.systolic, "diastolic": bp.diastolic, "ts": iso(bp.ts)} if bp else None),
+        "meds_today": {"due": len(due_so_far), "taken": sum(1 for sl in due_so_far if sl in taken), "total": len(slots)},
+        "last_seen": iso(last_seen) if last_seen else None,
+    }
+
+
+@app.post("/api/me/family/invite")
+def family_invite(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    import secrets
+    db.execute(delete(FamilyInvite).where(FamilyInvite.created_at < utcnow() - FAMILY_CODE_TTL))
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"     # no 0/O/1/I: it is read out over the phone
+    code = "".join(secrets.choice(alphabet) for _ in range(6))
+    db.add(FamilyInvite(code=code, patient_id=user.id, created_at=utcnow()))
+    db.commit()
+    return {"code": code, "expires_days": 7}
+
+
+@app.get("/api/me/family")
+def my_family(user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    out = []
+    for l in family_watchers(db, user.id):
+        w = db.get(User, l.watcher_id)
+        out.append({"id": l.id, "name": w.name if w else "?", "email": w.email if w else None, "since": iso(l.created_at)})
+    return out
+
+
+@app.delete("/api/me/family/{link_id}")
+def revoke_family(link_id: int, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    l = db.get(FamilyLink, link_id)
+    if not l or l.patient_id != user.id:
+        raise HTTPException(404, "Not found")
+    l.revoked_at = utcnow()
+    db.commit()
+    return {"revoked": True}
+
+
+class FamilyCodeIn(BaseModel):
+    code: str = Field(min_length=4, max_length=12)
+
+
+@app.post("/api/family/link")
+def family_link(body: FamilyCodeIn, user: User = Depends(require_role("family")), db: Session = Depends(get_db)):
+    use_family_code(db, user, body.code)
+    return family_patients(user, db)
+
+
+@app.get("/api/family/patients")
+def family_patients(user: User = Depends(require_role("family")), db: Session = Depends(get_db)):
+    now = utcnow()
+    out = []
+    for l in db.scalars(select(FamilyLink).where(FamilyLink.watcher_id == user.id, FamilyLink.revoked_at.is_(None))):
+        p = db.get(User, l.patient_id)
+        if p:
+            log_access(db, p.id, user, "family_view")
+            out.append(family_card(db, p, now))
+    return out
+
+
+@app.delete("/api/family/patients/{patient_id}")
+def family_leave(patient_id: int, user: User = Depends(require_role("family")), db: Session = Depends(get_db)):
+    for l in db.scalars(select(FamilyLink).where(FamilyLink.watcher_id == user.id, FamilyLink.patient_id == patient_id,
+                                                 FamilyLink.revoked_at.is_(None))):
+        l.revoked_at = utcnow()
+    db.commit()
+    return {"left": True}
 
 
 # ---------------------------------------------------------------- data from the mobile app
@@ -652,6 +766,7 @@ def add_ecg(body: EcgIn, user: User = Depends(require_role("patient")), db: Sess
     out = ecg_meta(e)
     if body.reason == "check":                   # "check me in 30 s": wellness verdict, see ml/CHECK30_CINC2017.md
         out["check"] = ecgtools.check(body.samples, body.fs)
+        telegram.notify_family_check(user.id, out["check"]["verdict"])
     return out
 
 
@@ -996,6 +1111,7 @@ def export_data(db: Session, u: User) -> dict:
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
         "vitals": [vital_out(v) for v in q(Vital, Vital.patient_id)],
+        "family": [{"watcher_id": l.watcher_id, "since": iso(l.created_at), "revoked_at": iso(l.revoked_at)} for l in q(FamilyLink, FamilyLink.patient_id)],
         "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
         "medication_doses": [{"medication_id": d.medication_id, "slot": d.slot, "status": d.status} for d in q(MedDose, MedDose.patient_id)],
         "check_plan": plan_out(db.scalar(select(CheckPlan).where(CheckPlan.patient_id == u.id))),
@@ -1049,6 +1165,8 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(EcgStrip).where(EcgStrip.patient_id == uid),
         delete(Symptom).where(Symptom.patient_id == uid),
         delete(Vital).where(Vital.patient_id == uid),
+        delete(FamilyLink).where((FamilyLink.patient_id == uid) | (FamilyLink.watcher_id == uid)),
+        delete(FamilyInvite).where(FamilyInvite.patient_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
         delete(MedDose).where(MedDose.patient_id == uid),
         delete(CheckPlan).where(CheckPlan.patient_id == uid),

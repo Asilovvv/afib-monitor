@@ -103,6 +103,7 @@ export function Onboarding() {
 export function Auth({ onDone }: { onDone?: () => void }) {
   const { theme: tm, t, signIn, setOffline } = useApp()
   const [mode, setMode] = useState<'in' | 'up'>('in')
+  const [role, setRole] = useState<'patient' | 'family'>('patient')
   const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'https://afib-monitor.onrender.com'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -128,7 +129,9 @@ export function Auth({ onDone }: { onDone?: () => void }) {
       await settings.setServer(server)
       const r = mode === 'in'
         ? await api.login(email.trim(), password)
-        : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined, consents: ['terms', 'data', ...(research ? ['research'] : [])] })
+        : role === 'family'
+          ? await api.register({ role: 'family', email: email.trim(), password, name: name.trim(), family_code: code.trim() || undefined, consents: ['terms', 'data'] })
+          : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined, consents: ['terms', 'data', ...(research ? ['research'] : [])] })
       setSrv('ok')
       await signIn(r.user, r.token)
       onDone?.()
@@ -153,15 +156,20 @@ export function Auth({ onDone }: { onDone?: () => void }) {
           <T v="h1" style={{ fontSize: 30, marginTop: 6 }}>{t('welcome')}</T>
           <Seg value={mode} onChange={setMode} items={[['in', t('signin')], ['up', t('signup')]]} />
 
+          {mode === 'up' && (<>
+            <T v="label">{t('fam_role_q')}</T>
+            <Seg value={role} onChange={setRole} items={[['patient', t('fam_role_patient')], ['family', t('fam_role_family')]]} />
+          </>)}
           {mode === 'up' && input(name, setName, t('name'), { autoCapitalize: 'words' })}
           {input(email, setEmail, t('email'), { keyboardType: 'email-address', autoComplete: 'email' })}
           {input(password, setPassword, t('password'), { secureTextEntry: true })}
-          {mode === 'up' && (
+          {mode === 'up' && role === 'patient' && (
             <Row gap={10}>
               <View style={{ flex: 1 }}>{input(year, setYear, t('birth_year'), { keyboardType: 'number-pad', maxLength: 4 })}</View>
               <View style={{ flex: 1.3 }}>{input(code, x => setCode(x.toUpperCase()), t('doctor_code'), { autoCapitalize: 'characters' })}</View>
             </Row>
           )}
+          {mode === 'up' && role === 'family' && input(code, x => setCode(x.toUpperCase()), t('fam_code'), { autoCapitalize: 'characters', maxLength: 6 })}
 
           <T v="label" style={{ marginTop: 6 }}>{t('server')}</T>
           <Row gap={8}>
@@ -179,7 +187,7 @@ export function Auth({ onDone }: { onDone?: () => void }) {
                 <Pressable onPress={() => openDoc('/terms')}><T v="small" c={tm.accent}>{t('terms')}</T></Pressable>
                 <Pressable onPress={() => openDoc('/privacy')}><T v="small" c={tm.accent}>{t('privacy')}</T></Pressable>
               </Row>
-              <Check on={research} onPress={() => setResearch(!research)}><T v="small">{t('consent_research')}</T></Check>
+              {role === 'patient' && <Check on={research} onPress={() => setResearch(!research)}><T v="small">{t('consent_research')}</T></Check>}
             </View>
           )}
 
