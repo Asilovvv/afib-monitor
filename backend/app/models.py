@@ -28,6 +28,10 @@ class User(Base):
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)               # doctors
     clinic: Mapped[str | None] = mapped_column(String(200), nullable=True)                  # doctors
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # paid plan (app/plans.py): patients "free"|"family", doctors "doctor_free"|"clinic50"|"clinic200"; NULL = free
+    plan: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    plan_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)            # NULL = no end (manual)
+    plan_source: Mapped[str | None] = mapped_column(String(16), nullable=True)              # trial|revenuecat|invoice|admin
 
     doctor = relationship("User", remote_side=[id])
 
@@ -330,3 +334,30 @@ class DeviceIssue(Base):
     electrodes_given: Mapped[int] = mapped_column(Integer, default=0)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     reminded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # return reminder sent (Telegram)
+
+
+class PlanRequest(Base):
+    """A clinic asked for an invoice ("Clinic 50/200"). Paid by bank transfer, activated by hand (admin endpoint);
+    the row is the paper trail. Store subscriptions (patients) never create one: RevenueCat webhooks set the plan."""
+    __tablename__ = "plan_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    plan: Mapped[str] = mapped_column(String(16))
+    months: Mapped[int] = mapped_column(Integer, default=1)
+    contact: Mapped[str | None] = mapped_column(String(200), nullable=True)    # how to send the invoice
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    handled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class BillingEvent(Base):
+    """Every webhook from the store processor, kept raw-ish for disputes (type, product, expiry). No card data ever
+    reaches us: the stores hold it."""
+    __tablename__ = "billing_events"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    provider: Mapped[str] = mapped_column(String(16))                           # "revenuecat"
+    event_id: Mapped[str] = mapped_column(String(80), unique=True)              # idempotency
+    kind: Mapped[str] = mapped_column(String(40))
+    product: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

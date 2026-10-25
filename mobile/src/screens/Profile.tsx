@@ -1,7 +1,7 @@
 import { locOf } from '../i18n'
 import { useEffect, useState } from 'react'
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Switch, TextInput, View, Platform } from 'react-native'
-import { api, researchGiven, settings, type Risk, type TgLink } from '../api'
+import { api, PlanError, researchGiven, settings, type Risk, type TgLink } from '../api'
 import { Button, Card, Icon, Row, Seg, Sheet, T, type IconName } from '../components/ui'
 import { useApp, type ThemePref } from '../store'
 import { RelativesCard } from './Family'
@@ -23,7 +23,7 @@ function Item({ icon, title, sub, onPress, right }: { icon: IconName; title: str
 export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; onBack?: () => void }) {
   const [kyVoice, setKyVoice] = useState<boolean | null>(null)
   useEffect(() => { hasSystemVoice('ky').then(setKyVoice).catch(() => setKyVoice(false)) }, [])
-  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig, voice, setVoice } = useApp()
+  const { theme: tm, t, user, setUser, signOut, lang, setLang, themePref, setThemePref, toast, source, big, setBig, voice, setVoice, openPlan } = useApp()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [dev, setDev] = useState(false)
@@ -82,6 +82,11 @@ export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; on
         </Card>
       )}
 
+      {user?.role === 'patient' && (
+        <Card style={{ marginTop: 14, paddingVertical: 6 }}>
+          <Item icon="star" title={t('pl_title')} sub={user.plan === 'family' ? t('pl_fam') : t('pl_free')} onPress={() => openPlan(null)} />
+        </Card>
+      )}
       {user?.role === 'patient' && <RelativesCard />}
       {user?.role === 'patient' && <FamilyCard />}
       {user?.role === 'patient' && <RiskCard />}
@@ -122,7 +127,7 @@ export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; on
 }
 
 function FamilyCard() {
-  const { theme: tm, t, toast } = useApp()
+  const { theme: tm, t, toast, openPlan } = useApp()
   const [info, setInfo] = useState<{ enabled: boolean; links: TgLink[] } | null>(null)
   const [busy, setBusy] = useState(false)
   const load = () => api.telegram().then(setInfo).catch(() => undefined)
@@ -139,7 +144,7 @@ function FamilyCard() {
   const mine = async () => {                 // the patient's own chat: open the bot link directly
     setBusy(true)
     try { const r = await api.telegramLink('patient'); if (r.url) await Linking.openURL(r.url); setTimeout(load, 15000) }
-    catch (e) { toast((e as Error).message, 'af') }
+    catch (e) { if (e instanceof PlanError) openPlan(e.feature); else toast((e as Error).message, 'af') }
     setBusy(false)
   }
   const own = info?.links.filter(l => l.kind === 'patient') ?? []

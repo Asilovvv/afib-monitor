@@ -23,6 +23,7 @@ export type User = {
   id: number; email: string; name: string; role: 'patient' | 'doctor' | 'family'
   birth_year?: number | null; sex?: 'm' | 'f' | null; phone?: string | null
   doctor?: Doctor | null
+  plan?: 'free' | 'family' | 'doctor_free' | 'clinic50' | 'clinic200'
   mode?: 'research' | 'wellness'     // patients: decided by the server (pilot participants only get AF verdicts)
 }
 export type Episode = {
@@ -82,6 +83,11 @@ export const settings = {
   },
 }
 
+/** The server said this feature belongs to a paid plan (402). Screens catch it and open "What's included". */
+export class PlanError extends Error { constructor(public feature: string) { super('plan_required') } }
+export type PlanInfo = { plan: 'free' | 'family' | 'doctor_free' | 'clinic50' | 'clinic200'; until: string | null; source: string | null
+  limits: Record<string, number | boolean>; usage: Record<string, number>; prices_som: Record<string, Record<string, number>>; trial_days: number }
+
 async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 20000): Promise<T> {
   if (!settings.server) throw new Error('no_server')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -92,7 +98,11 @@ async function call<T>(path: string, init: RequestInit = {}, timeoutMs = 20000):
     const r = await fetch(settings.server + path, { ...init, headers, signal: ctl.signal })
     if (!r.ok) {
       let msg = `HTTP ${r.status}`
-      try { const j = await r.json(); if (typeof j.detail === 'string') msg = j.detail } catch { /* not json */ }
+      let detail: unknown
+      try { const j = await r.json(); detail = j.detail; if (typeof j.detail === 'string') msg = j.detail } catch { /* not json */ }
+      const d = detail as { code?: string; feature?: string } | undefined
+      if (r.status === 402 && d?.code === 'plan_required') throw new PlanError(d.feature ?? '')
+      if (d?.code === 'doctor_full') throw new Error('doctor_full')
       throw new Error(msg)
     }
     return r.json() as Promise<T>
@@ -104,6 +114,7 @@ export const api = {
     call<{ token: string; user: User }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }, WAKE),
   register: (b: { email: string; password: string; name: string; doctor_code?: string; family_code?: string; birth_year?: number; sex?: string; consents?: string[]; role?: 'patient' | 'family' }) =>
     call<{ token: string; user: User }>('/api/auth/register', { method: 'POST', body: JSON.stringify({ role: 'patient', ...b }) }, WAKE),
+  myPlan: () => call<PlanInfo>('/api/me/plan'),
   myDevice: () => call<{ label: string | null; chip_id: string | null; issued_at: string; due_at: string; overdue: boolean } | null>('/api/me/device'),
   mySeen: () => call<{ id: number; ecg_id: number; action: 'seen' | 'call'; ts: string; strip_ts: string; doctor: string }[]>('/api/me/seen?days=7'),
   familyInvite: () => call<{ code: string; expires_days: number }>('/api/me/family/invite', { method: 'POST' }),

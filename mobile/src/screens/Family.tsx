@@ -87,7 +87,7 @@ export function FamilyHome({ onProfile }: { onProfile: () => void }) {
 
 /** Patient side: give a relative a code, see who watches, disconnect. */
 export function RelativesCard() {
-  const { theme: tm, t, user, toast, lang } = useApp()
+  const { theme: tm, t, user, toast, lang, openPlan } = useApp()
   const [list, setList] = useState<{ id: number; name: string; since: string }[]>([])
   const [code, setCode] = useState<string | null>(null)
   const load = useCallback(async () => { try { setList(await api.myFamily()) } catch { /* offline */ } }, [])
@@ -115,7 +115,9 @@ export function RelativesCard() {
           <T style={{ fontFamily: F.displayBold, fontSize: 34, letterSpacing: 6 }}>{code}</T>
           <T v="small" style={{ textAlign: 'center', lineHeight: 18 }}>{t('fam_code_hint')}</T>
         </View>
-      ) : <Button title={t('fam_invite')} kind="soft" icon="plus" onPress={invite} style={{ marginTop: 10 }} />}
+      ) : user.plan !== 'family' && list.length >= 1
+        ? <Button title={t('pl_more_family')} kind="soft" icon="star" onPress={() => openPlan('family_watchers')} style={{ marginTop: 10 }} />
+        : <Button title={t('fam_invite')} kind="soft" icon="plus" onPress={invite} style={{ marginTop: 10 }} />}
     </Card>
   )
 }

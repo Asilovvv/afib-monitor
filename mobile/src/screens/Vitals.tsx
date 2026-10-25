@@ -92,7 +92,7 @@ function BpChart({ items }: { items: Vital[] }) {
 }
 
 function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: () => void; last: Vital[] }) {
-  const { theme: tm, t, toast, lang } = useApp()
+  const { theme: tm, t, toast, lang, user, openPlan } = useApp()
   const [sys, setSys] = useState(''); const [dia, setDia] = useState(''); const [pulse, setPulse] = useState('')
   const [value, setValue] = useState(''); const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -124,6 +124,7 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
   }
   /** Camera → on-device OCR → fields. Never saves by itself; empty fields when unsure. */
   const shoot = async () => {
+    if (user?.plan !== 'family') { openPlan('cuff_photo'); return }
     setShooting(true)
     const r = await readCuffFromCamera()
     setShooting(false)

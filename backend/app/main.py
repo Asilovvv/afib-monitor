@@ -14,16 +14,32 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text, delete, func, select
 from sqlalchemy.orm import Session
 
-from . import analytics, ecgtools, ectopy, risk, telegram
+from . import analytics, ecgtools, ectopy, plans, risk, telegram
 from .auth import (check_password, current_user, hash_password, make_token, new_invite_code,
                    require_role, user_from_token)
 from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
 from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink, StripSeen, Device, DeviceIssue)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink, StripSeen, Device, DeviceIssue, PlanRequest, BillingEvent)
 
 Base.metadata.create_all(engine)
+
+
+def _add_missing_columns():
+    """create_all never alters existing tables; add new nullable columns by hand (idempotent, sqlite + postgres)."""
+    from sqlalchemy import inspect
+    wanted = {"users": [("plan", "VARCHAR(16)"), ("plan_until", "TIMESTAMP"), ("plan_source", "VARCHAR(16)")]}
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, cols in wanted.items():
+            have = {c["name"] for c in insp.get_columns(table)}
+            for name, typ in cols:
+                if name not in have:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {typ}"))
+
+
+_add_missing_columns()
 
 _DEMO = os.getenv("SEED_DEMO") == "1"      # demo doctor + patients (idempotent); seeded after the port is open
 
@@ -262,12 +278,43 @@ def user_out(u: User, db: Session | None = None) -> dict:
          "sex": u.sex, "phone": u.phone}
     if db is not None and u.role == "patient":
         d["mode"] = patient_mode(db, u)
+    if u.role in ("patient", "doctor"):
+        d["plan"] = plan_of(u)
     if u.role == "doctor":
         d.update(invite_code=u.invite_code, clinic=u.clinic, specialty=u.specialty)
     else:
         d["doctor"] = ({"id": u.doctor.id, "name": u.doctor.name, "clinic": u.doctor.clinic,
                         "phone": u.doctor.phone} if u.doctor else None)
     return d
+
+
+def plan_of(u: User, now: datetime | None = None) -> str:
+    return plans.effective(u.role, u.plan, u.plan_until, now or utcnow())
+
+
+def plan_info(db: Session, u: User) -> dict:
+    """What the apps show on "What's included": current plan, when it ends, limits, and usage against them."""
+    now = utcnow()
+    p = plan_of(u, now)
+    lim = plans.limits_for(u.role, p) if u.role in ("patient", "doctor") else {}
+    out = {"plan": p, "until": iso(u.plan_until) if u.plan not in (None, "free", "doctor_free") else None,
+           "source": u.plan_source, "limits": lim, "prices_som": plans.PRICES_SOM, "trial_days": plans.TRIAL_DAYS}
+    if u.role == "doctor":
+        out["usage"] = {"patients": db.scalar(select(func.count(User.id)).where(User.doctor_id == u.id)) or 0}
+    elif u.role == "patient":
+        out["usage"] = {"family_watchers": len(family_watchers(db, u.id))}
+    return out
+
+
+def need_plan(ok: bool, feature: str):
+    """402: the feature belongs to a paid plan. The apps map `feature` to a line on the "What's included" screen."""
+    if not ok:
+        raise HTTPException(402, {"code": "plan_required", "feature": feature})
+
+
+def doctor_has_room(db: Session, doc: User) -> bool:
+    n = db.scalar(select(func.count(User.id)).where(User.doctor_id == doc.id)) or 0
+    return n < plans.limits_for("doctor", plan_of(doc))["patients"]
 
 
 def own_patient(db: Session, doctor: User, patient_id: int) -> User:
@@ -292,7 +339,11 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
         if not doc:
             raise HTTPException(404, "Doctor code not found")
         demo_guard(doc, u.email)
+        if not doctor_has_room(db, doc):
+            raise HTTPException(409, {"code": "doctor_full", "detail": "This doctor's cabinet is full; ask the clinic"})
         u.doctor_id = doc.id
+    if body.role == "patient":                                   # 30 days of "Family", no card, no auto-charge
+        u.plan, u.plan_until, u.plan_source = "family", plans.trial_until(utcnow()), "trial"
     db.add(u)
     db.commit()
     if body.role == "family" and body.family_code:
@@ -363,6 +414,8 @@ def link_doctor(body: LinkDoctorIn, user: User = Depends(require_role("patient")
     if not doc:
         raise HTTPException(404, "Doctor code not found")
     demo_guard(doc, user.email)
+    if user.doctor_id != doc.id and not doctor_has_room(db, doc):
+        raise HTTPException(409, {"code": "doctor_full", "detail": "This doctor's cabinet is full; ask the clinic"})
     user = db.merge(user)
     user.doctor_id = doc.id
     db.commit()
@@ -392,6 +445,8 @@ def use_family_code(db: Session, watcher: User, code: str) -> FamilyLink:
     link = db.scalar(select(FamilyLink).where(FamilyLink.patient_id == inv.patient_id, FamilyLink.watcher_id == watcher.id,
                                               FamilyLink.revoked_at.is_(None)))
     if not link:
+        patient = db.get(User, inv.patient_id)
+        need_plan(len(family_watchers(db, inv.patient_id)) < plans.limits_for("patient", plan_of(patient))["family_watchers"], "family_watchers")
         link = FamilyLink(patient_id=inv.patient_id, watcher_id=watcher.id, created_at=utcnow())
         db.add(link)
     inv.used_at = utcnow()
@@ -634,6 +689,7 @@ def add_vital(body: VitalIn, user: User = Depends(require_role("patient")), db: 
 def my_vitals(days: int = Query(14, ge=1, le=366), user: User = Depends(require_role("patient")),
               db: Session = Depends(get_db)):
     now = utcnow()
+    days = min(days, plans.limits_for("patient", plan_of(user))["history_days"])     # free: 30 days
     return vitals_summary(db, user.id, now - timedelta(days=days), now)
 
 
@@ -952,6 +1008,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
 @app.get("/api/me/report")
 def my_report(hours: float = Query(24, gt=0, le=24 * 31), user: User = Depends(require_role("patient")),
               db: Session = Depends(get_db)):
+    hours = min(hours, 24 * plans.limits_for("patient", plan_of(user))["history_days"])
     return patient_report(db, user, hours)
 
 
@@ -1158,7 +1215,7 @@ def export_data(db: Session, u: User) -> dict:
     q = lambda m, col: db.scalars(select(m).where(col == u.id))
     return {
         "exported_at": iso(utcnow()), "format": "afib-monitor-export/1",
-        "profile": user_out(u), "consents": consents_of(db, u),
+        "profile": user_out(u), "consents": consents_of(db, u), "plan": plan_info(db, u),
         "readings": [[iso(r.ts), r.state, r.prob, r.bpm, r.battery] for r in q(Reading, Reading.patient_id)],
         "readings_columns": ["ts", "state(0 collecting,1 normal,2 AF,3 no signal)", "af_probability", "bpm", "battery"],
         "alerts": [{"ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm, "status": a.status} for a in q(Alert, Alert.patient_id)],
@@ -1240,6 +1297,8 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(AccessLog).where((AccessLog.patient_id == uid) | (AccessLog.actor_id == uid)),
         delete(ExportToken).where(ExportToken.user_id == uid),
         delete(Feedback).where(Feedback.user_id == uid),
+        delete(PlanRequest).where(PlanRequest.user_id == uid),
+        delete(BillingEvent).where(BillingEvent.user_id == uid),
     ):
         db.execute(stmt)
     db.execute(Alert.__table__.update().where(Alert.ack_by == uid).values(ack_by=None))
@@ -1388,6 +1447,100 @@ def my_device(user: User = Depends(require_role("patient")), db: Session = Depen
     return issue_out(db, i, utcnow()) if i else None
 
 
+# ---------------------------------------------------------------- plans & billing (app/plans.py, docs/PRICING.md)
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "").strip()                    # manual activation after a bank transfer
+RC_WEBHOOK_SECRET = os.getenv("REVENUECAT_WEBHOOK_SECRET", "").strip()  # RevenueCat → "Authorization" header value
+
+
+class PlanRequestIn(BaseModel):
+    plan: str = Field(pattern="^(clinic50|clinic200)$")
+    months: int = Field(1, ge=1, le=12)
+    contact: str | None = Field(None, max_length=200)
+
+
+class AdminPlanIn(BaseModel):
+    email: EmailStr
+    plan: str = Field(pattern="^(free|family|doctor_free|clinic50|clinic200)$")
+    days: int | None = Field(None, ge=1, le=3660)                      # None = no end
+    source: str = Field("admin", pattern="^(admin|invoice|device_bundle)$")
+
+
+@app.get("/api/me/plan")
+def my_plan(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    return plan_info(db, user)
+
+
+@app.post("/api/me/plan/request")
+def request_invoice(body: PlanRequestIn, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    """Clinic plans are paid by invoice, not through the app stores. We get the request, send the invoice by hand,
+    activate with /api/admin/plan once paid. Nothing changes on the account until then."""
+    open_ = db.scalar(select(PlanRequest).where(PlanRequest.user_id == doctor.id, PlanRequest.handled_at.is_(None)))
+    if open_:
+        return {"requested": True, "plan": open_.plan, "months": open_.months, "created_at": iso(open_.created_at)}
+    r = PlanRequest(user_id=doctor.id, plan=body.plan, months=body.months, contact=body.contact, created_at=utcnow())
+    db.add(r); db.commit()
+    telegram.notify_admin(f"Заявка на тариф {body.plan} × {body.months} мес: {doctor.name}, {doctor.clinic or ''}, {doctor.email}, {body.contact or doctor.phone or ''}")
+    return {"requested": True, "plan": r.plan, "months": r.months, "created_at": iso(r.created_at)}
+
+
+@app.post("/api/admin/plan")
+def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(get_db)):
+    """Manual activation. Protected by ADMIN_TOKEN (a server secret, used from the command line, never by the apps)."""
+    if not ADMIN_TOKEN or request.headers.get("X-Admin-Token", "") != ADMIN_TOKEN:
+        raise HTTPException(403, "Admin token missing or wrong")
+    u = db.scalar(select(User).where(User.email == body.email.lower()))
+    if not u:
+        raise HTTPException(404, "User not found")
+    valid = plans.DOCTOR_PLANS if u.role == "doctor" else plans.PATIENT_PLANS
+    if body.plan not in valid:
+        raise HTTPException(400, f"Plan {body.plan} is not for role {u.role}")
+    u.plan = body.plan
+    u.plan_until = (utcnow() + timedelta(days=body.days)) if body.days else None
+    u.plan_source = body.source
+    for r in db.scalars(select(PlanRequest).where(PlanRequest.user_id == u.id, PlanRequest.handled_at.is_(None))):
+        r.handled_at = utcnow()
+    db.commit()
+    return plan_info(db, u)
+
+
+# RevenueCat event types that grant / keep / end the "Family" entitlement
+_RC_GRANT = {"INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "NON_RENEWING_PURCHASE", "PRODUCT_CHANGE", "SUBSCRIPTION_EXTENDED"}
+_RC_END = {"EXPIRATION"}
+
+
+@app.post("/api/billing/revenuecat")
+async def revenuecat_webhook(request: Request, db: Session = Depends(get_db)):
+    """RevenueCat → us. Verified by the shared secret RevenueCat sends in the Authorization header. app_user_id is our
+    numeric user id (the app sets it at login). Idempotent on event id. CANCELLATION only stops renewal: the plan runs
+    to its paid end; EXPIRATION returns the account to free."""
+    if not RC_WEBHOOK_SECRET or request.headers.get("Authorization", "") != RC_WEBHOOK_SECRET:
+        raise HTTPException(403, "Webhook secret missing or wrong")
+    body = await request.json()
+    ev = body.get("event") or {}
+    eid = str(ev.get("id") or "")
+    if not eid:
+        raise HTTPException(400, "No event id")
+    if db.scalar(select(BillingEvent).where(BillingEvent.event_id == eid)):
+        return {"ok": True, "duplicate": True}
+    kind = str(ev.get("type") or "")
+    try:
+        uid = int(str(ev.get("app_user_id") or "").replace("$RCAnonymousID:", "") or 0)
+    except ValueError:
+        uid = 0
+    u = db.get(User, uid) if uid else None
+    exp_ms = ev.get("expiration_at_ms")
+    expires = datetime.utcfromtimestamp(exp_ms / 1000) if exp_ms else None
+    db.add(BillingEvent(user_id=u.id if u else None, provider="revenuecat", event_id=eid, kind=kind,
+                        product=str(ev.get("product_id") or "")[:80] or None, expires_at=expires, ts=utcnow()))
+    if u and u.role == "patient":
+        if kind in _RC_GRANT:
+            u.plan, u.plan_until, u.plan_source = "family", expires, "revenuecat"
+        elif kind in _RC_END:
+            u.plan, u.plan_until, u.plan_source = "free", None, "revenuecat"
+    db.commit()
+    return {"ok": True, "applied": bool(u), "plan": plan_of(u) if u else None}
+
+
 # ---------------------------------------------------------------- stroke risk (CHA2DS2-VASc)
 class RiskIn(BaseModel):
     chf: bool = False
@@ -1447,6 +1600,8 @@ def telegram_link(kind: str | None = Query(None, pattern="^(patient|family)$"), 
     """kind=patient: the patient's own chat (reminders, typed values, weekly summary); default: relatives' channel."""
     if not telegram.enabled():
         raise HTTPException(503, "Telegram bot is not configured on this server")
+    if kind == "patient" and user.role == "patient":
+        need_plan(plans.limits_for("patient", plan_of(user))["patient_bot"], "patient_bot")
     code = telegram.new_code(db, user, kind)
     return {"code": code, "url": telegram.link_url(code), "bot": telegram.bot_username, "expires_h": 24}
 

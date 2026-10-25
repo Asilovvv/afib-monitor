@@ -18,7 +18,7 @@ GitHub → Security → "Report a vulnerability" on this repository, not in a pu
 
 ## Secrets
 
-`JWT_SECRET`, `DATABASE_URL` (Neon) and `TELEGRAM_BOT_TOKEN` live only in Render → Environment, never in the repository
+`JWT_SECRET`, `DATABASE_URL` (Neon), `TELEGRAM_BOT_TOKEN`, `ADMIN_TOKEN` (manual plan activation) and `REVENUECAT_WEBHOOK_SECRET` live only in Render → Environment, never in the repository. No card data ever reaches the server: the app stores hold it; we receive only webhook events
 (see `docs/DEPLOYMENT.md`). Optional after going public: rotate all three. Changing `JWT_SECRET` logs everyone out once.
 
 Not reviewed: an independent penetration test, the firmware's BLE pairing, and the hardware (IEC 60601-1 needs an engineer).

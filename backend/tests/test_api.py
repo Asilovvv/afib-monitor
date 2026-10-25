@@ -719,3 +719,75 @@ def test_clinic_device_rental():
     assert c.get("/api/devices", headers=H).status_code == 403
     assert any(x["action"] == "device_issue" for x in c.get("/api/me/access-log", headers=H).json())
     assert len(c.get("/api/me/export", headers=H).json()["device_loans"]) == 1
+
+
+def test_plans_trial_limits_invoice_webhook(monkeypatch):
+    """docs/PRICING.md rules: new patient gets 30 days of Family without a card; expired → free; free = 1 relative and
+    no patient bot; doctor cabinet limit 10; clinic plan by invoice + manual activation; RevenueCat webhook verified,
+    idempotent, grants/ends Family; the verdict path is never touched by plans."""
+    from datetime import datetime, timedelta
+    from app import main as M
+    from app.db import SessionLocal
+    from app.models import User
+    dt, pt, pid = _pair("tariff")
+    D, H = auth(dt), auth(pt)
+    me = c.get("/api/me/plan", headers=H).json()
+    assert me["plan"] == "family" and me["source"] == "trial" and me["until"] and me["limits"]["family_watchers"] == 5
+    assert c.get("/api/me", headers=H).json()["plan"] == "family"
+    # expire the trial by hand → free
+    with SessionLocal() as db:
+        u = db.get(User, pid); u.plan_until = datetime.utcnow() - timedelta(days=1); db.commit()
+    me = c.get("/api/me/plan", headers=H).json()
+    assert me["plan"] == "free" and me["limits"]["history_days"] == 30
+    # free: one relative only; the second gets 402 with a feature code
+    for i in range(2):
+        code = c.post("/api/me/family/invite", headers=H).json()["code"]
+        r = c.post("/api/auth/register", json={"email": f"fplan{i}@x.kg", "password": "secret1", "name": f"F{i}", "role": "family", "family_code": code})
+        if i == 0:
+            assert r.status_code == 200, r.text
+        else:
+            assert r.status_code == 402 and r.json()["detail"]["feature"] == "family_watchers"
+    # free: patient bot link is a paid feature (503 when bot off would come first, so emulate an enabled bot)
+    monkeypatch.setattr(M.telegram, "enabled", lambda: True)
+    r = c.post("/api/telegram/link?kind=patient", headers=H)
+    assert r.status_code == 402 and r.json()["detail"]["feature"] == "patient_bot"
+    assert c.post("/api/telegram/link?kind=family", headers=H).status_code != 402   # relatives' channel stays free
+    # history clamps silently to 30 days on free
+    assert c.get("/api/me/vitals?days=365", headers=H).status_code == 200
+    # doctor: free cabinet is 10 patients; the 11th is refused with doctor_full
+    for i in range(9):
+        assert c.post("/api/auth/register", json={"email": f"pplan{i}@x.kg", "password": "secret1", "name": f"P{i}", "role": "patient",
+                                                  "doctor_code": c.get("/api/me", headers=D).json()["invite_code"]}).status_code == 200
+    r = c.post("/api/auth/register", json={"email": "pplan9@x.kg", "password": "secret1", "name": "P9", "role": "patient",
+                                           "doctor_code": c.get("/api/me", headers=D).json()["invite_code"]})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "doctor_full"
+    assert c.get("/api/me/plan", headers=D).json()["usage"]["patients"] == 10
+    # clinic asks for an invoice; nothing changes until admin activates
+    r = c.post("/api/me/plan/request", json={"plan": "clinic50", "months": 3, "contact": "+996 700 000000"}, headers=D)
+    assert r.status_code == 200 and r.json()["requested"] and c.get("/api/me/plan", headers=D).json()["plan"] == "doctor_free"
+    assert c.post("/api/admin/plan", json={"email": "doctariff@x.kg", "plan": "clinic50", "days": 90}).status_code == 403  # no token
+    monkeypatch.setattr(M, "ADMIN_TOKEN", "test-admin-token")
+    assert c.post("/api/admin/plan", json={"email": "doctariff@x.kg", "plan": "clinic50", "days": 90}, headers={"X-Admin-Token": "wrong"}).status_code == 403
+    r = c.post("/api/admin/plan", json={"email": "doctariff@x.kg", "plan": "clinic50", "days": 90, "source": "invoice"}, headers={"X-Admin-Token": "test-admin-token"})
+    assert r.status_code == 200 and r.json()["plan"] == "clinic50" and r.json()["limits"]["patients"] == 50
+    assert c.post("/api/auth/register", json={"email": "pplan9@x.kg", "password": "secret1", "name": "P9", "role": "patient",
+                                              "doctor_code": c.get("/api/me", headers=D).json()["invite_code"]}).status_code == 200
+    assert c.post("/api/admin/plan", json={"email": "doctariff@x.kg", "plan": "family"}, headers={"X-Admin-Token": "test-admin-token"}).status_code == 400  # wrong role
+    # RevenueCat webhook: secret, idempotency, grant and expiration
+    exp = int((datetime.utcnow() + timedelta(days=30)).timestamp() * 1000)
+    ev = {"event": {"id": "ev-1", "type": "INITIAL_PURCHASE", "app_user_id": str(pid), "product_id": "family_monthly", "expiration_at_ms": exp}}
+    assert c.post("/api/billing/revenuecat", json=ev).status_code == 403
+    monkeypatch.setattr(M, "RC_WEBHOOK_SECRET", "rc-secret")
+    assert c.post("/api/billing/revenuecat", json=ev, headers={"Authorization": "wrong"}).status_code == 403
+    r = c.post("/api/billing/revenuecat", json=ev, headers={"Authorization": "rc-secret"})
+    assert r.status_code == 200 and r.json()["plan"] == "family"
+    assert c.post("/api/billing/revenuecat", json=ev, headers={"Authorization": "rc-secret"}).json()["duplicate"] is True
+    me = c.get("/api/me/plan", headers=H).json()
+    assert me["plan"] == "family" and me["source"] == "revenuecat"
+    ev2 = {"event": {"id": "ev-2", "type": "EXPIRATION", "app_user_id": str(pid), "product_id": "family_monthly"}}
+    assert c.post("/api/billing/revenuecat", json=ev2, headers={"Authorization": "rc-secret"}).json()["plan"] == "free"
+    # unknown user: recorded, not applied
+    ev3 = {"event": {"id": "ev-3", "type": "RENEWAL", "app_user_id": "999999"}}
+    assert c.post("/api/billing/revenuecat", json=ev3, headers={"Authorization": "rc-secret"}).json()["applied"] is False
+    # export carries the plan, account deletion removes billing rows
+    assert c.get("/api/me/export", headers=H).json()["plan"]["plan"] == "free"

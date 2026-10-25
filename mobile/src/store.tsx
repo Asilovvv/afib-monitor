@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
 import { setVoiceEnabled } from './voice'
+import { billingLogin, billingLogout } from './billing'
+import { PlanSheet } from './screens/Plan'
 import * as Notifications from 'expo-notifications'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, useColorScheme } from 'react-native'
@@ -45,6 +47,8 @@ type Ctx = {
   offline: boolean; setOffline: (v: boolean) => void
   signIn: (u: User, token: string) => Promise<void>
   signOut: () => Promise<void>
+  refreshUser: () => Promise<void>
+  planSheet: string | null; openPlan: (reason?: string | null) => void; closePlan: () => void   // "What's included" sheet
   setUser: (u: User) => void
   // device
   source: Source
@@ -375,7 +379,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setOnboarded(kv[K.onboarded] === '1'); setOfflineS(kv[K.offline] === '1')
         if (Platform.OS !== 'web') Notifications.requestPermissionsAsync().catch(() => undefined)
         if (settings.token && settings.server) {
-          try { setUser(await api.me()) } catch { /* offline: keep token */ }
+          try { const u = await api.me(); setUser(u); billingLogin(u.id) } catch { /* offline: keep token */ }
         }
         if (settings.server) loadConfig()
       } finally { setReady(true) }
@@ -388,19 +392,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMode(m); modeRef.current = m; AsyncStorage.setItem(K.mode, m).catch(() => undefined)
   }, [user, ready])
 
+  const [planSheet, setPlanSheet] = useState<string | null>(null)
+  const [planOpen, setPlanOpen] = useState(false)
+  const openPlan = useCallback((reason?: string | null) => { setPlanSheet(reason ?? null); setPlanOpen(true) }, [])
+  const closePlan = useCallback(() => setPlanOpen(false), [])
+  const refreshUser = useCallback(async () => { try { setUser(await api.me()) } catch { /* offline */ } }, [])
   const signIn = useCallback(async (u: User, token: string) => {
-    await settings.setToken(token); setUser(u); setOffline(false); syncNow(); loadConfig()
+    await settings.setToken(token); setUser(u); setOffline(false); syncNow(); loadConfig(); billingLogin(u.id)
   }, [setOffline, syncNow])
   const signOut = useCallback(async () => {
-    await settings.setToken(''); setUser(null)
+    await settings.setToken(''); setUser(null); billingLogout()
   }, [])
 
   const value: Ctx = {
     ready, lang, setLang, mode, themePref, setThemePref, big, setBig, voice, setVoice, theme, t, onboarded, finishOnboarding,
-    user, offline, setOffline, signIn, signOut, setUser,
+    user, offline, setOffline, signIn, signOut, setUser, refreshUser, planSheet: planOpen ? planSheet ?? '' : null, openPlan, closePlan,
     source, link, status, battery, rssi, ecg, history, episodes, startDevice, startSimulator, stop, connectedAt,
     recording, recordEcg, checking, checkMe, symptoms, addSymptom,
     pending, lastSync, syncError, syncNow, dataVersion, toasts, toast,
   }
-  return <C.Provider value={value}>{children}</C.Provider>
+  return <C.Provider value={value}>{children}<PlanSheet open={planOpen} onClose={closePlan} reason={planSheet} /></C.Provider>
 }

@@ -220,6 +220,16 @@ async def _check_reminders(now: datetime, local: datetime):
                                         "text": f"⏰ {t} — время проверки ритма. Сядьте, наклейте электроды, нажмите «Проверь меня» и не двигайтесь 30 секунд."})
 
 
+ADMIN_CHAT = os.getenv("TELEGRAM_ADMIN_CHAT", "").strip()      # your own chat id: invoice requests land here
+
+
+def notify_admin(text: str):
+    """Operational note to the project owner's chat (plan requests). No patient data, only clinic contact."""
+    if not enabled() or not ADMIN_CHAT:
+        return
+    _spawn(_call("sendMessage", {"chat_id": ADMIN_CHAT, "text": "🧾 " + html.escape(text)}))
+
+
 def notify_patient_seen(patient_id: int, doctor_name: str, action: str, strip_ts: datetime):
     """"Your doctor looked at your recording": to the patient's own chat. The single strongest reason to keep checking."""
     if not enabled():

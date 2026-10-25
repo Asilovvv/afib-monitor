@@ -52,6 +52,7 @@ export default function Settings({ me, onUpdate }: { me: User; onUpdate: (u: Use
         </div>
       </div>
 
+      <PlanCard />
       <TelegramCard />
 
       <div className="card form">
@@ -67,6 +68,58 @@ export default function Settings({ me, onUpdate }: { me: User; onUpdate: (u: Use
 
 type TgLink = { id: number; name: string; kind: string; created_at: string }
 type TgInfo = { enabled: boolean; bot: string | null; links: TgLink[] }
+
+type PlanInfo = { plan: 'doctor_free' | 'clinic50' | 'clinic200'; until: string | null; source: string | null
+  limits: { patients: number }; usage: { patients: number }; prices_som: Record<string, Record<string, number>> }
+
+/** Clinic plan: what the cabinet has, how much of it is used, "request an invoice". Paid by bank transfer, switched on
+ *  by hand after payment — nothing here charges anything. Free cabinet stays free (10 patients). */
+function PlanCard() {
+  const f = useFmt()
+  const [p, setP] = useState<PlanInfo | null>(null)
+  const [req, setReq] = useState<{ plan: string; months: number } | null>(null)
+  const [choice, setChoice] = useState<'clinic50' | 'clinic200'>('clinic50')
+  const [months, setMonths] = useState(3)
+  const [contact, setContact] = useState('')
+  const [err, setErr] = useState('')
+  useEffect(() => { api<PlanInfo>('/api/me/plan').then(setP).catch(() => undefined) }, [])
+  if (!p) return null
+  const names = { doctor_free: f.tr('Бесплатный кабинет', 'Free cabinet', 'Акысыз кабинет'), clinic50: '«Клиника 50»', clinic200: '«Клиника 200»' }
+  const pct = Math.min(100, Math.round((p.usage.patients / p.limits.patients) * 100))
+  async function send(e: React.FormEvent) {
+    e.preventDefault()
+    try { setReq(await post('/api/me/plan/request', { plan: choice, months, contact: contact || null })) } catch (e) { setErr((e as Error).message) }
+  }
+  return (
+    <div className="card form">
+      <h2>{f.t('Тариф')}</h2>
+      <p><b>{names[p.plan]}</b>{p.until && <span className="muted"> · {f.tr('до', 'until', 'чейин')} {new Date(p.until).toLocaleDateString(f.loc)}</span>}</p>
+      <div className="burden"><div className="bar" style={{ width: 160 }}><span style={{ width: `${pct}%`, background: pct >= 100 ? 'var(--af)' : 'var(--accent)' }} /></div>
+        <span className="muted">{p.usage.patients} / {p.limits.patients} {f.tr('пациентов', 'patients', 'бейтап')}</span></div>
+      <p className="muted" style={{ fontSize: 13 }}>{f.tr('Когда лимит достигнут, новые пациенты не могут подключиться к кабинету; все нынешние остаются видны. Проверка ритма, вердикт и всё, что касается безопасности пациента, одинаковы на любом тарифе.',
+        'At the limit, new patients cannot join the cabinet; current ones stay visible. The rhythm check, the verdict and everything about patient safety are the same on every plan.',
+        'Чек жеткенде жаңы бейтаптар кабинетке кошула албайт; азыркылары көрүнө берет. Ритм текшерүү, жыйынтык жана бейтаптын коопсуздугуна тиешелүү бардыгы ар кандай тарифте бирдей.')}</p>
+      {p.plan === 'doctor_free' && !req && (
+        <form onSubmit={send} style={{ display: 'grid', gap: 10 }}>
+          <div className="row2">
+            <label>{f.t('Тариф')}
+              <select value={choice} onChange={e => setChoice(e.target.value as 'clinic50' | 'clinic200')}>
+                <option value="clinic50">«Клиника 50» — {p.prices_som.clinic50.month.toLocaleString('ru')} {f.tr('сом/мес', 'som/mo', 'сом/ай')} · 50 {f.tr('пациентов', 'patients', 'бейтап')}</option>
+                <option value="clinic200">«Клиника 200» — {f.tr('по запросу', 'on request', 'суроо боюнча')}</option>
+              </select></label>
+            <label>{f.tr('Месяцев', 'Months', 'Ай')}<input type="number" min={1} max={12} value={months} onChange={e => setMonths(Number(e.target.value))} /></label>
+          </div>
+          <label>{f.tr('Куда прислать счёт (почта или телефон)', 'Where to send the invoice (email or phone)', 'Эсепти кайда жөнөтөлү (почта же телефон)')}<input value={contact} onChange={e => setContact(e.target.value)} maxLength={200} /></label>
+          <div className="form-foot"><button className="btn primary">{f.tr('Запросить счёт', 'Request an invoice', 'Эсеп суроо')}</button><span className="muted">{err}</span></div>
+          <p className="muted" style={{ fontSize: 12.5 }}>{f.tr('Оплата по счёту на ИП/ОсОО, без карты в приложении. Тариф включается вручную после оплаты. Цены — предложение, уточняются с клиниками.',
+            'Paid by invoice, no card in the app. The plan is switched on by hand after payment. Prices are a proposal, to be confirmed with clinics.',
+            'Эсеп боюнча төлөм, тиркемеде карта жок. Тариф төлөмдөн кийин кол менен күйгүзүлөт. Баалар — сунуш, клиникалар менен такталат.')}</p>
+        </form>
+      )}
+      {req && <p className="pill st-new">{f.tr(`Заявка на ${req.plan === 'clinic50' ? '«Клинику 50»' : '«Клинику 200»'} на ${req.months} мес отправлена — пришлём счёт`, `Request for ${req.plan} × ${req.months} months sent — invoice to follow`, `${req.plan} × ${req.months} айга өтүнмө жөнөтүлдү — эсеп жөнөтөбүз`)}</p>}
+    </div>
+  )
+}
 
 function TelegramCard() {
   const f = useFmt()
