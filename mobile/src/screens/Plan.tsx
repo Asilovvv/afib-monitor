@@ -80,6 +80,6 @@ export function PlanSheet({ open, onClose, reason }: { open: boolean; onClose: (
 
 const s = StyleSheet.create({
   row: { paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center' },
-  col: { width: 64, alignItems: 'center', textAlign: 'center' },
+  col: { width: 76, alignItems: 'center', textAlign: 'center' },
   note: { borderRadius: 12, padding: 12, marginBottom: 10 },
 })
