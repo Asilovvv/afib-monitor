@@ -657,3 +657,8 @@ td.ok { color: var(--ok); } td.af { color: var(--af); } td.muted { color: var(--
 .r-strip { margin: 6px 0; } .r-strip-h { display: flex; justify-content: space-between; font-size: 11px; color: #555; margin-bottom: 2px; }
 .r-strip svg { max-width: 100%; height: auto; }
 @media print { .report.simple { padding: 20px 26px; } .report.simple section { break-inside: avoid; } }
+
+.queue { margin-bottom: 18px; } .queue-list { display: flex; flex-direction: column; }
+.queue-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.queue-row.done { opacity: .6; } .queue-main { flex: 1; display: flex; flex-direction: column; } .queue-main span { font-size: 12.5px; color: var(--ink-3); }
+.queue .link-sm { background: none; border: 0; cursor: pointer; font: inherit; }

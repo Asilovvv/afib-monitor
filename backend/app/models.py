@@ -287,3 +287,15 @@ class FamilyLink(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     __table_args__ = (Index("ix_family_pair", "patient_id", "watcher_id"),)
+
+
+class StripSeen(Base):
+    """The doctor pressed "seen" (or "will call") on a 30-s check strip. Not a medical finding: it tells the patient
+    that a person looked, which is what keeps people checking. One row per strip."""
+    __tablename__ = "strip_seen"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ecg_id: Mapped[int] = mapped_column(ForeignKey("ecg_strips.id"), unique=True, index=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    doctor_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(10))                  # "seen" | "call"
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

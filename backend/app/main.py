@@ -21,7 +21,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
 from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital, FamilyInvite, FamilyLink, StripSeen)
 
 Base.metadata.create_all(engine)
 
@@ -487,6 +487,60 @@ def family_leave(patient_id: int, user: User = Depends(require_role("family")), 
         l.revoked_at = utcnow()
     db.commit()
     return {"left": True}
+
+
+# ---------------------------------------------------------------- doctor: "seen" on check strips, morning queue
+class SeenIn(BaseModel):
+    action: str = Field(default="seen", pattern="^(seen|call)$")
+
+
+@app.get("/api/checks/queue")
+def checks_queue(hours: float = Query(24, gt=0, le=24 * 14), doctor: User = Depends(require_role("doctor")),
+                 db: Session = Depends(get_db)):
+    """30-s checks of my patients in the last N hours that came out "irregular" and nobody has marked yet,
+    newest first. One screen to clear in the morning."""
+    pats = {p.id: p.name for p in db.scalars(select(User).where(User.doctor_id == doctor.id))}
+    since = utcnow() - timedelta(hours=hours)
+    strips = list(db.scalars(select(EcgStrip).where(EcgStrip.patient_id.in_(list(pats) or [-1]), EcgStrip.reason == "check",
+                                                    EcgStrip.ts >= since).order_by(EcgStrip.ts.desc())))
+    seen = {x.ecg_id: x for x in db.scalars(select(StripSeen).where(StripSeen.ecg_id.in_([e.id for e in strips] or [-1])))}
+    out = []
+    for e, (ts, v) in zip(strips, check_verdicts(strips)):
+        if v != "irregular":
+            continue
+        sx = seen.get(e.id)
+        out.append({"id": e.id, "patient_id": e.patient_id, "patient_name": pats.get(e.patient_id), "ts": iso(e.ts),
+                    "bpm": e.bpm, "verdict": v, "seen": ({"action": sx.action, "ts": iso(sx.ts)} if sx else None)})
+    return {"items": out, "open": sum(1 for x in out if not x["seen"])}
+
+
+@app.post("/api/ecg/{ecg_id}/seen")
+def mark_seen(ecg_id: int, body: SeenIn, doctor: User = Depends(require_role("doctor")), db: Session = Depends(get_db)):
+    e = db.get(EcgStrip, ecg_id)
+    if not e:
+        raise HTTPException(404, "ECG not found")
+    p = own_patient(db, doctor, e.patient_id)
+    x = db.scalar(select(StripSeen).where(StripSeen.ecg_id == ecg_id))
+    if x:
+        x.action, x.ts, x.doctor_id = body.action, utcnow(), doctor.id
+    else:
+        x = StripSeen(ecg_id=ecg_id, patient_id=p.id, doctor_id=doctor.id, action=body.action, ts=utcnow())
+        db.add(x)
+    db.commit()
+    log_access(db, p.id, doctor, "seen_" + body.action)
+    telegram.notify_patient_seen(p.id, doctor.name, body.action, e.ts)
+    return {"id": ecg_id, "seen": {"action": x.action, "ts": iso(x.ts)}}
+
+
+@app.get("/api/me/seen")
+def my_seen(days: int = Query(7, ge=1, le=60), user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    """For the patient's app: which of my check strips a doctor looked at (last N days), newest first."""
+    since = utcnow() - timedelta(days=days)
+    rows = db.execute(select(StripSeen, EcgStrip.ts, User.name).join(EcgStrip, EcgStrip.id == StripSeen.ecg_id)
+                      .join(User, User.id == StripSeen.doctor_id)
+                      .where(StripSeen.patient_id == user.id, StripSeen.ts >= since).order_by(StripSeen.ts.desc())).all()
+    return [{"id": x.id, "ecg_id": x.ecg_id, "action": x.action, "ts": iso(x.ts), "strip_ts": iso(sts), "doctor": name}
+            for x, sts, name in rows]
 
 
 # ---------------------------------------------------------------- data from the mobile app
@@ -1111,6 +1165,7 @@ def export_data(db: Session, u: User) -> dict:
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
         "vitals": [vital_out(v) for v in q(Vital, Vital.patient_id)],
+        "doctor_seen": [{"ecg_id": x.ecg_id, "action": x.action, "ts": iso(x.ts)} for x in q(StripSeen, StripSeen.patient_id)],
         "family": [{"watcher_id": l.watcher_id, "since": iso(l.created_at), "revoked_at": iso(l.revoked_at)} for l in q(FamilyLink, FamilyLink.patient_id)],
         "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
         "medication_doses": [{"medication_id": d.medication_id, "slot": d.slot, "status": d.status} for d in q(MedDose, MedDose.patient_id)],
@@ -1166,6 +1221,7 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(Symptom).where(Symptom.patient_id == uid),
         delete(Vital).where(Vital.patient_id == uid),
         delete(FamilyLink).where((FamilyLink.patient_id == uid) | (FamilyLink.watcher_id == uid)),
+        delete(StripSeen).where((StripSeen.patient_id == uid) | (StripSeen.doctor_id == uid)),
         delete(FamilyInvite).where(FamilyInvite.patient_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
         delete(MedDose).where(MedDose.patient_id == uid),

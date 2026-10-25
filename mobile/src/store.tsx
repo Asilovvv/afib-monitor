@@ -80,7 +80,7 @@ export type CheckResult = { verdict: CheckVerdict; bpm: number; sqi: number; irr
 const C = createContext<Ctx | null>(null)
 export const useApp = () => useContext(C)!
 
-const K = { queue: 'afib.queue', ecgQueue: 'afib.ecgq', symQueue: 'afib.symq', lang: 'afib.lang', theme: 'afib.theme',
+const K = { seen: 'afib.seen', queue: 'afib.queue', ecgQueue: 'afib.ecgq', symQueue: 'afib.symq', lang: 'afib.lang', theme: 'afib.theme',
   onboarded: 'afib.onboarded', big: 'afib.big', mode: 'afib.mode', offline: 'afib.offline', symptoms: 'afib.symptoms', episodes: 'afib.episodes' }
 const HISTORY_MS = 3 * 3600e3
 const SYNC_MS = 20e3
@@ -166,7 +166,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     persist()
     if (sent) setDataVersion(v => v + 1)
+    checkSeen()
   }, [persist])
+
+  // "your doctor looked at your recording": polled with every sync; new rows -> toast + local notification
+  const seenMax = useRef<number | null>(null)
+  const checkSeen = async () => {
+    try {
+      const rows = await api.mySeen()
+      if (seenMax.current === null) {
+        const stored = await AsyncStorage.getItem(K.seen)
+        seenMax.current = stored ? Number(stored) : 0
+      }
+      const fresh = rows.filter(r => r.id > (seenMax.current ?? 0))
+      if (!fresh.length) return
+      seenMax.current = Math.max(...rows.map(r => r.id))
+      AsyncStorage.setItem(K.seen, String(seenMax.current)).catch(() => undefined)
+      for (const r of fresh.slice(0, 3)) {
+        const when = new Date(r.strip_ts).toLocaleString(langRef.current === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        const body = translate(langRef.current, r.action === 'call' ? 'seen_call_b' : 'seen_b', { doctor: r.doctor, when })
+        toast(body, 'ok')
+        if (Platform.OS !== 'web') {
+          Notifications.scheduleNotificationAsync({ content: { title: translate(langRef.current, 'seen_t'), body }, trigger: null }).catch(() => undefined)
+        }
+      }
+      setDataVersion(v => v + 1)
+    } catch { /* offline or not a patient */ }
+  }
 
   // ------------------------------------------------ ECG capture
   const captureLast = useCallback((reason: EcgOut['reason'], s: Status | null) => {

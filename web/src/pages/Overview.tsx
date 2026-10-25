@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, REFRESH, type Overview as Ov, type PatientRow, type User } from '../api'
+import { api, emitRefresh, post, REFRESH, type Overview as Ov, type PatientRow, type User } from '../api'
 import { Avatar, Count, Empty, Icon, Spark, StatePill, useFmt } from '../components/ui'
 
 export function useLive<T>(path: string, everyMs = 20000): [T | null, string, () => void] {
@@ -43,6 +43,8 @@ export default function Overview({ me }: { me: User }) {
         <Kpi label={f.t('Средняя нагрузка ФП')} value={(ov?.mean_burden_24h ?? 0) * 100} fmt={v => `${v.toFixed(1)}%`} />
         <Kpi label={`${f.t('Симптомы')} · ${f.t('ЭКГ')}`} value={(ov?.symptoms_24h ?? 0)} fmt={v => `${Math.round(v)} · ${ov?.ecg_24h ?? 0}`} />
       </div>
+
+      <MorningQueue />
 
       <div className="grid-2">
         <section className="card">
@@ -156,4 +158,48 @@ function Kpi({ label, value, sub, tone, link, fmt }: { label: string; value: num
     </>
   )
   return link ? <Link to={link} className={`kpi ${tone ?? ''}`}>{body}</Link> : <div className={`kpi ${tone ?? ''}`}>{body}</div>
+}
+
+
+type QueueItem = { id: number; patient_id: number; patient_name: string | null; ts: string; bpm: number; seen: { action: string; ts: string } | null }
+
+/** "Irregular" 30-s checks of the last 24 h, one screen to clear in the morning. "Seen" / "Will call" is a sign of
+ *  attention that reaches the patient, not a medical finding. */
+function MorningQueue() {
+  const f = useFmt()
+  const [q, , reload] = useLive<{ items: QueueItem[]; open: number }>('/api/checks/queue?hours=24')
+  const [showDone, setShowDone] = useState(false)
+  if (!q || q.items.length === 0) return null
+  const mark = async (id: number, action: 'seen' | 'call') => { await post(`/api/ecg/${id}/seen`, { action }); reload(); emitRefresh() }
+  const items = q.items.filter(x => showDone || !x.seen)
+  return (
+    <section className="card queue">
+      <div className="card-head">
+        <h2>{f.tr('Неровные проверки за сутки', 'Irregular checks, last 24 h', 'Суткадагы бирдей эмес текшерүүлөр')} {q.open > 0 && <b className="badge">{q.open}</b>}</h2>
+        <button className="link-sm" onClick={() => setShowDone(!showDone)}>{showDone ? f.tr('Скрыть просмотренные', 'Hide seen', 'Каралгандарды жашыруу') : f.tr('Показать просмотренные', 'Show seen', 'Каралгандарды көрсөтүү')}</button>
+      </div>
+      {items.length === 0 ? <Empty>{f.tr('Всё просмотрено.', 'All seen.', 'Баары каралды.')}</Empty> : (
+        <div className="queue-list">
+          {items.map(x => (
+            <div key={x.id} className={`queue-row ${x.seen ? 'done' : ''}`}>
+              <Avatar name={x.patient_name ?? '?'} />
+              <div className="queue-main">
+                <Link to={`/app/patients/${x.patient_id}/ecg`}><b>{x.patient_name}</b></Link>
+                <span>{f.dt(x.ts)} · {Math.round(x.bpm)} {f.t('уд/мин')} · {f.tr('неровный', 'irregular', 'бирдей эмес')}</span>
+              </div>
+              {x.seen
+                ? <span className="muted sm">{x.seen.action === 'call' ? f.tr('Позвоню', 'Will call', 'Чалам') : f.tr('Видел', 'Seen', 'Көрдүм')} · {f.time(x.seen.ts)}</span>
+                : <div className="row-gap">
+                    <button className="btn tiny" onClick={() => mark(x.id, 'seen')}>{Icon.check(14)} {f.tr('Видел', 'Seen', 'Көрдүм')}</button>
+                    <button className="btn tiny primary" onClick={() => mark(x.id, 'call')}>{f.tr('Позвоню', 'Will call', 'Чалам')}</button>
+                  </div>}
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="fine">{f.tr('Отметка «Видел» уходит пациенту как «врач посмотрел вашу запись». Это знак внимания, не заключение.',
+        '"Seen" reaches the patient as "your doctor looked at your recording". A sign of attention, not a conclusion.',
+        '«Көрдүм» белгиси бейтапка «дарыгер жазууңузду карады» деп жетет. Бул көңүл буруу белгиси, корутунду эмес.')}</p>
+    </section>
+  )
 }

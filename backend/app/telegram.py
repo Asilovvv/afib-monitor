@@ -220,6 +220,24 @@ async def _check_reminders(now: datetime, local: datetime):
                                         "text": f"⏰ {t} — время проверки ритма. Сядьте, наклейте электроды, нажмите «Проверь меня» и не двигайтесь 30 секунд."})
 
 
+def notify_patient_seen(patient_id: int, doctor_name: str, action: str, strip_ts: datetime):
+    """"Your doctor looked at your recording": to the patient's own chat. The single strongest reason to keep checking."""
+    if not enabled():
+        return
+    _spawn(_send_seen(patient_id, doctor_name, action, strip_ts))
+
+
+async def _send_seen(patient_id: int, doctor_name: str, action: str, strip_ts: datetime):
+    with SessionLocal() as db:
+        chats = list(db.scalars(select(TelegramLink.chat_id).where(TelegramLink.kind == "patient", TelegramLink.user_id == patient_id)))
+    if not chats:
+        return
+    what = "посмотрел(а) вашу запись" if action == "seen" else "посмотрел(а) вашу запись и свяжется с вами"
+    text = f"👩‍⚕️ Врач {html.escape(doctor_name)} {what} от {local(strip_ts)}."
+    for chat in chats:
+        await _call("sendMessage", {"chat_id": str(chat), "text": text})
+
+
 async def family_nudges():
     """Every 10 minutes: planned-check reminders to patients; after 14:00 local, if a patient with an active plan and
     relatives has not checked today, tell the relatives once. Gentle reminders, never alarms."""

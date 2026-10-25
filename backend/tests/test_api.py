@@ -659,3 +659,26 @@ def test_telegram_patient_chat_types_values_and_week_summary():
     st = tg._status(chat)
     assert "ФП" not in st and "проверок ещё не было" in st             # wellness words only for a non-participant
     assert "ФП" not in tg._status(chat)
+
+
+def test_doctor_seen_and_morning_queue():
+    """Irregular checks of the night land in one queue; "seen" is logged and visible to the patient; no finding is made."""
+    from app import ecgsynth
+    dt, pt, pid = _pair("seen")
+    H, D = auth(pt), auth(dt)
+    irr = ecgsynth.synth_ecg(30, afib=True, bpm=95, seed=7)
+    reg = ecgsynth.synth_ecg(30, afib=False, bpm=70, seed=8)
+    a = c.post("/api/ecg", json={"ts": time.time() - 3600, "fs": 125, "samples": irr, "state": 1, "prob": 0.1, "bpm": 95, "reason": "check"}, headers=H).json()
+    assert a["check"]["verdict"] == "irregular"
+    c.post("/api/ecg", json={"ts": time.time() - 1800, "fs": 125, "samples": reg, "state": 1, "prob": 0.1, "bpm": 70, "reason": "check"}, headers=H)
+    q = c.get("/api/checks/queue?hours=24", headers=D).json()
+    assert q["open"] == 1 and q["items"][0]["id"] == a["id"] and q["items"][0]["seen"] is None
+    other = c.post("/api/auth/register", json={"email": "dseen2@x.kg", "password": "secret1", "name": "D2", "role": "doctor"}).json()["token"]
+    assert c.post(f"/api/ecg/{a['id']}/seen", json={"action": "seen"}, headers=auth(other)).status_code == 404   # not his patient
+    assert c.post(f"/api/ecg/{a['id']}/seen", json={"action": "call"}, headers=D).json()["seen"]["action"] == "call"
+    q = c.get("/api/checks/queue?hours=24", headers=D).json()
+    assert q["open"] == 0 and q["items"][0]["seen"]["action"] == "call"
+    mine = c.get("/api/me/seen", headers=H).json()
+    assert len(mine) == 1 and mine[0]["ecg_id"] == a["id"] and mine[0]["action"] == "call" and mine[0]["doctor"] == "Dr seen"
+    assert any(x["action"] == "seen_call" for x in c.get("/api/me/access-log", headers=H).json())
+    assert c.get("/api/checks/queue", headers=H).status_code == 403
