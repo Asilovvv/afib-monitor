@@ -130,7 +130,7 @@ export const api = {
   feedback: (b: { rating: number; text?: string; platform?: string; app_version?: string }) =>
     call<{ ok: boolean }>('/api/feedback', { method: 'POST', body: JSON.stringify(b) }),
   telegram: () => call<{ enabled: boolean; bot: string | null; links: TgLink[] }>('/api/telegram'),
-  telegramLink: () => call<{ code: string; url: string | null }>('/api/telegram/link', { method: 'POST' }),
+  telegramLink: (kind?: 'patient' | 'family') => call<{ code: string; url: string | null }>(`/api/telegram/link${kind ? `?kind=${kind}` : ''}`, { method: 'POST' }),
   telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),
   risk: () => call<Risk>('/api/me/risk'),
   accessLog: () => call<{ ts: string; who: string; action: string }[]>('/api/me/access-log'),

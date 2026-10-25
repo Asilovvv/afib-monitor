@@ -122,13 +122,38 @@ function FamilyCard() {
   const invite = async () => {
     setBusy(true)
     try {
-      const r = await api.telegramLink()
+      const r = await api.telegramLink('family')
       if (r.url) await Share.share({ message: t('family_share', { url: r.url }) })
       setTimeout(load, 15000)
     } catch (e) { toast((e as Error).message, 'af') }
     setBusy(false)
   }
-  return (
+  const mine = async () => {                 // the patient's own chat: open the bot link directly
+    setBusy(true)
+    try { const r = await api.telegramLink('patient'); if (r.url) await Linking.openURL(r.url); setTimeout(load, 15000) }
+    catch (e) { toast((e as Error).message, 'af') }
+    setBusy(false)
+  }
+  const own = info?.links.filter(l => l.kind === 'patient') ?? []
+  const fam = info?.links.filter(l => l.kind !== 'patient') ?? []
+  return (<>
+    <Card>
+      <Row gap={12} style={{ marginBottom: 8 }}>
+        <View style={[s.ico, { backgroundColor: '#2aabee', width: 40, height: 40 }]}><Icon name="send" size={20} color="#fff" /></View>
+        <T v="h3" style={{ flex: 1 }}>{t('my_tg')}</T>
+      </Row>
+      <T v="small" style={{ marginBottom: 12 }}>{t('my_tg_sub')}</T>
+      {info && !info.enabled ? <T v="small" c={tm.warn}>{t('tg_off')}</T> : <>
+        {own.map(l => (
+          <Row key={l.id} gap={10} style={{ paddingVertical: 8 }}>
+            <View style={[s.dot, { backgroundColor: tm.ok }]} />
+            <T style={{ flex: 1 }}>{t('my_tg_on')} · {l.name}</T>
+            <Pressable onPress={async () => setInfo({ ...info!, links: await api.telegramUnlink(l.id) })}><T v="small" c={tm.af}>{t('remove')}</T></Pressable>
+          </Row>
+        ))}
+        {!own.length && <Button title={t('my_tg_add')} kind="soft" icon="send" onPress={mine} loading={busy} style={{ marginTop: 6 }} />}
+      </>}
+    </Card>
     <Card>
       <Row gap={12} style={{ marginBottom: 8 }}>
         <View style={[s.ico, { backgroundColor: '#2aabee', width: 40, height: 40 }]}><Icon name="send" size={20} color="#fff" /></View>
@@ -136,17 +161,17 @@ function FamilyCard() {
       </Row>
       <T v="small" style={{ marginBottom: 12 }}>{t('family_tg_sub')}</T>
       {info && !info.enabled ? <T v="small" c={tm.warn}>{t('tg_off')}</T> : <>
-        {info?.links.map(l => (
+        {fam.map(l => (
           <Row key={l.id} gap={10} style={{ paddingVertical: 8 }}>
             <View style={[s.dot, { backgroundColor: tm.ok }]} />
             <T style={{ flex: 1 }}>{l.name}</T>
-            <Pressable onPress={async () => setInfo({ ...info, links: await api.telegramUnlink(l.id) })}><T v="small" c={tm.af}>{t('remove')}</T></Pressable>
+            <Pressable onPress={async () => setInfo({ ...info!, links: await api.telegramUnlink(l.id) })}><T v="small" c={tm.af}>{t('remove')}</T></Pressable>
           </Row>
         ))}
         <Button title={t('family_add')} kind="soft" icon="send" onPress={invite} loading={busy} style={{ marginTop: 6 }} />
       </>}
     </Card>
-  )
+  </>)
 }
 
 function RiskCard() {

@@ -13,6 +13,7 @@ import asyncio
 import hashlib
 import html
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -118,8 +119,15 @@ async def _poll():
 
 
 # ------------------------------------------------------------------ linking
-def new_code(db, user: User) -> str:
-    kind = "doctor" if user.role == "doctor" else "family"
+def new_code(db, user: User, kind: str | None = None) -> str:
+    """kind: doctor (all his patients), patient (the patient's own chat: reminders, typing values, weekly summary),
+    family (a relative's chat linked to the patient, or a watcher account's chat)."""
+    if kind not in ("doctor", "patient", "family"):
+        kind = "doctor" if user.role == "doctor" else "family"
+    if user.role == "doctor":
+        kind = "doctor"
+    if kind == "patient" and user.role != "patient":
+        kind = "family"
     db.execute(delete(TelegramCode).where(TelegramCode.created_at < utcnow() - CODE_TTL))
     code = secrets.token_urlsafe(9).replace("-", "x").replace("_", "y")[:12]
     db.add(TelegramCode(code=code, kind=kind, user_id=user.id, created_at=utcnow()))
@@ -132,10 +140,10 @@ def link_url(code: str) -> str | None:
 
 
 def links_of(db, user: User) -> list[dict]:
-    kind = "doctor" if user.role == "doctor" else "family"
+    kinds = ("doctor",) if user.role == "doctor" else ("family", "patient")
     return [{"id": l.id, "name": l.name, "kind": l.kind, "created_at": l.created_at.isoformat() + "Z"}
             for l in db.scalars(select(TelegramLink).where(TelegramLink.user_id == user.id,
-                                                           TelegramLink.kind == kind))]
+                                                           TelegramLink.kind.in_(kinds)))]
 
 
 def recipients(db, patient: User) -> list[TelegramLink]:
@@ -186,14 +194,41 @@ async def _send_family(patient_id: int, verdict: str):
         await _call("sendMessage", {"chat_id": str(chat), "text": text})
 
 
+_reminded: set[tuple[int, str]] = set()      # (patient_id, local slot "YYYY-MM-DDTHH:MM") already reminded
+
+
+async def _check_reminders(now: datetime, local: datetime):
+    """Within 10 minutes after each planned slot: "time for your rhythm check" to the patient's own chat."""
+    day = local.date().isoformat()
+    hm = local.strftime("%H:%M")
+    todo = []
+    with SessionLocal() as db:
+        for plan in db.scalars(select(CheckPlan).where(CheckPlan.active.is_(True))):
+            chats = list(db.scalars(select(TelegramLink.chat_id).where(TelegramLink.kind == "patient",
+                                                                          TelegramLink.user_id == plan.patient_id)))
+            if not chats or not plan.times:
+                continue
+            for t in plan.times.split(","):
+                key = (plan.patient_id, f"{day}T{t}")
+                if key in _reminded or not (t <= hm <= f"{int(t[:2]):02d}:{min(59, int(t[3:]) + 10):02d}"):
+                    continue
+                _reminded.add(key)
+                todo.append((t, chats))
+    for t, chats in todo:
+        for chat in chats:
+            await _call("sendMessage", {"chat_id": str(chat),
+                                        "text": f"⏰ {t} — время проверки ритма. Сядьте, наклейте электроды, нажмите «Проверь меня» и не двигайтесь 30 секунд."})
+
+
 async def family_nudges():
-    """Every 10 minutes: after 14:00 local, if a patient with an active plan and relatives has not checked today,
-    tell the relatives once. A gentle reminder for a phone call, never an alarm."""
+    """Every 10 minutes: planned-check reminders to patients; after 14:00 local, if a patient with an active plan and
+    relatives has not checked today, tell the relatives once. Gentle reminders, never alarms."""
     while True:
         try:
             if enabled():
                 now = utcnow()
                 local = now + timedelta(hours=TZ_HOURS)
+                await _check_reminders(now, local)
                 if local.hour >= NUDGE_LOCAL_HOUR:
                     day = local.date().isoformat()
                     day0 = datetime.combine(local.date(), datetime.min.time()) - timedelta(hours=TZ_HOURS)
@@ -400,11 +435,20 @@ def record_ack(db, a: Alert, who: str, kind: str, chat_id: int | None, doctor_id
 
 
 # ------------------------------------------------------------------ incoming updates
-HELP = ("Я присылаю тревоги о фибрилляции предсердий (ФП) с ЭКГ.\n\n"
-        "• Врач: кабинет врача → Настройки → «Подключить Telegram».\n"
-        "• Близкие: приложение пациента → Профиль → «Близкие в Telegram».\n\n"
-        "/status — текущий ритм\n/stop — отключить уведомления\n\n"
-        "Мен ЭКГ менен жүрөк дирилдөөсү (ФП) тууралуу эскертүүлөрдү жиберем.")
+HELP = ("Я бот AFib Monitor.\n\n"
+        "• Пациент: приложение → Профиль → «Мой Telegram». Я напомню о проверке, запишу давление "
+        "(напишите «135 85 72») и пришлю сводку недели (/week).\n"
+        "• Близкие: приложение пациента → Профиль → «Близкие в Telegram».\n"
+        "• Врач: кабинет врача → Настройки → «Подключить Telegram».\n\n"
+        "/status — что сейчас\n/week — моя неделя\n/stop — отключить\n\n"
+        "Мен AFib Monitor ботумун. Бейтап: тиркеме → Профиль → «Менин Telegram». Кан басымын «135 85 72» деп жазыңыз.")
+
+PATIENT_HELP = ("Что я умею:\n"
+                "• Напишите давление цифрами: <b>135 85</b> или <b>135 85 72</b> (верхнее, нижнее, пульс) — запишу для врача.\n"
+                "• <b>сахар 6.4</b> / <b>кант 6.4</b> — сахар, ммоль/л.  <b>вес 82</b> / <b>салмак 82</b> — вес, кг.\n"
+                "• /week — сводка за 7 дней.  /status — последняя проверка.\n"
+                "• Напомню о проверке ритма по вашему расписанию.\n\n"
+                "Это не измерения и не медицинские выводы: только ваши записи для врача.")
 
 
 async def handle_update(u: dict):
@@ -425,9 +469,98 @@ async def handle_update(u: dict):
         reply = await asyncio.to_thread(_status, chat)
     elif cmd == "/stop":
         reply = await asyncio.to_thread(_unlink, chat)
+    elif cmd in ("/week", "/неделя", "/жума"):
+        reply = await asyncio.to_thread(_week, chat)
+    elif cmd in ("/help", "/помощь"):
+        reply = await asyncio.to_thread(_help_for, chat)
     else:
-        reply = "Здравствуйте! " + HELP
+        reply = await asyncio.to_thread(_patient_text, chat, text)
+        if reply is None:
+            reply = "Здравствуйте! " + HELP
     await _call("sendMessage", {"chat_id": chat, "text": reply, "parse_mode": "HTML"})
+
+
+def _patient_of_chat(db, chat: int) -> User | None:
+    l = db.scalar(select(TelegramLink).where(TelegramLink.chat_id == chat, TelegramLink.kind == "patient"))
+    return db.get(User, l.user_id) if l else None
+
+
+def _help_for(chat: int) -> str:
+    with SessionLocal() as db:
+        return PATIENT_HELP if _patient_of_chat(db, chat) else HELP
+
+
+_BP = re.compile(r"^\s*(\d{2,3})\s*[ /\\\-,]\s*(\d{2,3})(?:\s*[ /\\\-,]\s*(\d{2,3}))?\s*$")
+_VAL = re.compile(r"^\s*(сахар|кант|sugar|glucose|вес|салмак|weight)\s*[:=]?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*$", re.I)
+
+
+def _patient_text(chat: int, text: str) -> str | None:
+    """A linked patient types a value: blood pressure "135 85 72", "сахар 6.4", "вес 82". Saved as a Vital with
+    source "telegram", with the same plausibility limits as the app. Anything else: a short help."""
+    from .models import Vital
+    with SessionLocal() as db:
+        p = _patient_of_chat(db, chat)
+        if p is None:
+            return None
+        m = _BP.match(text)
+        if m:
+            sy, di = int(m.group(1)), int(m.group(2))
+            pu = int(m.group(3)) if m.group(3) else None
+            if not (60 <= sy <= 260 and 30 <= di <= 160 and (pu is None or 20 <= pu <= 250)):
+                return "Проверьте цифры: значение вне обычных границ. Пример: 135 85 72"
+            if sy <= di:
+                return "Верхнее должно быть больше нижнего. Пример: 135 85"
+            db.add(Vital(patient_id=p.id, ts=utcnow(), kind="bp", systolic=sy, diastolic=di, pulse=pu, source="telegram"))
+            db.commit()
+            return f"Записал давление {sy}/{di}" + (f", пульс {pu}" if pu else "") + ". Врач увидит это рядом с ритмом. Это ваша запись, не измерение прибором."
+        m = _VAL.match(text)
+        if m:
+            word, v = m.group(1).lower(), float(m.group(2).replace(",", "."))
+            if word in ("сахар", "кант", "sugar", "glucose"):
+                if not 1 <= v <= 40:
+                    return "Сахар записываю в ммоль/л (обычно 3–20). Пример: сахар 6.4"
+                db.add(Vital(patient_id=p.id, ts=utcnow(), kind="glucose", value=v, source="telegram"))
+                db.commit()
+                return f"Записал сахар {v} ммоль/л."
+            if not 20 <= v <= 300:
+                return "Вес записываю в кг. Пример: вес 82"
+            db.add(Vital(patient_id=p.id, ts=utcnow(), kind="weight", value=v, source="telegram"))
+            db.commit()
+            return f"Записал вес {v} кг."
+        return "Не понял. " + PATIENT_HELP
+
+
+def _week(chat: int) -> str:
+    """Seven days in plain words: checks done, verdict words, typed-in blood pressure, pills."""
+    from . import main as app_main
+    from .models import Vital, Medication, MedDose
+    with SessionLocal() as db:
+        p = _patient_of_chat(db, chat)
+        if p is None:
+            return "Сводка недели доступна пациенту после подключения Telegram в профиле приложения. " + HELP
+        now = utcnow()
+        since = now - timedelta(days=7)
+        ck = app_main.checks_summary(db, p.id, since, now)
+        lines = [f"<b>{html.escape(p.name.split()[0])}, ваша неделя</b>"]
+        if ck["checks"]:
+            lines.append(f"Проверок ритма: {ck['checks']}" + (f" (по плану {ck['done']} из {ck['due']})" if ck["due"] else "")
+                         + f" — ровный {ck['regular']}, неровный {ck['irregular']}, не прочитано {ck['no_verdict']}")
+        else:
+            lines.append("Проверок ритма не было")
+        vs = app_main.vitals_summary(db, p.id, since, now)
+        if vs["bp"]:
+            b = vs["bp"]
+            lines.append(f"Давление (ваши записи): среднее {b['sys_mean']}/{b['dia_mean']}, от {b['sys_min']}/{b['dia_min']} до {b['sys_max']}/{b['dia_max']}, {b['n']} записей")
+        if vs["glucose"]:
+            lines.append(f"Сахар: среднее {vs['glucose']['mean']} ммоль/л, {vs['glucose']['n']} записей")
+        if vs["weight"]:
+            lines.append(f"Вес: последний {vs['weight']['last']['value']} кг")
+        meds = app_main.meds_adherence(db, p.id, since, now)
+        for m in meds:
+            if m["due"]:
+                lines.append(f"{html.escape(m['name'])}: принято {m['taken']} из {m['due']}")
+        lines.append("\nЭто ваши записи и результаты проверок, не медицинское заключение. Вопросы — к врачу.")
+        return "\n".join(lines)
 
 
 def _link(chat: int, code: str, name: str) -> str:
@@ -445,6 +578,8 @@ def _link(chat: int, code: str, name: str) -> str:
         if c.kind == "doctor":
             return (f"✅ Готово, {html.escape(u.name)}. Сюда будут приходить тревоги ФП по всем вашим пациентам "
                     f"с ЭКГ и кнопкой «Принять».\n/status — кто сейчас в ФП")
+        if c.kind == "patient":
+            return f"✅ Готово, {html.escape(u.name.split()[0])}.\n" + PATIENT_HELP
         return (f"✅ Готово. Вы будете получать тревоги ФП пациента <b>{html.escape(u.name)}</b> с ЭКГ.\n"
                 f"/status — текущий ритм")
 
@@ -457,28 +592,54 @@ def _unlink(chat: int) -> str:
 
 
 def _status(chat: int) -> str:
+    """Doctor: who is in AF now (research view). Patient or relative: the last 30-s check in plain words, and whether the
+    sensor is connected. AF state words are shown only for study participants (the same rule as in the app)."""
+    from . import main as app_main
     with SessionLocal() as db:
         links = list(db.scalars(select(TelegramLink).where(TelegramLink.chat_id == chat)))
         if not links:
             return "Этот чат не подключён. " + HELP
-        pats: list[User] = []
+        now = utcnow()
+        is_doctor = any(l.kind == "doctor" for l in links)
+        pats: dict[int, User] = {}
         for l in links:
             if l.kind == "doctor":
-                pats += list(db.scalars(select(User).where(User.doctor_id == l.user_id)))
-            else:
-                pats.append(db.get(User, l.user_id))
-        now = utcnow()
+                for p in db.scalars(select(User).where(User.doctor_id == l.user_id)):
+                    pats[p.id] = p
+            elif l.kind in ("patient", "family"):
+                u = db.get(User, l.user_id)
+                if u and u.role == "patient":
+                    pats[u.id] = u
+                elif u and u.role == "family":
+                    for fl in db.scalars(select(FamilyLink).where(FamilyLink.watcher_id == u.id, FamilyLink.revoked_at.is_(None))):
+                        pp = db.get(User, fl.patient_id)
+                        if pp:
+                            pats[pp.id] = pp
         out = []
-        for p in {p.id: p for p in pats}.values():
+        for p in pats.values():
             r = db.scalar(select(Reading).where(Reading.patient_id == p.id).order_by(Reading.ts.desc()).limit(1))
-            if r is None or now - r.ts > timedelta(minutes=2):
-                st = "⚪ нет связи" + (f" (с {local(r.ts)})" if r else "")
-            elif r.state == STATE_AFIB:
-                st = f"🔴 ФП, {round(r.bpm)} уд/мин"
-            elif r.state == STATE_NORMAL:
-                st = f"🟢 норма, {round(r.bpm)} уд/мин"
+            online = r is not None and now - r.ts <= timedelta(minutes=2)
+            research = is_doctor or app_main.patient_mode(db, p) == "research"
+            if research:
+                if not online:
+                    st = "⚪ нет связи" + (f" (с {local(r.ts)})" if r else "")
+                elif r.state == STATE_AFIB:
+                    st = f"🔴 ФП, {round(r.bpm)} уд/мин"
+                elif r.state == STATE_NORMAL:
+                    st = f"🟢 норма, {round(r.bpm)} уд/мин"
+                else:
+                    st = "🟡 накопление данных"
             else:
-                st = "🟡 накопление данных"
+                last = db.scalar(select(EcgStrip).where(EcgStrip.patient_id == p.id, EcgStrip.reason == "check")
+                                 .order_by(EcgStrip.ts.desc()).limit(1))
+                if last is not None:
+                    import json as _json
+                    from . import ecgtools
+                    v = ecgtools.check(_json.loads(last.samples), last.fs)["verdict"]
+                    st = f"последняя проверка {local(last.ts)}: {FAMILY_VERDICT.get(v, v)}"
+                else:
+                    st = "проверок ещё не было"
+                st += " · " + ("датчик на связи" if online else "датчик не на связи")
             out.append((r is None or r.state != STATE_AFIB, p.name, f"{html.escape(p.name)} — {st}"))
         out.sort()
         return "<b>Сейчас</b>\n" + "\n".join(x[2] for x in out[:40])

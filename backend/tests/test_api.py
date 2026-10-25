@@ -630,3 +630,32 @@ def test_family_mode_sees_plain_words_only():
     assert c.delete(f"/api/me/family/{fam[0]['id']}", headers=H).json() == {"revoked": True}
     assert c.get("/api/family/patients", headers=W).json() == []
     assert c.get("/api/me/family", headers=H).json() == []
+
+
+def test_telegram_patient_chat_types_values_and_week_summary():
+    """The bot's text handlers run without the network: a linked patient chat types blood pressure, glucose, weight."""
+    from app import telegram as tg
+    from app.db import SessionLocal
+    from app.models import TelegramLink
+    dt, pt, pid = _pair("tgp")
+    chat = 990001
+    with SessionLocal() as db:
+        db.add(TelegramLink(chat_id=chat, kind="patient", user_id=pid, name="Pat")); db.commit()
+    assert "Записал давление 135/85, пульс 72" in tg._patient_text(chat, "135 85 72")
+    assert "Записал давление 128/79" in tg._patient_text(chat, "128/79")
+    assert "вне обычных границ" in tg._patient_text(chat, "300 90")
+    assert "больше нижнего" in tg._patient_text(chat, "80 90")
+    assert "сахар 6.4" in tg._patient_text(chat, "сахар 6,4")
+    assert "ммоль/л" in tg._patient_text(chat, "сахар 120")          # mg/dL by mistake -> explained, not saved
+    assert "вес 82.5" in tg._patient_text(chat, "вес 82.5")
+    assert tg._patient_text(chat, "привет").startswith("Не понял")
+    assert tg._patient_text(123456, "135 85") is None                  # unknown chat: generic help, nothing saved
+    v = c.get("/api/me/vitals", headers=auth(pt)).json()
+    assert v["bp"]["n"] == 2 and v["glucose"]["n"] == 1 and v["weight"]["n"] == 1
+    assert all(i["source"] == "telegram" for i in v["items"])
+    week = tg._week(chat)
+    assert "ваша неделя" in week and "среднее 132/82" in week
+    c.post("/api/me/consents", json={"kind": "research", "given": False}, headers=auth(pt))   # not in the study
+    st = tg._status(chat)
+    assert "ФП" not in st and "проверок ещё не было" in st             # wellness words only for a non-participant
+    assert "ФП" not in tg._status(chat)

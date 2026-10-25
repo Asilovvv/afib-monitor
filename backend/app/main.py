@@ -1244,10 +1244,12 @@ def telegram_info(user: User = Depends(current_user), db: Session = Depends(get_
 
 
 @app.post("/api/telegram/link")
-def telegram_link(user: User = Depends(current_user), db: Session = Depends(get_db)):
+def telegram_link(kind: str | None = Query(None, pattern="^(patient|family)$"), user: User = Depends(current_user),
+                  db: Session = Depends(get_db)):
+    """kind=patient: the patient's own chat (reminders, typed values, weekly summary); default: relatives' channel."""
     if not telegram.enabled():
         raise HTTPException(503, "Telegram bot is not configured on this server")
-    code = telegram.new_code(db, user)
+    code = telegram.new_code(db, user, kind)
     return {"code": code, "url": telegram.link_url(code), "bot": telegram.bot_username, "expires_h": 24}
 
 
