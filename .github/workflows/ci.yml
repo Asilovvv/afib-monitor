@@ -51,3 +51,4 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx -y tsx@4.19.2 ../tools/mobile/ecgbus_test.ts
+      - run: npx -y tsx@4.19.2 ../tools/mobile/cuffocr_test.ts

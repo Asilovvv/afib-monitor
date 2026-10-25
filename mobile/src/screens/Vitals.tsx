@@ -6,6 +6,7 @@ import { locOf } from '../i18n'
 import { Button, Card, Icon, Row, Sheet, T } from '../components/ui'
 import { useApp } from '../store'
 import { F } from '../theme'
+import { readCuffFromCamera } from '../cuffphoto'
 
 /** Values the patient types in from home devices (cuff, glucose meter, scales). Nothing here is measured by our
  *  hardware, and every screen says so: "you entered". Plausibility limits mirror the server (VitalIn). */
@@ -95,7 +96,9 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
   const [sys, setSys] = useState(''); const [dia, setDia] = useState(''); const [pulse, setPulse] = useState('')
   const [value, setValue] = useState(''); const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  useEffect(() => { if (kind) { setSys(''); setDia(''); setPulse(''); setValue(''); setNote('') } }, [kind])
+  const [shooting, setShooting] = useState(false)
+  const [src, setSrc] = useState<'manual' | 'photo'>('manual')
+  useEffect(() => { if (kind) { setSys(''); setDia(''); setPulse(''); setValue(''); setNote(''); setSrc('manual') } }, [kind])
   const input = [s.input, { borderColor: tm.line, color: tm.ink, backgroundColor: tm.bg2 }]
   const title = kind === 'bp' ? t('vit_bp') : kind === 'glucose' ? t('vit_glucose') : t('vit_weight')
   const recent = last.filter(v => v.kind === kind).slice(-5).reverse()
@@ -114,9 +117,23 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
       body.value = v!
     }
     if (note.trim()) body.note = note.trim()
+    if (kind === 'bp' && src === 'photo') body.source = 'photo'
     setBusy(true)
     try { await api.addVital(body); toast(t('vit_saved'), 'ok'); onClose() } catch { toast(t('day_offline'), 'info') }
     setBusy(false)
+  }
+  /** Camera → on-device OCR → fields. Never saves by itself; empty fields when unsure. */
+  const shoot = async () => {
+    setShooting(true)
+    const r = await readCuffFromCamera()
+    setShooting(false)
+    if (r === 'unavailable') { toast(t('vit_photo_na'), 'info'); return }
+    if (r === 'denied') { toast(t('vit_photo_denied'), 'info'); return }
+    if (r === 'cancelled') return
+    if (r.confidence === 'none') { toast(t('vit_photo_none'), 'info'); return }
+    setSys(r.systolic != null ? String(r.systolic) : ''); setDia(r.diastolic != null ? String(r.diastolic) : ''); setPulse(r.pulse != null ? String(r.pulse) : '')
+    setSrc('photo')
+    toast(t(r.confidence === 'high' ? 'vit_photo_ok' : 'vit_photo_low'), r.confidence === 'high' ? 'ok' : 'info')
   }
   const remove = (v: Vital) => {
     const go = async () => { try { await api.deleteVital(v.id); onClose() } catch { toast(t('day_offline'), 'info') } }
@@ -139,6 +156,12 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
       ) : (
         <View><T v="label">{title} · {kind === 'glucose' ? t('vit_mmol') : t('vit_kg')}</T>
           <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" placeholder={kind === 'glucose' ? '5.6' : '80'} placeholderTextColor={tm.ink3} style={[input, s.big]} autoFocus /></View>
+      )}
+      {kind === 'bp' && Platform.OS !== 'web' && (
+        <View style={{ marginTop: 10 }}>
+          <Button title={t('vit_photo')} kind="soft" icon="camera" onPress={shoot} loading={shooting} />
+          <T v="small" c={tm.ink3} style={{ marginTop: 6, lineHeight: 18 }}>{t('vit_photo_hint')}</T>
+        </View>
       )}
       <TextInput value={note} onChangeText={setNote} placeholder={t('vit_note')} placeholderTextColor={tm.ink3} style={[input, { marginTop: 10 }]} />
       <Button title={t('vit_save')} icon="check" onPress={save} loading={busy} style={{ marginTop: 14 }} />

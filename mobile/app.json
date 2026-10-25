@@ -18,7 +18,8 @@
         "NSLocalNetworkUsageDescription": "Нужно для связи с сервером AFib Monitor в вашей Wi-Fi сети.",
         "UIBackgroundModes": [
           "bluetooth-central"
-        ]
+        ],
+        "NSCameraUsageDescription": "Нужно, чтобы сфотографировать экран тонометра и подставить цифры. Фото не сохраняется и не отправляется."
       }
     },
     "android": {
@@ -54,6 +55,12 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Нужно, чтобы сфотографировать экран тонометра и подставить цифры. Фото не сохраняется и не отправляется."
+        }
+      ],
       [
         "expo-build-properties",
         {
