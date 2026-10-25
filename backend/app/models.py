@@ -246,3 +246,22 @@ class MedDose(Base):
     ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     __table_args__ = (Index("ux_med_doses_med_slot", "medication_id", "slot", unique=True),)
+
+
+VITAL_KINDS = ("bp", "glucose", "weight")
+
+
+class Vital(Base):
+    """A value the patient typed in from a home device: blood pressure (with pulse), blood glucose or weight.
+    Never measured by our hardware; the app always says "you entered". Shown next to the rhythm for the doctor."""
+    __tablename__ = "vitals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, index=True)
+    kind: Mapped[str] = mapped_column(String(10))                    # VITAL_KINDS
+    systolic: Mapped[int | None] = mapped_column(Integer, nullable=True)      # bp: mmHg
+    diastolic: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pulse: Mapped[int | None] = mapped_column(Integer, nullable=True)         # bp: /min, from the cuff
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)         # glucose mmol/L, weight kg
+    source: Mapped[str] = mapped_column(String(10), default="manual")  # "manual" | "photo" (typed after a photo)
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)

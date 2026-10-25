@@ -4,6 +4,8 @@ export type User = {
   invite_code?: string; clinic?: string | null; specialty?: string | null
   mode?: 'research' | 'wellness'
 }
+export type Vital = { id: number; ts: string; kind: 'bp' | 'glucose' | 'weight'; systolic: number | null; diastolic: number | null
+  pulse: number | null; value: number | null; source: string; note: string | null }
 export type PatientRow = {
   id: number; name: string; email: string; birth_year: number | null; sex: string | null; phone: string | null
   last_seen: string | null; last_state: number | null; last_bpm: number | null
@@ -61,6 +63,12 @@ export type Report = {
   hr_events?: { kind: 'low' | 'high'; start: string; end: string; duration_s: number; bpm: number }[]
   checks?: { plan: CheckPlan | null; due: number; done: number; adherence: number | null; checks: number; regular: number
     irregular: number; no_verdict: number; confirmed_irregular: number; last: { ts: string; verdict: 'regular' | 'irregular' | 'no_verdict' }[] }
+  vitals?: {
+    bp: { n: number; sys_mean: number; dia_mean: number; sys_max: number; dia_max: number; sys_min: number; dia_min: number; last: Vital } | null
+    glucose: { n: number; mean: number; min: number; max: number; last: Vital } | null
+    weight: { n: number; mean: number; min: number; max: number; last: Vital } | null
+    items: Vital[]
+  }
   pvc?: { strips: number; skipped: number; beats: number; pvc: number; share: number | null
     worst: { ecg_id: number; ts: string; beats: number; pvc: number } | null } | null   // research, doctor only
   medications?: { id: number; name: string; dose: string | null; anticoagulant: boolean; times: string[]; due: number; taken: number

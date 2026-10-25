@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis, ZAxis,
 } from 'recharts'
 import { api, del, emitRefresh, post, put, type CheckPlan, type EcgStrip as Strip, type Report, type Risk } from '../api'
 import { Poincare } from '../components/Poincare'
@@ -56,7 +56,7 @@ export default function PatientPage() {
         ['ecg', f.t('ЭКГ'), rep.ecg.length], ['analysis', f.t('Анализ')], ['symptoms', f.t('Симптомы'), rep.symptoms.length], ['notes', f.t('Заметки'), rep.notes?.length],
       ]} />
 
-      {tab === 'overview' && <><CheckPlanCard rep={rep} pid={Number(id)} /><OverviewTab rep={rep} hours={hours} onEcg={setEcgId} /></>}
+      {tab === 'overview' && <><CheckPlanCard rep={rep} pid={Number(id)} /><VitalsCard rep={rep} /><OverviewTab rep={rep} hours={hours} onEcg={setEcgId} /></>}
       {tab === 'episodes' && <EpisodesTab rep={rep} pid={Number(id)} onEcg={setEcgId} reload={reload} />}
       {tab === 'ecg' && <EcgTab rep={rep} onEcg={setEcgId} />}
       {tab === 'analysis' && <AnalysisTab rep={rep} pid={Number(id)} />}
@@ -394,6 +394,50 @@ function CheckPlanCard({ rep, pid }: { rep: Report; pid: number }) {
         'Режим для контроля уже известной ФП. На записях LTAFDB 2–3 проверки в день находили ФП в 98–100 % дней при нагрузке ≥ 50 %, но лишь в 2–7 % при нагрузке < 5 %. Для поиска редких эпизодов нужен постоянный режим.',
         'For monitoring known AF. On LTAFDB, 2–3 checks a day found AF on 98–100 % of days at burden ≥ 50 %, but on only 2–7 % at burden < 5 %. Searching for rare episodes needs continuous wear.',
         'Белгилүү ФПны көзөмөлдөө үчүн. LTAFDB жазууларында күнүнө 2–3 текшерүү жүк ≥ 50 % болгондо күндөрдүн 98–100 %ында ФПны тапты, бирок жүк < 5 % болгондо 2–7 % гана. Сейрек эпизоддорду издөө үчүн дайыма тагынуу керек.')}</p>
+    </section>
+  )
+}
+
+/** Values the patient typed in from home devices (cuff, glucose meter, scales). Shown next to the rhythm; nothing here
+ *  was measured by our hardware, and no threshold is called "high" or "normal" by us. */
+function VitalsCard({ rep }: { rep: Report }) {
+  const f = useFmt()
+  const v = rep.vitals
+  if (!v || (!v.bp && !v.glucose && !v.weight)) return null
+  const bp = v.items.filter(x => x.kind === 'bp').map(x => ({ ts: new Date(x.ts).getTime(), sys: x.systolic, dia: x.diastolic, pulse: x.pulse }))
+  const dom = [new Date(rep.range.from).getTime(), new Date(rep.range.to).getTime()]
+  const tip = { background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: 'var(--shadow)' }
+  const when = (iso: string) => f.dt(iso)
+  return (
+    <section className="card">
+      <div className="card-head"><h2>{Icon.pulse(18)} {f.tr('Давление, сахар, вес — введено пациентом', 'Blood pressure, glucose, weight — typed in by the patient', 'Кан басымы, кант, салмак — бейтап киргизген')}</h2></div>
+      <div className="kpis three">
+        {v.bp && <div className="kpi"><span className="kpi-l">{f.tr('Давление', 'Blood pressure', 'Кан басымы')}</span>
+          <b className="kpi-v">{v.bp.last.systolic}/{v.bp.last.diastolic}</b>
+          <small>{f.tr('среднее', 'mean', 'орточо')} {v.bp.sys_mean}/{v.bp.dia_mean} · {f.tr('макс', 'max', 'макс')} {v.bp.sys_max}/{v.bp.dia_max} · {v.bp.n} {f.tr('зап.', 'entries', 'жазуу')} · {when(v.bp.last.ts)}</small></div>}
+        {v.glucose && <div className="kpi"><span className="kpi-l">{f.tr('Сахар, ммоль/л', 'Glucose, mmol/L', 'Кант, ммоль/л')}</span>
+          <b className="kpi-v">{v.glucose.last.value}</b><small>{f.tr('среднее', 'mean', 'орточо')} {v.glucose.mean} · {v.glucose.min}–{v.glucose.max} · {when(v.glucose.last.ts)}</small></div>}
+        {v.weight && <div className="kpi"><span className="kpi-l">{f.tr('Вес, кг', 'Weight, kg', 'Салмак, кг')}</span>
+          <b className="kpi-v">{v.weight.last.value}</b><small>{v.weight.min}–{v.weight.max} · {when(v.weight.last.ts)}</small></div>}
+      </div>
+      {bp.length >= 2 && (
+        <ResponsiveContainer width="100%" height={180}>
+          <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+            <CartesianGrid stroke="var(--grid-line)" vertical={false} />
+            <XAxis dataKey="ts" type="number" domain={dom} tickFormatter={(x: number) => new Date(x).toLocaleDateString(f.loc, { day: 'numeric', month: 'short' })} tick={{ fontSize: 11 }} />
+            <YAxis dataKey="sys" type="number" domain={[40, 200]} tick={{ fontSize: 11 }} />
+            <ZAxis range={[30, 30]} />
+            <ReferenceLine y={140} stroke="var(--line)" strokeDasharray="3 4" />
+            <ReferenceLine y={90} stroke="var(--line)" strokeDasharray="3 4" />
+            <Tooltip contentStyle={tip} labelFormatter={(x) => f.dt(new Date(Number(x)).toISOString())} />
+            <Scatter name={f.tr('верхнее', 'systolic', 'жогорку')} data={bp} dataKey="sys" fill="var(--accent)" />
+            <Scatter name={f.tr('нижнее', 'diastolic', 'төмөнкү')} data={bp.map(d => ({ ...d, sys: d.dia }))} dataKey="sys" fill="var(--ink-3)" />
+          </ScatterChart>
+        </ResponsiveContainer>
+      )}
+      <p className="fine">{f.tr('Значения введены пациентом с домашних приборов, нашим устройством не измерялись. Пунктир 90/140 — ориентир для чтения графика, не оценка.',
+        'Values typed in by the patient from home devices, not measured by our hardware. The 90/140 lines are a reading aid, not an assessment.',
+        'Маанилерди бейтап үй приборлорунан киргизген, биздин түзмөк өлчөгөн эмес. 90/140 сызыктары графикти окуу үчүн, баа эмес.')}</p>
     </section>
   )
 }

@@ -573,3 +573,27 @@ def test_af_verdicts_only_for_pilot_participants():
     assert rows["nores@x.kg"]["mode"] == "wellness" and rows["pilot@x.kg"]["mode"] == "wellness"   # pilot withdrew
     assert rows["nores@x.kg"]["checks_today"] == {"due": 0, "done": 0, "checks": 0, "irregular": 0,
                                                 "confirmed_irregular": 0, "plan": False, "last": None}
+
+
+def test_vitals_diary_typed_in_home_values():
+    """Blood pressure, glucose and weight typed by the patient: limits, report summary, export and delete."""
+    dt, pt, pid = _pair("vit")
+    H = auth(pt)
+    assert c.post("/api/me/vitals", json={"kind": "bp", "systolic": 135, "diastolic": 85, "pulse": 72}, headers=H).status_code == 200
+    assert c.post("/api/me/vitals", json={"kind": "bp", "systolic": 150, "diastolic": 95}, headers=H).status_code == 200
+    assert c.post("/api/me/vitals", json={"kind": "bp", "systolic": 80, "diastolic": 90}, headers=H).status_code == 422   # sys <= dia
+    assert c.post("/api/me/vitals", json={"kind": "bp", "systolic": 300, "diastolic": 90}, headers=H).status_code == 422  # out of range
+    assert c.post("/api/me/vitals", json={"kind": "glucose", "value": 6.4}, headers=H).status_code == 200
+    assert c.post("/api/me/vitals", json={"kind": "glucose", "value": 80}, headers=H).status_code == 422                 # mg/dL typed by mistake
+    w = c.post("/api/me/vitals", json={"kind": "weight", "value": 82.5}, headers=H).json()
+    assert c.post("/api/me/vitals", json={"kind": "weight"}, headers=H).status_code == 422
+    assert c.post("/api/me/vitals", json={"kind": "bp", "systolic": 120, "diastolic": 80}, headers=auth(dt)).status_code == 403
+    v = c.get("/api/me/vitals?days=7", headers=H).json()
+    assert v["bp"]["n"] == 2 and v["bp"]["sys_mean"] == 142 and v["bp"]["dia_max"] == 95 and v["bp"]["last"]["systolic"] == 150
+    assert v["glucose"]["last"]["value"] == 6.4 and v["weight"]["mean"] == 82.5 and len(v["items"]) == 4
+    rep = c.get(f"/api/patients/{pid}/report?hours=24", headers=auth(dt)).json()
+    assert rep["vitals"]["bp"]["sys_max"] == 150
+    assert len(c.get("/api/me/export", headers=H).json()["vitals"]) == 4
+    assert c.delete(f"/api/me/vitals/{w['id']}", headers=H).json() == {"deleted": True}
+    assert c.get("/api/me/vitals", headers=H).json()["weight"] is None
+    assert c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=H).json() == {"deleted": True}

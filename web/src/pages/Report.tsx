@@ -76,6 +76,11 @@ export default function Report({ me }: { me: User }) {
           {rep.checks.due > 0 && <><b>{rep.checks.done}</b> {f.tr('из', 'of', '/')} {rep.checks.due} {f.tr('по плану', 'as planned', 'план боюнча')}; </>}
           {f.tr('всего', 'total', 'бардыгы')} {rep.checks.checks}: {rep.checks.regular} {f.tr('ровный', 'regular', 'бирдей')}, {rep.checks.irregular} {f.tr('неровный', 'irregular', 'бирдей эмес')}, {rep.checks.no_verdict} {f.tr('не прочитано', 'unreadable', 'окулган жок')};
           {' '}{f.tr('неровный дважды подряд', 'irregular twice in a row', 'катары менен эки жолу бирдей эмес')}: <b className={rep.checks.confirmed_irregular ? 'r-af' : ''}>{rep.checks.confirmed_irregular}</b>.</p>}
+        {rep.vitals && rep.vitals.bp && <p className="r-fine r-pvc">
+          {f.tr('Давление (введено пациентом с тонометра)', 'Blood pressure (typed in by the patient from a cuff)', 'Кан басымы (бейтап тонометрден киргизген)')}:{' '}
+          {f.tr('среднее', 'mean', 'орточо')} <b>{rep.vitals.bp.sys_mean}/{rep.vitals.bp.dia_mean}</b>, {f.tr('диапазон', 'range', 'диапазон')} {rep.vitals.bp.sys_min}–{rep.vitals.bp.sys_max}/{rep.vitals.bp.dia_min}–{rep.vitals.bp.dia_max}, {rep.vitals.bp.n} {f.tr('записей', 'entries', 'жазуу')}
+          {rep.vitals.glucose ? `; ${f.tr('сахар', 'glucose', 'кант')} ${rep.vitals.glucose.mean} ${f.tr('ммоль/л (среднее)', 'mmol/L (mean)', 'ммоль/л (орточо)')}` : ''}
+          {rep.vitals.weight ? `; ${f.tr('вес', 'weight', 'салмак')} ${rep.vitals.weight.last.value} ${f.tr('кг', 'kg', 'кг')}` : ''}.</p>}
         {rep.pvc && rep.pvc.strips > 0 && <p className="r-fine r-pvc"><span className="tag-research">{f.tr('исследование', 'research', 'изилдөө')}</span>{' '}
           {f.tr('Ранние желудочковые сокращения (оценка алгоритма)', 'Early ventricular beats (algorithm estimate)', 'Эрте карынча согуулары (алгоритмдин баалоосу)')}:{' '}
           <b>{rep.pvc.pvc}</b> {f.tr('из', 'of', '/')} {rep.pvc.beats} {f.tr('ударов', 'beats', 'согуу')} (<b>{f.pct(rep.pvc.share ?? 0)}</b>)

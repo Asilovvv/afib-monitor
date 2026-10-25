@@ -21,7 +21,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .events import broker
 from . import activity
 from .models import (DAY_TAGS, STATE_AFIB, STATE_NORMAL, SYMPTOMS, CheckPlan, DayTag, MedDose, Medication, AccessLog, Alert, AlertAck, Consent, EcgStrip, EpisodeReview, ExportToken, Note,
-                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User)
+                     Feedback, Reading, RiskProfile, Symptom, TelegramCode, TelegramLink, TelegramMessage, User, VITAL_KINDS, Vital)
 
 Base.metadata.create_all(engine)
 
@@ -127,6 +127,37 @@ class LinkDoctorIn(BaseModel):
     @classmethod
     def upper(cls, v: str) -> str:
         return v.strip().upper()
+
+
+class VitalIn(BaseModel):
+    """Home-device value typed by the patient. Limits are physiological plausibility, not clinical thresholds."""
+    ts: float | None = None
+    kind: str = Field(pattern="^(bp|glucose|weight)$")
+    systolic: int | None = Field(default=None, ge=60, le=260)
+    diastolic: int | None = Field(default=None, ge=30, le=160)
+    pulse: int | None = Field(default=None, ge=20, le=250)
+    value: float | None = None
+    source: str = Field(default="manual", pattern="^(manual|photo)$")
+    note: str | None = Field(default=None, max_length=200)
+
+    @field_validator("value")
+    @classmethod
+    def plausible(cls, v, info):
+        k = info.data.get("kind")
+        if k == "glucose" and v is not None and not 1 <= v <= 40:
+            raise ValueError("glucose must be 1-40 mmol/L")
+        if k == "weight" and v is not None and not 20 <= v <= 300:
+            raise ValueError("weight must be 20-300 kg")
+        return v
+
+    def check(self):
+        if self.kind == "bp":
+            if self.systolic is None or self.diastolic is None:
+                raise HTTPException(422, "blood pressure needs systolic and diastolic")
+            if self.systolic <= self.diastolic:
+                raise HTTPException(422, "systolic must be above diastolic")
+        elif self.value is None:
+            raise HTTPException(422, f"{self.kind} needs a value")
 
 
 class SymptomIn(BaseModel):
@@ -392,6 +423,60 @@ def add_symptom(body: SymptomIn, user: User = Depends(require_role("patient")), 
 
 
 TZ_HOURS = float(os.getenv("TZ_OFFSET_HOURS", "6"))     # Asia/Bishkek
+
+
+def vital_out(v: Vital) -> dict:
+    return {"id": v.id, "ts": iso(v.ts), "kind": v.kind, "systolic": v.systolic, "diastolic": v.diastolic,
+            "pulse": v.pulse, "value": v.value, "source": v.source, "note": v.note}
+
+
+def vitals_summary(db: Session, patient_id: int, since: datetime, until: datetime) -> dict:
+    """Typed-in home values for the report: blood pressure stats, latest glucose and weight, the series."""
+    rows = list(db.scalars(select(Vital).where(Vital.patient_id == patient_id, Vital.ts >= since, Vital.ts <= until)
+                           .order_by(Vital.ts)))
+    bp = [v for v in rows if v.kind == "bp"]
+    out = {"bp": None, "glucose": None, "weight": None, "items": [vital_out(v) for v in rows]}
+    if bp:
+        sy, di = [v.systolic for v in bp], [v.diastolic for v in bp]
+        out["bp"] = {"n": len(bp), "sys_mean": round(sum(sy) / len(sy)), "dia_mean": round(sum(di) / len(di)),
+                     "sys_max": max(sy), "dia_max": max(di), "sys_min": min(sy), "dia_min": min(di),
+                     "last": vital_out(bp[-1])}
+    for k in ("glucose", "weight"):
+        xs = [v for v in rows if v.kind == k]
+        if xs:
+            vals = [v.value for v in xs]
+            out[k] = {"n": len(xs), "mean": round(sum(vals) / len(vals), 1), "min": min(vals), "max": max(vals),
+                      "last": vital_out(xs[-1])}
+    return out
+
+
+@app.post("/api/me/vitals")
+def add_vital(body: VitalIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    body.check()
+    v = Vital(patient_id=user.id, ts=from_unix(body.ts) if body.ts else utcnow(), kind=body.kind,
+              systolic=body.systolic, diastolic=body.diastolic, pulse=body.pulse, value=body.value,
+              source=body.source, note=body.note)
+    db.add(v)
+    db.commit()
+    broker.publish(user.doctor_id, "vital", {"patient_id": user.id, "patient_name": user.name, "id": v.id, "kind": v.kind})
+    return vital_out(v)
+
+
+@app.get("/api/me/vitals")
+def my_vitals(days: int = Query(14, ge=1, le=366), user: User = Depends(require_role("patient")),
+              db: Session = Depends(get_db)):
+    now = utcnow()
+    return vitals_summary(db, user.id, now - timedelta(days=days), now)
+
+
+@app.delete("/api/me/vitals/{vital_id}")
+def delete_vital(vital_id: int, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    v = db.get(Vital, vital_id)
+    if not v or v.patient_id != user.id:
+        raise HTTPException(404, "Not found")
+    db.delete(v)
+    db.commit()
+    return {"deleted": True}
 
 
 @app.post("/api/me/day")
@@ -685,6 +770,7 @@ def patient_report(db: Session, patient: User, hours: float) -> dict:
         "hr_events": [{**e, "start": iso(e["start"]), "end": iso(e["end"])} for e in analytics.hr_events(rows)],
         "medications": meds_adherence(db, patient.id, since, until),
         "checks": checks_summary(db, patient.id, since, until),
+        "vitals": vitals_summary(db, patient.id, since, until),
         "triggers": analytics.triggers(rows, diary_of(db, patient.id, since, until), DAY_TAGS, TZ_HOURS),
         "series": analytics.series(rows),
         "hourly": analytics.hourly(rows, since, until),
@@ -909,6 +995,7 @@ def export_data(db: Session, u: User) -> dict:
         "alerts": [{"ts": iso(a.ts), "prob": a.prob, "bpm": a.bpm, "status": a.status} for a in q(Alert, Alert.patient_id)],
         "ecg": [{**ecg_meta(e), "samples": json.loads(e.samples)} for e in q(EcgStrip, EcgStrip.patient_id)],
         "symptoms": [symptom_out(s) for s in q(Symptom, Symptom.patient_id)],
+        "vitals": [vital_out(v) for v in q(Vital, Vital.patient_id)],
         "medications": [med_out(m) for m in q(Medication, Medication.patient_id)],
         "medication_doses": [{"medication_id": d.medication_id, "slot": d.slot, "status": d.status} for d in q(MedDose, MedDose.patient_id)],
         "check_plan": plan_out(db.scalar(select(CheckPlan).where(CheckPlan.patient_id == u.id))),
@@ -961,6 +1048,7 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(Reading).where(Reading.patient_id == uid),
         delete(EcgStrip).where(EcgStrip.patient_id == uid),
         delete(Symptom).where(Symptom.patient_id == uid),
+        delete(Vital).where(Vital.patient_id == uid),
         delete(DayTag).where(DayTag.patient_id == uid),
         delete(MedDose).where(MedDose.patient_id == uid),
         delete(CheckPlan).where(CheckPlan.patient_id == uid),

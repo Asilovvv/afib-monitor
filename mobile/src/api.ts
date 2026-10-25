@@ -1,6 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export type Doctor = { id: number; name: string; clinic?: string | null; phone?: string | null }
+export type VitalKind = 'bp' | 'glucose' | 'weight'
+export type Vital = { id: number; ts: string; kind: VitalKind; systolic: number | null; diastolic: number | null; pulse: number | null; value: number | null; source: string; note: string | null }
+export type VitalsSummary = {
+  bp: { n: number; sys_mean: number; dia_mean: number; sys_max: number; dia_max: number; sys_min: number; dia_min: number; last: Vital } | null
+  glucose: { n: number; mean: number; min: number; max: number; last: Vital } | null
+  weight: { n: number; mean: number; min: number; max: number; last: Vital } | null
+  items: Vital[]
+}
 export type Consents = { version: string; consents: { kind: string; version: string; ts: string; withdrawn_at: string | null }[] }
 /** Research consent counts only for the current text (older texts did not cover seeing AF estimates). */
 export const researchGiven = (c: Consents) => c.consents.some(x => x.kind === 'research' && !x.withdrawn_at && x.version === c.version)
@@ -113,6 +121,10 @@ export const api = {
   telegramUnlink: (id: number) => call<TgLink[]>(`/api/telegram/links/${id}`, { method: 'DELETE' }),
   risk: () => call<Risk>('/api/me/risk'),
   accessLog: () => call<{ ts: string; who: string; action: string }[]>('/api/me/access-log'),
+  vitals: (days = 14) => call<VitalsSummary>(`/api/me/vitals?days=${days}`),
+  addVital: (b: { kind: VitalKind; systolic?: number; diastolic?: number; pulse?: number; value?: number; source?: 'manual' | 'photo'; note?: string }) =>
+    call<Vital>('/api/me/vitals', { method: 'POST', body: JSON.stringify(b) }),
+  deleteVital: (id: number) => call<{ deleted: boolean }>(`/api/me/vitals/${id}`, { method: 'DELETE' }),
   consents: () => call<Consents>('/api/me/consents'),
   setConsent: (kind: string, given: boolean) => call<Consents>('/api/me/consents', { method: 'POST', body: JSON.stringify({ kind, given }) }),
   exportLink: () => call<{ url: string }>('/api/me/export-link', { method: 'POST' }),

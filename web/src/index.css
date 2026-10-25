@@ -182,6 +182,7 @@ kbd { font: 11px var(--f-mono); padding: 1px 6px; border: 1px solid var(--line);
 /* KPIs */
 .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
 .kpis.five { grid-template-columns: repeat(5, 1fr); }
+.kpis.three { grid-template-columns: repeat(3, 1fr); margin-bottom: 12px; }
 .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 4px; box-shadow: var(--shadow); transition: transform .15s; }
 a.kpi:hover { transform: translateY(-2px); }
 .kpi-l { color: var(--ink-3); font-size: 13px; }
