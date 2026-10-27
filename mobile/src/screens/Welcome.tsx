@@ -101,19 +101,20 @@ export function Onboarding() {
 
 // ---------------------------------------------------------------- sign in / sign up
 export function Auth({ onDone }: { onDone?: () => void }) {
-  const { theme: tm, t, signIn, setOffline, startSimulator } = useApp()
-  const [mode, setMode] = useState<'in' | 'up'>('in')
-  const [role, setRole] = useState<'patient' | 'family'>('patient')
+  const { theme: tm, t, signIn, setOffline, startSimulator, join } = useApp()
+  const [mode, setMode] = useState<'in' | 'up'>(join ? 'up' : 'in')
+  const [role, setRole] = useState<'patient' | 'family'>(join?.kind === 'family' ? 'family' : 'patient')
   const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'https://afib-monitor.onrender.com'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(join?.code ?? '')
   const [year, setYear] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [srv, setSrv] = useState<'ok' | 'bad' | 'wait' | null>(null)
   const [agree, setAgree] = useState(false)          // terms + data processing (required to sign up)
+  useEffect(() => { if (join) { setMode('up'); setRole(join.kind === 'family' ? 'family' : 'patient'); setCode(join.code) } }, [join])
   const [research, setResearch] = useState(false)    // optional: de-identified data for research
   const openDoc = (path: string) => Linking.openURL((server || 'https://afib-monitor.onrender.com').replace(/\/+$/, '') + path).catch(() => undefined)
 

@@ -3,6 +3,8 @@ import * as Haptics from 'expo-haptics'
 import { setVoiceEnabled } from './voice'
 import { billingLogin, billingLogout } from './billing'
 import { PlanSheet } from './screens/Plan'
+import { watchJoinLinks } from './joinwatch'
+import type { Join } from './joinlink'
 import * as Notifications from 'expo-notifications'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, useColorScheme } from 'react-native'
@@ -48,6 +50,7 @@ type Ctx = {
   signIn: (u: User, token: string) => Promise<void>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
+  join: Join | null; clearJoin: () => void          // pending invitation from a link (src/joinlink.ts)
   planSheet: string | null; openPlan: (reason?: string | null) => void; closePlan: () => void   // "What's included" sheet
   setUser: (u: User) => void
   // device
@@ -392,6 +395,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setMode(m); modeRef.current = m; AsyncStorage.setItem(K.mode, m).catch(() => undefined)
   }, [user, ready])
 
+  const [join, setJoin] = useState<Join | null>(null)
+  useEffect(() => watchJoinLinks(setJoin), [])
+  const clearJoin = useCallback(() => setJoin(null), [])
   const [planSheet, setPlanSheet] = useState<string | null>(null)
   const [planOpen, setPlanOpen] = useState(false)
   const openPlan = useCallback((reason?: string | null) => { setPlanSheet(reason ?? null); setPlanOpen(true) }, [])
@@ -406,7 +412,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const value: Ctx = {
     ready, lang, setLang, mode, themePref, setThemePref, big, setBig, voice, setVoice, theme, t, onboarded, finishOnboarding,
-    user, offline, setOffline, signIn, signOut, setUser, refreshUser, planSheet: planOpen ? planSheet ?? '' : null, openPlan, closePlan,
+    user, offline, setOffline, signIn, signOut, setUser, refreshUser, join, clearJoin, planSheet: planOpen ? planSheet ?? '' : null, openPlan, closePlan,
     source, link, status, battery, rssi, ecg, history, episodes, startDevice, startSimulator, stop, connectedAt,
     recording, recordEcg, checking, checkMe, symptoms, addSymptom,
     pending, lastSync, syncError, syncNow, dataVersion, toasts, toast,

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Icon, Toasts, type IconName } from './src/components/ui'
+import { api } from './src/api'
 import { RhythmState } from './src/protocol'
 import Diary from './src/screens/Diary'
 import History from './src/screens/History'
@@ -34,7 +35,20 @@ type Tab = 'monitor' | 'history' | 'diary' | 'profile'
 const TABS: [Tab, IconName, string][] = [['monitor', 'heart', 'tab_monitor'], ['history', 'clock', 'tab_history'], ['diary', 'book', 'tab_diary'], ['profile', 'user', 'tab_profile']]
 
 function Root() {
-  const { ready, theme: tm, t, onboarded, user, offline, setOffline, status, source, stop } = useApp()
+  const { ready, theme: tm, t, onboarded, user, offline, setOffline, status, source, stop, join, clearJoin, setUser, toast } = useApp()
+  // invitation link while signed in: patient + doctor code → link to that doctor; relative + family code → follow
+  useEffect(() => {
+    if (!join || !user) return
+    const go = async () => {
+      try {
+        if (user.role === 'patient' && join.kind === 'doctor') { setUser(await api.linkDoctor(join.code)); toast(t('doctor_linked'), 'ok') }
+        else if (user.role === 'family' && join.kind === 'family') { await api.familyLink(join.code); toast(t('saved'), 'ok') }
+        else toast(t('join_wrong_role'), 'info')
+      } catch (e) { toast((e as Error).message, 'af') }
+      clearJoin()
+    }
+    go()
+  }, [join, user])   // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState<Tab>('monitor')
   const [authOpen, setAuthOpen] = useState(false)
   const fade = useRef(new Animated.Value(1)).current

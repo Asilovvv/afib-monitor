@@ -11,6 +11,11 @@ export default function Settings({ me, onUpdate }: { me: User; onUpdate: (u: Use
   const [msg, setMsg] = useState('')
   const [theme, setTheme] = useState<ThemePref>(getTheme())
   const [copied, setCopied] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+  function copyLink() {
+    const url = `${location.origin}/join?doctor=${me.invite_code ?? ''}`
+    navigator.clipboard?.writeText(url).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500) }).catch(() => undefined)
+  }
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value })
 
   async function save(e: React.FormEvent) {
@@ -49,7 +54,11 @@ export default function Settings({ me, onUpdate }: { me: User; onUpdate: (u: Use
         <div className="row-btns">
           <button className="btn ghost" onClick={copy}>{copied ? f.t('Скопировано') : f.t('Скопировать')}</button>
           <button className="btn ghost" onClick={regen}>{Icon.bolt(16)} {f.t('Новый код')}</button>
+          <button className="btn ghost" onClick={copyLink}>{linkCopied ? f.t('Скопировано') : f.tr('Ссылка для пациента', 'Link for a patient', 'Бейтап үчүн шилтеме')}</button>
         </div>
+        <p className="muted" style={{ fontSize: 12.5 }}>{f.tr('Ссылка открывает страницу с кодом и кнопкой «Открыть в приложении» — удобно отправить в WhatsApp вместо диктовки кода.',
+          'The link opens a page with the code and an "Open in the app" button — handy to send in WhatsApp instead of dictating the code.',
+          'Шилтеме код жана «Тиркемеде ачуу» баскычы бар баракты ачат — кодду айтып бергендин ордуна WhatsApp аркылуу жөнөтүү ыңгайлуу.')}</p>
       </div>
 
       <PlanCard />

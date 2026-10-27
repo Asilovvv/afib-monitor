@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native'
-import { api, type FamilyCard as CardT } from '../api'
+import { Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleSheet, TextInput, View } from 'react-native'
+import { api, settings, type FamilyCard as CardT } from '../api'
+import { joinUrl } from '../joinlink'
 import { Button, Card, Icon, Row, T } from '../components/ui'
 import { locOf } from '../i18n'
 import { useApp } from '../store'
@@ -114,6 +115,8 @@ export function RelativesCard() {
           <T v="label">{t('fam_code_ready')}</T>
           <T style={{ fontFamily: F.displayBold, fontSize: 34, letterSpacing: 6 }}>{code}</T>
           <T v="small" style={{ textAlign: 'center', lineHeight: 18 }}>{t('fam_code_hint')}</T>
+          <Button title={t('join_share')} kind="soft" icon="send" style={{ marginTop: 10, alignSelf: 'stretch' }}
+            onPress={() => { const u = joinUrl('family', code, settings.server); Share.share({ message: t('join_share_family', { code, url: u.web ?? u.app }) }).catch(() => undefined) }} />
         </View>
       ) : user.plan !== 'family' && list.length >= 1
         ? <Button title={t('pl_more_family')} kind="soft" icon="star" onPress={() => openPlan('family_watchers')} style={{ marginTop: 10 }} />
