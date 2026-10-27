@@ -659,6 +659,15 @@ def test_telegram_patient_chat_types_values_and_week_summary():
     st = tg._status(chat)
     assert "ФП" not in st and "проверок ещё не было" in st             # wellness words only for a non-participant
     assert "ФП" not in tg._status(chat)
+    # Kyrgyz: /ky switches the chat; every patient-facing reply comes from the table (app/bot_texts.py)
+    assert tg._set_lang(chat, "ky") == "Макул, кыргызча жазам."
+    assert tg._patient_text(chat, "кант 5.1").startswith("Кантты жаздым")
+    assert "сиздин аптаңыз" in tg._week(chat) and "ФП" not in tg._status(chat) and "текшерүү азырынча болгон жок" in tg._status(chat)
+    assert tg._patient_text(chat, "салам").startswith("Түшүнгөн жокмун")
+    assert tg._set_lang(chat, "ru").startswith("Хорошо")
+    # a new patient whose Telegram is in Kyrgyz gets Kyrgyz from the first message
+    from app.bot_texts import T, LANGS
+    assert all(set(v) >= set(LANGS) for v in T.values())               # no key without both languages
 
 
 def test_doctor_seen_and_morning_queue():

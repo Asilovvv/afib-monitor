@@ -116,6 +116,7 @@ class TelegramLink(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)   # doctor, or the patient for family
     name: Mapped[str] = mapped_column(String(200), default="")       # Telegram display name
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    lang: Mapped[str | None] = mapped_column(String(5), nullable=True)   # "ru" | "ky": bot replies (patients, relatives)
 
 
 class TelegramCode(Base):

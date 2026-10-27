@@ -29,7 +29,8 @@ Base.metadata.create_all(engine)
 def _add_missing_columns():
     """create_all never alters existing tables; add new nullable columns by hand (idempotent, sqlite + postgres)."""
     from sqlalchemy import inspect
-    wanted = {"users": [("plan", "VARCHAR(16)"), ("plan_until", "TIMESTAMP"), ("plan_source", "VARCHAR(16)")]}
+    wanted = {"users": [("plan", "VARCHAR(16)"), ("plan_until", "TIMESTAMP"), ("plan_source", "VARCHAR(16)")],
+              "telegram_links": [("lang", "VARCHAR(5)")]}
     insp = inspect(engine)
     with engine.begin() as conn:
         for table, cols in wanted.items():
