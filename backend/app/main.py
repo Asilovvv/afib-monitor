@@ -1373,11 +1373,11 @@ def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = 
         delete(AlertAck).where(AlertAck.alert_id.in_(alert_ids)),
         delete(Alert).where(Alert.patient_id == uid),
         delete(Reading).where(Reading.patient_id == uid),
+        delete(StripSeen).where((StripSeen.patient_id == uid) | (StripSeen.doctor_id == uid)),   # before the strips it points to
         delete(EcgStrip).where(EcgStrip.patient_id == uid),
         delete(Symptom).where(Symptom.patient_id == uid),
         delete(Vital).where(Vital.patient_id == uid),
         delete(FamilyLink).where((FamilyLink.patient_id == uid) | (FamilyLink.watcher_id == uid)),
-        delete(StripSeen).where((StripSeen.patient_id == uid) | (StripSeen.doctor_id == uid)),
         delete(FamilyInvite).where(FamilyInvite.patient_id == uid),
         delete(DeviceIssue).where(DeviceIssue.patient_id == uid),
         delete(DeviceIssue).where(DeviceIssue.device_id.in_(select(Device.id).where(Device.owner_id == uid))),

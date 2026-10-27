@@ -22,6 +22,7 @@ if DATABASE_URL.startswith("sqlite"):
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA busy_timeout=5000")
         cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA foreign_keys=ON")         # enforce references like PostgreSQL does, so tests catch order bugs
         cur.close()
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

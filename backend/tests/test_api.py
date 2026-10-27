@@ -859,3 +859,15 @@ def test_doctor_code_lookup_is_name_and_clinic_only():
     r = c.get(f"/api/doctor-code/{code.lower()}")
     assert r.status_code == 200 and set(r.json()) == {"name", "clinic"}
     assert c.get("/api/doctor-code/ZZZZZZ").status_code == 404
+
+
+def test_delete_account_after_doctor_marked_seen():
+    """Regression (found by the e2e run on PostgreSQL): a patient whose check the doctor marked "seen" could not delete
+    the account — strips were deleted before the marks that reference them. Every record must go, in a valid order."""
+    from app import ecgsynth
+    dt, pt, pid = _pair("delseen")
+    a = c.post("/api/ecg", json={"ts": time.time() - 60, "fs": 125, "samples": ecgsynth.synth_ecg(30, afib=True, bpm=95, seed=7), "reason": "check"}, headers=auth(pt)).json()
+    assert c.post(f"/api/ecg/{a['id']}/seen", json={"action": "seen"}, headers=auth(dt)).status_code == 200
+    r = c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=auth(pt))
+    assert r.status_code == 200, r.text
+    assert c.get(f"/api/ecg/{a['id']}", headers=auth(dt)).status_code == 404
