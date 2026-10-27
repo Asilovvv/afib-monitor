@@ -74,7 +74,7 @@ function MedsSheet({ open, onClose, meds }: { open: boolean; onClose: () => void
                 <T v="h3">{m.name}{m.dose ? ` · ${m.dose}` : ''}</T>
                 <T v="small">{m.times.join(', ')}{m.anticoagulant ? ` · ${t('meds_ac')}` : ''}</T>
               </View>
-              <Pressable onPress={() => stop(m)} hitSlop={10}><Icon name="x" color={tm.ink3} size={18} /></Pressable>
+              <Pressable onPress={() => stop(m)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`${t('meds_stop')}: ${m.name}`}><Icon name="x" color={tm.ink3} size={18} /></Pressable>
             </Pressable>
           ))}
           <Button title={t('meds_add')} icon="plus" kind="soft" onPress={() => setEdit('new')} />

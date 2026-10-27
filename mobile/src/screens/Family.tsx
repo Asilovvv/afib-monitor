@@ -36,7 +36,7 @@ export function FamilyHome({ onProfile }: { onProfile: () => void }) {
     <ScrollView contentContainerStyle={s.page} refreshControl={<RefreshControl refreshing={false} onRefresh={load} />}>
       <Row style={{ justifyContent: 'space-between' }}>
         <T v="h1">{t('fam_home')}</T>
-        <Pressable onPress={onProfile} hitSlop={10}><Icon name="user" color={tm.ink2} /></Pressable>
+        <Pressable onPress={onProfile} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('profile')}><Icon name="user" color={tm.ink2} /></Pressable>
       </Row>
       <T v="small" style={{ marginBottom: 14 }}>{user?.name}</T>
 

@@ -39,7 +39,7 @@ export default function Profile({ onSignIn, onBack }: { onSignIn: () => void; on
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40, gap: 14 }}>
-      <Row gap={10}>{onBack && <Pressable onPress={onBack} hitSlop={10} style={{ transform: [{ rotate: '180deg' }] }}><Icon name="chev" color={tm.ink2} /></Pressable>}<T v="h1">{t('profile')}</T></Row>
+      <Row gap={10}>{onBack && <Pressable onPress={onBack} hitSlop={10} accessibilityRole="button" accessibilityLabel={t('a11y_back')} style={{ transform: [{ rotate: '180deg' }] }}><Icon name="chev" color={tm.ink2} /></Pressable>}<T v="h1">{t('profile')}</T></Row>
 
       {user ? (
         <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>

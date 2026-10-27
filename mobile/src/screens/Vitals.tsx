@@ -173,7 +173,7 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
             <Row key={v.id} style={{ justifyContent: 'space-between' }}>
               <T v="small">{new Date(v.ts).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</T>
               <Row gap={10}><T v="mono">{fmt(v)}</T>
-                <Pressable onPress={() => remove(v)} hitSlop={8}><Icon name="x" size={16} color={tm.ink3} /></Pressable></Row>
+                <Pressable onPress={() => remove(v)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${t('vit_delete')} ${fmt(v)}`}><Icon name="x" size={16} color={tm.ink3} /></Pressable></Row>
             </Row>
           ))}
         </View>

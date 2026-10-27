@@ -73,7 +73,7 @@ export function Card({ children, style, onPress, tone }: { children: ReactNode; 
   const { theme } = useApp()
   const s = [st.card, { backgroundColor: tone ?? theme.card, borderColor: theme.line }, theme.dark ? null : st.shadow, style]
   if (!onPress) return <View style={s}>{children}</View>
-  return <Pressable onPress={onPress} style={({ pressed }) => [s, pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] }]}>{children}</Pressable>
+  return <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => [s, pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] }]}>{children}</Pressable>
 }
 
 export function Row({ children, style, gap = 10 }: { children: ReactNode; style?: StyleProp<ViewStyle>; gap?: number }) {
@@ -158,7 +158,7 @@ export function Ring({ size, stroke, progress, color, track }: { size: number; s
 
 // ---------------------------------------------------------------- sheet (bottom modal)
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
-  const { theme: t } = useApp()
+  const { theme: t, t: tr } = useApp()
   const ins = useSafeAreaInsets()
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
@@ -167,7 +167,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
         <View style={[st.grab, { backgroundColor: t.line }]} />
         <Row style={{ justifyContent: 'space-between', marginBottom: 8 }}>
           <T v="h2">{title}</T>
-          <Pressable onPress={onClose} hitSlop={12} style={[st.iconBtn, { backgroundColor: t.bg2 }]}><Icon name="x" color={t.ink2} size={18} /></Pressable>
+          <Pressable onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel={tr('close')} style={[st.iconBtn, { backgroundColor: t.bg2 }]}><Icon name="x" color={t.ink2} size={18} /></Pressable>
         </Row>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>{children}</ScrollView>
       </View>

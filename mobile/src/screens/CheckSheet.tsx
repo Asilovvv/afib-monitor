@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { AccessibilityInfo, StyleSheet, View } from 'react-native'
 import { Linking } from 'react-native'
 import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg'
 import { QualityPill, useLiveAnalysis } from '../components/Poincare'
@@ -45,6 +45,8 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
   useEffect(() => { if (!prep && !res && checking != null) { if (secsLeft === 15) say('half', lang); else if (secsLeft === 10) say('ten', lang) } }, [secsLeft, prep, res, checking, lang])
   useEffect(() => {
     if (!res) return
+    const words = res.stage === 'confirm' ? t('check_confirm') : res.stage === 'mixed' ? t('check_mixed') : t(`check_${res.verdict}`)
+    AccessibilityInfo.announceForAccessibility?.(words)
     if (res.gaps || res.verdict === 'no_verdict') say(res.stage === 'mixed' ? 'confirm' : 'no_verdict', lang)
     else if (res.stage === 'confirm') say('confirm', lang)
     else say(res.verdict === 'regular' ? 'regular' : 'irregular', lang)
