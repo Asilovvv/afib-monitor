@@ -813,3 +813,29 @@ def test_verdict_guard_strips():
     for c in cases:
         r = ecgtools.check(c["x"], c["fs"])
         assert (r["verdict"], r["beats"]) == (c["expected"], c["beats"]), c["name"]
+
+
+def test_export_then_import_into_new_account():
+    """Backup/transfer: the export of one account restores records into an empty new account; nothing is duplicated,
+    links to the doctor and relatives are not carried over, a second import is refused."""
+    from app import ecgsynth
+    dt, pt, pid = _pair("bak")
+    H = auth(pt)
+    c.post("/api/ecg", json={"ts": time.time() - 100, "fs": 125, "samples": ecgsynth.synth_ecg(30, afib=False, bpm=70, seed=3), "reason": "check"}, headers=H)
+    c.post("/api/me/vitals", json={"kind": "bp", "systolic": 130, "diastolic": 80, "pulse": 66}, headers=H)
+    c.post("/api/symptoms", json={"kinds": ["palpitations"], "severity": 2}, headers=H)
+    c.post("/api/me/meds", json={"name": "Апиксабан", "dose": "5 мг", "times": ["08:00", "20:00"], "anticoagulant": True}, headers=H)
+    c.put("/api/me/checkplan", json={"times": ["08:00", "20:00"], "active": True}, headers=H)
+    exp = c.get("/api/me/export", headers=H).json()
+    assert exp["format"] == "afib-monitor-export/1" and len(exp["ecg"]) == 1
+    new = c.post("/api/auth/register", json={"email": "bak2@x.kg", "password": "secret1", "name": "New Phone", "role": "patient", "consents": ["terms", "data"]}).json()
+    H2 = auth(new["token"])
+    r = c.post("/api/me/import", json=exp, headers=H2)
+    assert r.status_code == 200, r.text
+    assert r.json()["imported"] == {"ecg": 1, "readings": 0, "symptoms": 1, "vitals": 1, "medications": 1, "diary_days": 0, "check_plan": 1}
+    assert c.get("/api/me", headers=H2).json()["doctor"] is None                  # doctor link is not carried over
+    assert c.get("/api/me/vitals", headers=H2).json()["bp"]["n"] == 1
+    assert c.get("/api/me/checkplan", headers=H2).json()["times"] == ["08:00", "20:00"]
+    assert c.post("/api/me/import", json=exp, headers=H2).status_code == 409        # not empty any more
+    assert c.post("/api/me/import", json={"format": "other"}, headers=H2).status_code == 400
+    assert any(x["action"] == "import" for x in c.get("/api/me/access-log", headers=H2).json())

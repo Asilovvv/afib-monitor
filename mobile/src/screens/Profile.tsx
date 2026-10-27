@@ -240,7 +240,7 @@ function FeedbackCard() {
 }
 
 function MyDataCard() {
-  const { theme: tm, t, toast, signOut, lang, setUser } = useApp()
+  const { theme: tm, t, toast, signOut, lang, setUser, openPlan } = useApp()
   const [log, setLog] = useState<{ ts: string; who: string; action: string }[] | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [research, setResearch] = useState<boolean | null>(null)
@@ -253,6 +253,35 @@ function MyDataCard() {
   }, [])
   const exportData = async () => {
     try { const r = await api.exportLink(); await Linking.openURL(r.url) } catch (e) { toast((e as Error).message, 'af') }
+  }
+  /** Transfer to a new phone/account: pick the export JSON (made on the old account) and send it to this account.
+   *  The server accepts it only into an empty account; the file is read on the phone and never stored by us. */
+  const importData = async () => {
+    try {
+      let text: string | null = null
+      if (Platform.OS === 'web') {
+        text = await new Promise<string | null>(res => {
+          const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/json'
+          inp.onchange = () => { const f = inp.files?.[0]; if (!f) return res(null); f.text().then(res) }
+          inp.click()
+        })
+      } else {
+        const Picker: typeof import('expo-document-picker') = require('expo-document-picker')
+        const r = await Picker.getDocumentAsync({ type: ['application/json', 'text/plain'], copyToCacheDirectory: true })
+        if (r.canceled || !r.assets?.[0]?.uri) return
+        const FS: typeof import('expo-file-system') = require('expo-file-system')
+        text = await new FS.File(r.assets[0].uri).text()
+      }
+      if (!text) return
+      const data = JSON.parse(text)
+      const res = await api.importData(data)
+      const n = Object.values(res.imported).reduce((a, b) => a + b, 0)
+      toast(t('import_done', { n: String(n) }), 'ok')
+    } catch (e) {
+      const m = (e as Error).message
+      if (e instanceof PlanError) openPlan('backup')
+      else toast(/not_empty|without records/i.test(m) ? t('import_not_empty') : /Not an AFib|JSON/i.test(m) ? t('import_bad') : m, 'af')
+    }
   }
   const toggleResearch = async () => {
     const next = !research
@@ -274,6 +303,7 @@ function MyDataCard() {
     <Card style={{ paddingVertical: 6 }}>
       <T v="label" style={{ marginTop: 10, marginBottom: 2 }}>{t('my_data')}</T>
       <Item icon="sync" title={t('export_data')} sub={t('export_sub')} onPress={exportData} />
+      <Item icon="plus" title={t('import_data')} sub={t('import_sub')} onPress={importData} />
       <Item icon="user" title={t('who_viewed')} sub={log == null ? '…' : log.length ? `${log[0].who} · ${when(log[0].ts)}` : t('nobody_viewed')}
         onPress={log && log.length ? () => setShowLog(!showLog) : undefined} />
       {showLog && log && log.slice(0, 20).map((a, i) => (

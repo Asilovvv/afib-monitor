@@ -157,6 +157,7 @@ export const api = {
   deleteVital: (id: number) => call<{ deleted: boolean }>(`/api/me/vitals/${id}`, { method: 'DELETE' }),
   consents: () => call<Consents>('/api/me/consents'),
   setConsent: (kind: string, given: boolean) => call<Consents>('/api/me/consents', { method: 'POST', body: JSON.stringify({ kind, given }) }),
+  importData: (data: unknown) => call<{ imported: Record<string, number> }>('/api/me/import', { method: 'POST', body: JSON.stringify(data) }, 60000),
   exportLink: () => call<{ url: string }>('/api/me/export-link', { method: 'POST' }),
   deleteMe: (password: string) => call<{ deleted: boolean }>('/api/me', { method: 'DELETE', body: JSON.stringify({ password }) }),
 }

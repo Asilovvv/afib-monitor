@@ -1264,6 +1264,82 @@ def export_me(user: User = Depends(current_user), db: Session = Depends(get_db))
     return export_data(db, user)
 
 
+@app.post("/api/me/import")
+async def import_me(request: Request, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
+    """Restore / transfer: the JSON made by /api/me/export goes into THIS account. Only into an empty account (no strips,
+    vitals or symptoms yet), so nothing is duplicated. Brings records only: ECG strips, readings, symptoms, vitals,
+    medicines, diary days, check plan. Not brought: doctor link, relatives, consents, access log, doctor notes — those
+    belong to the old account and are re-made in the new one by the people concerned."""
+    need_plan(plans.limits_for("patient", plan_of(user))["backup"], "backup")
+    body = await request.json()
+    if not isinstance(body, dict) or body.get("format") != "afib-monitor-export/1":
+        raise HTTPException(400, "Not an AFib Monitor export file")
+    uid = user.id
+    has = db.scalar(select(func.count(EcgStrip.id)).where(EcgStrip.patient_id == uid)) or \
+        db.scalar(select(func.count(Vital.id)).where(Vital.patient_id == uid)) or \
+        db.scalar(select(func.count(Symptom.id)).where(Symptom.patient_id == uid))
+    if has:
+        raise HTTPException(409, {"code": "not_empty", "detail": "Import only into an account without records"})
+
+    def when(x) -> datetime | None:
+        try:
+            return datetime.fromisoformat(str(x).replace("Z", "+00:00")).replace(tzinfo=None) if x else None
+        except ValueError:
+            return None
+    n = {"ecg": 0, "readings": 0, "symptoms": 0, "vitals": 0, "medications": 0, "diary_days": 0, "check_plan": 0}
+    for e in (body.get("ecg") or [])[:500]:
+        try:
+            m = EcgIn(ts=when(e["ts"]).timestamp(), fs=e.get("fs", 125), samples=e["samples"], state=e.get("state", 1), prob=e.get("prob", 0), bpm=e.get("bpm", 0), reason=e.get("reason", "manual"))
+        except Exception:
+            continue
+        db.add(EcgStrip(patient_id=uid, ts=from_unix(m.ts), fs=m.fs, samples=json.dumps(m.samples), state=m.state, prob=m.prob, bpm=m.bpm, reason=m.reason))
+        n["ecg"] += 1
+    for r in (body.get("readings") or [])[:200_000]:
+        try:
+            ts, state, prob, bpm, batt = r
+            t_ = when(ts)
+            if t_ is None or not (0 <= int(state) <= 3):
+                continue
+            db.add(Reading(patient_id=uid, ts=t_, state=int(state), prob=float(prob or 0), bpm=float(bpm or 0), battery=batt))
+            n["readings"] += 1
+        except Exception:
+            continue
+    for x in (body.get("symptoms") or [])[:5000]:
+        try:
+            m = SymptomIn(ts=when(x["ts"]).timestamp(), kinds=x["kinds"], severity=x.get("severity", 1), note=x.get("note"))
+            db.add(Symptom(patient_id=uid, ts=from_unix(m.ts), kinds=",".join(m.kinds), severity=m.severity, note=m.note)); n["symptoms"] += 1
+        except Exception:
+            continue
+    for v in (body.get("vitals") or [])[:20000]:
+        try:
+            m = VitalIn(kind=v["kind"], systolic=v.get("systolic"), diastolic=v.get("diastolic"), pulse=v.get("pulse"), value=v.get("value"), source="manual", note=v.get("note"))
+            t_ = when(v.get("ts")) or utcnow()
+            db.add(Vital(patient_id=uid, ts=t_, kind=m.kind, systolic=m.systolic, diastolic=m.diastolic, pulse=m.pulse, value=m.value, source="manual", note=m.note)); n["vitals"] += 1
+        except Exception:
+            continue
+    for md in (body.get("medications") or [])[:100]:
+        try:
+            m = MedIn(name=md["name"], dose=md.get("dose"), times=md["times"], anticoagulant=bool(md.get("anticoagulant")))
+            db.add(Medication(patient_id=uid, name=m.name, dose=m.dose, times=",".join(m.times), anticoagulant=m.anticoagulant, active=bool(md.get("active", True)))); n["medications"] += 1
+        except Exception:
+            continue
+    for d in (body.get("diary_days") or [])[:2000]:
+        try:
+            m = DayIn(day=d["day"], tags=d.get("tags") or [])
+            db.add(DayTag(patient_id=uid, day=m.day, tags=",".join(m.tags))); n["diary_days"] += 1
+        except Exception:
+            continue
+    cp = body.get("check_plan")
+    if isinstance(cp, dict) and cp.get("times"):
+        try:
+            set_plan(db, uid, CheckPlanIn(times=cp["times"], active=bool(cp.get("active", True))), "patient"); n["check_plan"] = 1
+        except Exception:
+            pass
+    db.commit()
+    log_access(db, uid, user, "import")
+    return {"imported": n}
+
+
 @app.delete("/api/me")
 def delete_me(body: DeleteIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Delete the account and every record about the user (App Store rule 5.1.1(v)). Irreversible."""
