@@ -4,7 +4,7 @@ import { Unbounded_600SemiBold, Unbounded_700Bold } from '@expo-google-fonts/unb
 import { useFonts } from 'expo-font'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { Icon, Toasts, type IconName } from './src/components/ui'
 import { api } from './src/api'
@@ -36,19 +36,25 @@ const TABS: [Tab, IconName, string][] = [['monitor', 'heart', 'tab_monitor'], ['
 
 function Root() {
   const { ready, theme: tm, t, onboarded, user, offline, setOffline, status, source, stop, join, clearJoin, setUser, toast } = useApp()
-  // invitation link while signed in: patient + doctor code → link to that doctor; relative + family code → follow
+  // invitation link while signed in: a doctor code is NEVER applied silently — the person confirms the doctor's name
+  // first (and sees whom it replaces); a family code just follows (the code belongs to the patient who shared it)
   useEffect(() => {
     if (!join || !user) return
-    const go = async () => {
+    const j = join; clearJoin()
+    const run = async () => {
       try {
-        if (user.role === 'patient' && join.kind === 'doctor') { setUser(await api.linkDoctor(join.code)); toast(t('doctor_linked'), 'ok') }
-        else if (user.role === 'family' && join.kind === 'family') { await api.familyLink(join.code); toast(t('saved'), 'ok') }
+        if (user.role === 'patient' && j.kind === 'doctor') {
+          const d = await api.doctorByCode(j.code)
+          const go = async () => { try { setUser(await api.linkDoctor(j.code)); toast(t('doctor_linked'), 'ok') } catch (e) { toast((e as Error).message, 'af') } }
+          const msg = (user.doctor ? t('join_replace', { old: user.doctor.name, name: d.name }) : t('join_confirm', { name: d.name })) + (d.clinic ? `\n${d.clinic}` : '')
+          if (Platform.OS === 'web') { if (confirm(msg)) go(); return }
+          Alert.alert(t('join_title'), msg, [{ text: t('cancel'), style: 'cancel' }, { text: t('join_yes'), onPress: go }])
+        } else if (user.role === 'family' && j.kind === 'family') { await api.familyLink(j.code); toast(t('saved'), 'ok') }
         else toast(t('join_wrong_role'), 'info')
       } catch (e) { toast((e as Error).message, 'af') }
-      clearJoin()
     }
-    go()
-  }, [join, user])   // eslint-disable-line react-hooks/exhaustive-deps
+    run()
+  }, [join])   // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState<Tab>('monitor')
   const [authOpen, setAuthOpen] = useState(false)
   const fade = useRef(new Animated.Value(1)).current

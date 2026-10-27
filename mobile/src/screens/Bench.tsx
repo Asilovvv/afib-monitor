@@ -43,20 +43,22 @@ export function BenchSheet({ open, onClose }: { open: boolean; onClose: () => vo
   }, [open, ecg])
 
   const h = hist.current
-  const window = (sec: number) => {
+  const win = (sec: number) => {
     const now = Date.now(); const first = h.find(p => now - p.t <= sec * 1000) ?? h[0]; const last = h[h.length - 1]
     if (!first || !last || last.t === first.t) return { pps: null as number | null, lost: 0 }
     return { pps: ((last.packets - first.packets) * 1000) / (last.t - first.t), lost: last.lost - first.lost }
   }
-  const w10 = window(10), w60 = window(60)
+  const w10 = win(10), w60 = win(60)
   const holes30 = ecg.total ? ecg.holes(Math.min(ecg.total, 30 * ECG_FS)) : 0
   const connected = source !== 'none' && (source === 'simulator' || link.state === 'connected')
+  useEffect(() => { if (!connected) setRec(null) }, [connected])
 
   const startRecording = () => { setRec({ start: Date.now(), startTotal: ecg.total }); setRecLeft(60) }
   const finishRecording = async () => {
     const r = rec; setRec(null)
     if (!r) return
     const n = Math.min(ecg.total - r.startTotal, ecg.size)
+    if (n <= 0) { toast(t('bench_rec_lost'), 'info'); return }     // source restarted mid-recording
     const x = ecg.last(n)
     const lines = ['t_s,mv,filled']
     const holes = ecg.holes(n)

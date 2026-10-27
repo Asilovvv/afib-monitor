@@ -851,3 +851,11 @@ def test_admin_status_counts_only(monkeypatch):
     j = r.json()
     assert j["users"]["patients"] > 0 and "share_patients_with_relative" in j["pricing_metrics"]
     assert "email" not in r.text and "name" not in j["users"]                    # counts only, never people
+
+
+def test_doctor_code_lookup_is_name_and_clinic_only():
+    dt, pt, pid = _pair("look")
+    code = c.get("/api/me", headers=auth(dt)).json()["invite_code"]
+    r = c.get(f"/api/doctor-code/{code.lower()}")
+    assert r.status_code == 200 and set(r.json()) == {"name", "clinic"}
+    assert c.get("/api/doctor-code/ZZZZZZ").status_code == 404

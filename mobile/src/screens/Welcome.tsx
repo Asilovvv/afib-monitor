@@ -101,7 +101,7 @@ export function Onboarding() {
 
 // ---------------------------------------------------------------- sign in / sign up
 export function Auth({ onDone }: { onDone?: () => void }) {
-  const { theme: tm, t, signIn, setOffline, startSimulator, join } = useApp()
+  const { theme: tm, t, signIn, setOffline, startSimulator, join, clearJoin } = useApp()
   const [mode, setMode] = useState<'in' | 'up'>(join ? 'up' : 'in')
   const [role, setRole] = useState<'patient' | 'family'>(join?.kind === 'family' ? 'family' : 'patient')
   const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'https://afib-monitor.onrender.com'))
@@ -134,6 +134,7 @@ export function Auth({ onDone }: { onDone?: () => void }) {
           ? await api.register({ role: 'family', email: email.trim(), password, name: name.trim(), family_code: code.trim() || undefined, consents: ['terms', 'data'] })
           : await api.register({ email: email.trim(), password, name: name.trim(), doctor_code: code.trim() || undefined, birth_year: Number(year) || undefined, consents: ['terms', 'data', ...(research ? ['research'] : [])] })
       setSrv('ok')
+      clearJoin()
       await signIn(r.user, r.token)
       onDone?.()
     } catch (e) {

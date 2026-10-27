@@ -125,6 +125,7 @@ export const api = {
   familyLeave: (pid: number) => call<{ left: boolean }>(`/api/family/patients/${pid}`, { method: 'DELETE' }),
   me: () => call<User>('/api/me', {}, WAKE),
   updateMe: (b: Partial<Pick<User, 'name' | 'birth_year' | 'sex' | 'phone'>>) => call<User>('/api/me', { method: 'PUT', body: JSON.stringify(b) }),
+  doctorByCode: (code: string) => call<{ name: string; clinic: string | null }>(`/api/doctor-code/${encodeURIComponent(code)}`),
   linkDoctor: (code: string) => call<User>('/api/me/doctor', { method: 'PUT', body: JSON.stringify({ doctor_code: code }) }),
   upload: (readings: ReadingOut[]) => call<{ saved: number; alerts: number }>('/api/readings', { method: 'POST', body: JSON.stringify({ readings }) }),
   report: (hours: number) => call<Report>(`/api/me/report?hours=${hours}`, {}, WAKE),

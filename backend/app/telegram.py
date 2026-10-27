@@ -569,7 +569,7 @@ def _help_for(chat: int) -> str:
 def _set_lang(chat: int, lang: str) -> str:
     with SessionLocal() as db:
         n = 0
-        for l in db.scalars(select(TelegramLink).where(TelegramLink.chat_id == chat)):
+        for l in db.scalars(select(TelegramLink).where(TelegramLink.chat_id == chat, TelegramLink.kind != "doctor")):
             l.lang = lang; n += 1
         db.commit()
     return bt(lang, "lang_set") if n else bt(lang, "not_linked") + " " + bt(lang, "help_public")
@@ -677,9 +677,10 @@ def _link(chat: int, code: str, name: str, tg_lang: str = "") -> str:
 
 def _unlink(chat: int) -> str:
     with SessionLocal() as db:
+        lang = chat_lang(db, chat)
         n = db.execute(delete(TelegramLink).where(TelegramLink.chat_id == chat)).rowcount
         db.commit()
-    return bt("ru", "unlinked") if n else bt("ru", "not_linked")
+    return bt(lang, "unlinked") if n else bt(lang, "not_linked")
 
 
 def _status(chat: int) -> str:
@@ -688,7 +689,7 @@ def _status(chat: int) -> str:
     from . import main as app_main
     with SessionLocal() as db:
         links = list(db.scalars(select(TelegramLink).where(TelegramLink.chat_id == chat)))
-        lang = next((l.lang for l in links if l.lang), "ru")
+        lang = "ru" if any(l.kind == "doctor" for l in links) else next((l.lang for l in links if l.lang), "ru")
         if not links:
             return bt("ru", "status_not_linked") + bt("ru", "help_public")
         now = utcnow()

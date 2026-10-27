@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import secrets
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -423,6 +424,20 @@ def link_doctor(body: LinkDoctorIn, user: User = Depends(require_role("patient")
     db.refresh(user)
     broker.publish(doc.id, "patients", {"patient_id": user.id})
     return user_out(user, db)
+
+
+@app.get("/api/doctor-code/{code}")
+def doctor_by_code(code: str, request: Request, db: Session = Depends(get_db)):
+    """Whom does this invite code belong to — name and clinic only, so the app can ask "link to Dr X?" before linking.
+    Codes are 6 characters from a 32-letter alphabet; lookups share the per-address login throttle against guessing."""
+    key = "ip:" + (request.client.host if request.client else "?")
+    if _too_many(key):
+        raise HTTPException(429, "Too many attempts, try later in 15 minutes")
+    doc = db.scalar(select(User).where(User.invite_code == code.strip().upper(), User.role == "doctor"))
+    if not doc:
+        _login_fails.setdefault(key, []).append(utcnow())
+        raise HTTPException(404, "Doctor code not found")
+    return {"name": doc.name, "clinic": doc.clinic}
 
 
 @app.post("/api/me/invite")
@@ -1271,6 +1286,8 @@ async def import_me(request: Request, user: User = Depends(require_role("patient
     medicines, diary days, check plan. Not brought: doctor link, relatives, consents, access log, doctor notes — those
     belong to the old account and are re-made in the new one by the people concerned."""
     need_plan(plans.limits_for("patient", plan_of(user))["backup"], "backup")
+    if int(request.headers.get("content-length") or 0) > 60_000_000:
+        raise HTTPException(413, "Export file too large (60 MB max)")
     body = await request.json()
     if not isinstance(body, dict) or body.get("format") != "afib-monitor-export/1":
         raise HTTPException(400, "Not an AFib Monitor export file")
@@ -1300,7 +1317,7 @@ async def import_me(request: Request, user: User = Depends(require_role("patient
             t_ = when(ts)
             if t_ is None or not (0 <= int(state) <= 3):
                 continue
-            db.add(Reading(patient_id=uid, ts=t_, state=int(state), prob=float(prob or 0), bpm=float(bpm or 0), battery=batt))
+            db.add(Reading(patient_id=uid, ts=t_, state=int(state), prob=float(prob or 0), bpm=float(bpm or 0), battery=int(batt) if batt is not None else None))
             n["readings"] += 1
         except Exception:
             continue
@@ -1323,9 +1340,13 @@ async def import_me(request: Request, user: User = Depends(require_role("patient
             db.add(Medication(patient_id=uid, name=m.name, dose=m.dose, times=",".join(m.times), anticoagulant=m.anticoagulant, active=bool(md.get("active", True)))); n["medications"] += 1
         except Exception:
             continue
+    seen_days: set[str] = set()
     for d in (body.get("diary_days") or [])[:2000]:
         try:
             m = DayIn(day=d["day"], tags=d.get("tags") or [])
+            if m.day in seen_days:
+                continue
+            seen_days.add(m.day)
             db.add(DayTag(patient_id=uid, day=m.day, tags=",".join(m.tags))); n["diary_days"] += 1
         except Exception:
             continue
@@ -1563,7 +1584,7 @@ def request_invoice(body: PlanRequestIn, doctor: User = Depends(require_role("do
 @app.post("/api/admin/plan")
 def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(get_db)):
     """Manual activation. Protected by ADMIN_TOKEN (a server secret, used from the command line, never by the apps)."""
-    if not ADMIN_TOKEN or request.headers.get("X-Admin-Token", "") != ADMIN_TOKEN:
+    if not ADMIN_TOKEN or not secrets.compare_digest(request.headers.get("X-Admin-Token", ""), ADMIN_TOKEN):
         raise HTTPException(403, "Admin token missing or wrong")
     u = db.scalar(select(User).where(User.email == body.email.lower()))
     if not u:
@@ -1583,7 +1604,7 @@ def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(ge
 @app.get("/api/admin/status")
 def admin_status(request: Request, days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
     """Owner's numbers (docs/PRICING.md §4), no personal data: counts and shares only. Protected by ADMIN_TOKEN."""
-    if not ADMIN_TOKEN or request.headers.get("X-Admin-Token", "") != ADMIN_TOKEN:
+    if not ADMIN_TOKEN or not secrets.compare_digest(request.headers.get("X-Admin-Token", ""), ADMIN_TOKEN):
         raise HTTPException(403, "Admin token missing or wrong")
     now = utcnow(); since = now - timedelta(days=days)
     cnt = lambda stmt: db.scalar(stmt) or 0
@@ -1637,7 +1658,7 @@ async def revenuecat_webhook(request: Request, db: Session = Depends(get_db)):
     """RevenueCat → us. Verified by the shared secret RevenueCat sends in the Authorization header. app_user_id is our
     numeric user id (the app sets it at login). Idempotent on event id. CANCELLATION only stops renewal: the plan runs
     to its paid end; EXPIRATION returns the account to free."""
-    if not RC_WEBHOOK_SECRET or request.headers.get("Authorization", "") != RC_WEBHOOK_SECRET:
+    if not RC_WEBHOOK_SECRET or not secrets.compare_digest(request.headers.get("Authorization", ""), RC_WEBHOOK_SECRET):
         raise HTTPException(403, "Webhook secret missing or wrong")
     body = await request.json()
     ev = body.get("event") or {}

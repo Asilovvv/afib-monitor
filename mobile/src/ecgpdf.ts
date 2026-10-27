@@ -70,8 +70,10 @@ export function ecgHtml(strip: PdfStrip, lang: Lang, withName: boolean): string 
       svg += `<text x="${M + w + 1.5}" y="${y + 3}" font-size="2.6" fill="#555">${r * ROW_S}–${Math.min((r + 1) * ROW_S, Math.ceil(s.length / strip.fs))} s</text>`
       y += ROW_H + 4
     }
-    svg += `<text x="${M}" y="${H - M + 2}" font-size="2.6" fill="#333">${T.note}</text>`
-    svg += `<text x="${W - M}" y="${H - M + 2}" font-size="2.6" fill="#555" text-anchor="end">${T.page} ${p + 1}/${pages}</text>`
+    const words = T.note.split(' '); const l1: string[] = []; while (words.length && l1.join(' ').length + words[0].length < 120) l1.push(words.shift()!)
+    svg += `<text x="${M}" y="${H - M - 2}" font-size="2.6" fill="#333">${l1.join(' ')}</text>`
+    svg += `<text x="${M}" y="${H - M + 2}" font-size="2.6" fill="#333">${words.join(' ')}</text>`
+    svg += `<text x="${W - M}" y="${H - M + 6}" font-size="2.6" fill="#555" text-anchor="end">${T.page} ${p + 1}/${pages}</text>`
     svg += '</svg>'
     html += `<div class="pg">${svg}</div>`
   }
