@@ -6,14 +6,17 @@ import { HourBars, HrLine } from '../components/Charts'
 import { EcgStatic } from '../components/Ecg'
 import { PoincarePlot, QualityPill } from '../components/Poincare'
 import { analyze } from '../rr'
-import { Card, Empty, Icon, Pill, Row, Seg, Sheet, Stat, T } from '../components/ui'
+import { Button, Card, Empty, Icon, Pill, Row, Seg, Sheet, Stat, T } from '../components/ui'
 import { useApp } from '../store'
+import { shareEcgPdf } from '../ecgshare'
+import { check } from '../rr'
 import { F } from '../theme'
 import { fmtDur } from './Monitor'
 
 function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => void }) {
-  const { theme: tm, t, lang } = useApp()
+  const { theme: tm, t, lang, user, toast } = useApp()
   const [samples, setSamples] = useState<number[] | null>(null)
+  const [pdfBusy, setPdfBusy] = useState(false)
   useEffect(() => {
     setSamples(null)
     if (meta) api.ecgGet(meta.id).then(e => setSamples(e.samples)).catch(() => setSamples([]))
@@ -43,6 +46,16 @@ function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => voi
             )
           })()}
           <T v="small">{t(meta.reason === 'afib_onset' ? 'auto_rec' : meta.reason === 'symptom' ? 'symptom_rec' : 'manual_rec')}</T>
+          {samples && samples.length > 0 && (
+            <Button title={t('pdf_share')} kind="soft" icon="send" loading={pdfBusy} onPress={async () => {
+              setPdfBusy(true)
+              const v = meta.reason === 'check' ? check(samples, meta.fs).verdict : null
+              const ok = await shareEcgPdf({ samples, fs: meta.fs, ts: new Date(meta.ts).getTime(), bpm: meta.bpm, verdict: v, name: user?.name, device: 'AFib Monitor' }, lang, !!user)
+              setPdfBusy(false)
+              if (!ok) toast(t('pdf_fail'), 'info')
+            }} />
+          )}
+          <T v="small" c={tm.ink3} style={{ lineHeight: 17 }}>{t('pdf_hint')}</T>
         </View>
       )}
     </Sheet>
