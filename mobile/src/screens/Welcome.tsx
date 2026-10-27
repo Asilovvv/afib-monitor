@@ -101,7 +101,7 @@ export function Onboarding() {
 
 // ---------------------------------------------------------------- sign in / sign up
 export function Auth({ onDone }: { onDone?: () => void }) {
-  const { theme: tm, t, signIn, setOffline } = useApp()
+  const { theme: tm, t, signIn, setOffline, startSimulator } = useApp()
   const [mode, setMode] = useState<'in' | 'up'>('in')
   const [role, setRole] = useState<'patient' | 'family'>('patient')
   const [server, setServer] = useState(settings.server || (Platform.OS === 'web' && typeof location !== 'undefined' ? location.origin.replace(':8081', ':8000') : 'https://afib-monitor.onrender.com'))
@@ -202,6 +202,8 @@ export function Auth({ onDone }: { onDone?: () => void }) {
               <T v="mono">aibek@demo.kg · demo1234</T>
             </Pressable>
           )}
+          <Button title={t('try_demo')} kind="soft" icon="wave" onPress={() => { setOffline(true); startSimulator(); onDone?.() }} style={{ marginTop: 4 }} />
+          <T v="small" c={tm.ink3} style={{ textAlign: 'center', marginTop: 6, lineHeight: 17 }}>{t('try_demo_sub')}</T>
           <Button title={t('offline_mode')} kind="ghost" onPress={() => { setOffline(true); onDone?.() }} style={{ marginTop: 4 }} />
         </ScrollView>
       </KeyboardAvoidingView>

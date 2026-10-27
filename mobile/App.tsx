@@ -34,7 +34,7 @@ type Tab = 'monitor' | 'history' | 'diary' | 'profile'
 const TABS: [Tab, IconName, string][] = [['monitor', 'heart', 'tab_monitor'], ['history', 'clock', 'tab_history'], ['diary', 'book', 'tab_diary'], ['profile', 'user', 'tab_profile']]
 
 function Root() {
-  const { ready, theme: tm, t, onboarded, user, offline, setOffline, status } = useApp()
+  const { ready, theme: tm, t, onboarded, user, offline, setOffline, status, source, stop } = useApp()
   const [tab, setTab] = useState<Tab>('monitor')
   const [authOpen, setAuthOpen] = useState(false)
   const fade = useRef(new Animated.Value(1)).current
@@ -68,6 +68,13 @@ function Root() {
     <View style={{ flex: 1, backgroundColor: tm.bg }}>
       {bar}
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {source === 'simulator' && (
+          <Pressable onPress={stop} style={[s.demoBand, { backgroundColor: tm.warnSoft }]} accessibilityRole="button">
+            <Icon name="wave" size={14} color={tm.warn} />
+            <Text style={[s.demoText, { color: tm.warn }]}>{t('demo_band')}</Text>
+            <Text style={[s.demoText, { color: tm.warn, textDecorationLine: 'underline' }]}>{t('demo_stop')}</Text>
+          </Pressable>
+        )}
         <Animated.View style={{ flex: 1, opacity: fade }}>
           {tab === 'monitor' && <Monitor go={switchTab} />}
           {tab === 'history' && <History />}
@@ -97,6 +104,8 @@ function Root() {
 }
 
 const s = StyleSheet.create({
+  demoBand: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 6 },
+  demoText: { fontSize: 12.5, fontWeight: '600' },
   tabs: { borderTopWidth: StyleSheet.hairlineWidth },
   tabRow: { flexDirection: 'row', paddingTop: 6, paddingBottom: 4 },
   tab: { flex: 1, alignItems: 'center', gap: 2 },
