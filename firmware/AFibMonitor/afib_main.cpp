@@ -562,7 +562,7 @@ static void finishCheck() {
 }
 
 // ---------------------------------------------------------------- serial
-static char lineBuf[48];
+static char lineBuf[512];                 // long enough for the "Q" model self-test line (64 numbers)
 static int lineLen = 0;
 
 static void benchmark() {
@@ -588,6 +588,13 @@ static void handleLine(char* s) {
     pushRaw(atof(s + 2));
   } else if (s[0] == 'B') {
     benchmark();
+  } else if (s[0] == 'Q' && s[1] == ' ' && rrModel && inT->type == kTfLiteInt8) {
+    // Diagnostic only (board day A4): "Q q0 q1 … q63" = one already-quantized int8 input for the RR model;
+    // runs the model on it and prints "QOUT <int8 output>". Does not touch the detector, the ring or the screen.
+    char* p = s + 2; int n = 0;
+    while (n < 2 * N_RR && *p) { long v = strtol(p, &p, 10); inT->data.int8[n++] = (int8_t)constrain(v, -128, 127); while (*p == ' ') p++; }
+    if (n == 2 * N_RR && interpreter->Invoke() == kTfLiteOk) Serial.printf("QOUT %d\n", (int)outT->data.int8[0]);
+    else Serial.printf("QOUT err n=%d\n", n);
   } else if (s[0] == 'R') {
     resetWindow();
     Serial.println("RESET");

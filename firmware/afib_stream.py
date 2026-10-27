@@ -256,6 +256,39 @@ def evaluate(args):
     print('saved', out)
 
 
+def model_check(args):
+    """Board day A4 diagnostic: the same int8 inputs on the board ("Q …") and on a PC (tools/firmware/model_cases.json).
+    Equal outputs (±1) = the inference engine on the chip is fine and the difference is in beat detection."""
+    import json, urllib.request
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model_cases.json')
+    if not os.path.exists(here):
+        url = 'https://raw.githubusercontent.com/Asilovvv/afib-monitor/main/tools/firmware/model_cases.json'
+        urllib.request.urlretrieve(url, here)
+    cases = json.load(open(here))
+    dev = Device(args.port)
+    got = []
+    for c in cases:
+        n0 = len(dev.lines)
+        dev.send('Q ' + ' '.join(str(v) for v in c['input']) + '\n')
+        t0 = time.time()
+        while time.time() - t0 < 2:
+            new = [l for l in dev.lines[n0:] if l.startswith('QOUT')]
+            if new:
+                break
+            time.sleep(0.01)
+        v = new[0].split()[1] if new else 'timeout'
+        got.append(int(v) if v.lstrip('-').isdigit() else None)
+    dev.close()
+    bad = 0
+    for kind in ('regular', 'af_like', 'random'):
+        rows = [(c['expected'], g) for c, g in zip(cases, got) if c['kind'] == kind]
+        diff = [abs(e - g) if g is not None else 999 for e, g in rows]
+        bad += sum(d > 1 for d in diff)
+        pe = [round((e + 128) / 256, 3) for e, _ in rows]; pg = [round((g + 128) / 256, 3) if g is not None else None for _, g in rows]
+        print(f'{kind:8s} max |board - PC| = {max(diff)} LSB   PC prob {pe[:5]}…   board prob {pg[:5]}…')
+    print('MODEL CHECK', 'OK: board = PC' if bad == 0 else f'MISMATCH in {bad} of {len(cases)} cases: the inference on the chip differs')
+
+
 def bench(args):
     dev = Device(args.port)
     dev.send('I\n'); time.sleep(0.5)
@@ -274,6 +307,7 @@ if __name__ == '__main__':
     ap.add_argument('--eval', action='store_true')
     ap.add_argument('--records', help='comma-separated records for --eval')
     ap.add_argument('--bench', action='store_true')
+    ap.add_argument('--model-check', action='store_true', help='same int8 inputs on the board and on a PC')
     ap.add_argument('--live', type=float, help='record the device ECG for this many seconds')
     ap.add_argument('--out', help='CSV file for --live')
     ap.add_argument('--snr', nargs='+', help='CSV files from --live')
@@ -287,6 +321,8 @@ if __name__ == '__main__':
         live(a)
     elif a.bench:
         bench(a)
+    elif a.model_check:
+        model_check(a)
     elif a.eval:
         evaluate(a)
     else:
