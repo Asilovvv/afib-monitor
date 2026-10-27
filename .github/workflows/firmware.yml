@@ -1,7 +1,7 @@
 name: Firmware
 on:
   push:
-    paths: ["firmware/**", "hardware/**", "backend/app/ecgtools.py", "backend/app/ectopy.py", "backend/app/pvc_model.json", "tools/pvc_export.py", "tools/parity/**", ".github/workflows/firmware.yml"]
+    paths: ["firmware/**", "hardware/**", "backend/app/ecgtools.py", "backend/app/ectopy.py", "backend/app/pvc_model.json", "tools/pvc_export.py", "tools/parity/**", "tools/firmware/**", ".github/workflows/firmware.yml"]
   workflow_dispatch:
 
 # Compiles the M5Stack CoreS3 SE firmware exactly as the README tells a person to do in Arduino IDE
@@ -31,6 +31,21 @@ jobs:
         run: |
           PYTHONPATH=backend python tools/parity/ectopy_cases.py backend/app/pvc_model.json /tmp/ecto.txt
           g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/ectopy_host.cpp -o /tmp/ecto && /tmp/ecto < /tmp/ecto.txt
+  model:
+    # the chip runs the rewritten model (no SPACE_TO_BATCH_ND); it must equal the trained one bit for bit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -q tensorflow-cpu==2.20.0
+      - name: Rewrite is bit-exact on 560 inputs and equals the committed file
+        run: |
+          python tools/firmware/undilate_model.py firmware/models/afib_rr_int8.tflite /tmp/nodil.tflite
+          cmp /tmp/nodil.tflite firmware/models/afib_rr_int8_nodil.tflite
+      - name: Firmware header holds exactly that model
+        run: |
+          python -c "import re,pathlib;h=pathlib.Path('firmware/AFibMonitor/afib_model_data.h').read_text();b=bytes(int(x,16) for x in re.findall(r'0x([0-9a-f]{2})',h.split('afib_model[] = {')[1].split('};')[0]));assert b==pathlib.Path('firmware/models/afib_rr_int8_nodil.tflite').read_bytes();print('header OK',len(b))"
   build:
     runs-on: ubuntu-latest
     steps:
