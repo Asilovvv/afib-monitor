@@ -54,6 +54,7 @@ export default function Settings({ me, onUpdate }: { me: User; onUpdate: (u: Use
         <div className="row-btns">
           <button className="btn ghost" onClick={copy}>{copied ? f.t('Скопировано') : f.t('Скопировать')}</button>
           <button className="btn ghost" onClick={regen}>{Icon.bolt(16)} {f.t('Новый код')}</button>
+          <a className="btn ghost" href={`/guide?doctor=${me.invite_code ?? ''}`} target="_blank" rel="noreferrer">{f.tr('Памятка пациенту (A4)', 'Patient sheet (A4)', 'Бейтапка эскертме (A4)')}</a>
           <button className="btn ghost" onClick={copyLink}>{linkCopied ? f.t('Скопировано') : f.tr('Ссылка для пациента', 'Link for a patient', 'Бейтап үчүн шилтеме')}</button>
         </div>
         <p className="muted" style={{ fontSize: 12.5 }}>{f.tr('Ссылка открывает страницу с кодом и кнопкой «Открыть в приложении» — удобно отправить в WhatsApp вместо диктовки кода.',

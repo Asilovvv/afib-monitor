@@ -667,3 +667,43 @@ td.ok { color: var(--ok); } td.af { color: var(--af); } td.muted { color: var(--
 .tr.dev { grid-template-columns: 1fr 1fr .7fr 1.4fr 1fr 1.2fr; min-width: 760px; }
 .tr.hist { grid-template-columns: 1fr 1.4fr 1fr 1fr 1fr 1.2fr; min-width: 760px; }
 .tr.muted { opacity: .55; }
+
+/* printable patient guide (/guide) — A4, black-and-white friendly */
+.guide { background: #e9e7e1; min-height: 100vh; padding: 20px 0; color: #111; font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.g-bar { max-width: 210mm; margin: 0 auto 12px; display: flex; justify-content: flex-end; }
+.g-page { width: 210mm; min-height: 297mm; margin: 0 auto 16px; background: #fff; padding: 14mm 14mm 10mm; box-sizing: border-box; box-shadow: 0 2px 12px rgba(0,0,0,.12); }
+.g-page h1 { font-family: 'Unbounded', sans-serif; font-size: 22pt; margin: 0; line-height: 1.15; }
+.g-page h2 { font-size: 13pt; margin: 6mm 0 2mm; }
+.g-page p, .g-page li { font-size: 11pt; line-height: 1.4; margin: 0 0 2mm; }
+.g-head { display: flex; justify-content: space-between; gap: 8mm; border-bottom: 2px solid #111; padding-bottom: 4mm; }
+.g-head p { color: #555; margin-top: 1mm; }
+.g-doc { display: grid; text-align: right; font-size: 10pt; gap: 1mm; }
+.g-doc small { color: #666; text-transform: uppercase; letter-spacing: .06em; font-size: 8pt; }
+.g-doc b { font-size: 12pt; }
+.g-code { font-family: 'JetBrains Mono', monospace; font-size: 14pt; letter-spacing: .2em; border: 1.5px solid #111; padding: 1mm 2mm; justify-self: end; }
+.g-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; }
+.g-qrs { display: flex; gap: 6mm; margin-top: 2mm; }
+.g-qr { margin: 0; text-align: center; font-size: 9pt; color: #444; }
+.g-qr svg { width: 32mm; height: 32mm; display: block; }
+.g-el { display: flex; align-items: center; gap: 4mm; }
+.g-el ul { list-style: none; padding: 0; margin: 0; }
+.g-el li { padding-left: 5mm; position: relative; }
+.g-el li::before { content: ''; position: absolute; left: 0; top: 1.6mm; width: 3mm; height: 3mm; border-radius: 50%; }
+.g-el li.r::before { background: #E0433F; } .g-el li.l::before { background: #E8B400; } .g-el li.f::before { background: #1F9D55; }
+.g-small { font-size: 9.5pt !important; color: #444; }
+.g-steps { padding-left: 6mm; margin: 0; }
+.g-steps li { font-size: 12pt; margin-bottom: 1.5mm; }
+.g-res { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; }
+.g-res > div { border: 1.5px solid #111; border-radius: 3mm; padding: 3mm; }
+.g-res > div b { display: block; font-size: 12pt; margin-bottom: 1mm; }
+.g-res > div, .g-res > div b, .g-res > div p { color: #111; }
+.g-res > div p { font-size: 9.5pt; }
+.g-res .ok { border-left: 4mm solid #1F9D55; } .g-res .warn { border-left: 4mm solid #E8B400; } .g-res .grey { border-left: 4mm solid #999; }
+.g-sos { margin-top: 6mm !important; padding: 3mm 4mm; border: 2px solid #E0433F; border-radius: 3mm; font-weight: 600; font-size: 12pt !important; }
+.g-note { font-size: 8.5pt !important; color: #555; margin-top: 4mm !important; }
+@media print {
+  @page { size: A4; margin: 0; }
+  .guide { background: #fff; padding: 0; }
+  .g-bar { display: none; }
+  .g-page { box-shadow: none; margin: 0; page-break-after: always; }
+}

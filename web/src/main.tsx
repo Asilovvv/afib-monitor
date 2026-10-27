@@ -22,6 +22,7 @@ import Settings from './pages/Settings'
 import Devices from './pages/Devices'
 import Join from './pages/Join'
 import Admin from './pages/Admin'
+import Guide from './pages/Guide'
 import Shell from './pages/Shell'
 import { applyTheme, getTheme } from './theme'
 
@@ -44,6 +45,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Landing />} />
       <Route path="/join" element={<Join />} />
+      <Route path="/guide" element={<Guide />} />
       <Route path="/privacy" element={<Legal kind="privacy" />} />
       <Route path="/terms" element={<Legal kind="terms" />} />
       <Route path="/login" element={doctor ? <Navigate to="/app" replace /> : <Login onLogin={setMe} />} />
