@@ -44,7 +44,7 @@ _add_missing_columns()
 
 _DEMO = os.getenv("SEED_DEMO") == "1"      # demo doctor + patients (idempotent); seeded after the port is open
 
-app = FastAPI(title="AFib Monitor API", version="2.1",
+app = FastAPI(title="AFib Monitor API", version="2.2",
               description="Readings, alerts, ECG strips and symptoms from the ESP32-S3 AFib monitor.")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
