@@ -28,6 +28,12 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip, cache-dependency-path: backend/requirements.txt }
       - run: pip install -r requirements.txt pytest
+      - name: End-to-end over HTTP on PostgreSQL (tools/e2e_local.py), before pytest reuses the database
+        env: { DATABASE_URL: "postgresql://postgres:afib@localhost:5432/afib", ADMIN_TOKEN: e2e-admin, JWT_SECRET: ci-e2e-secret-0123456789abcdef-xyz }
+        run: |
+          python -m uvicorn app.main:app --port 8099 > /tmp/e2e.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8099/api/health >/dev/null && break; sleep 1; done
+          python ../tools/e2e_local.py http://localhost:8099 e2e-admin || (cat /tmp/e2e.log; exit 1)
       - run: python -m pytest -q tests
         env: { TEST_DATABASE_URL: "postgresql://postgres:afib@localhost:5432/afib" }
 

@@ -1563,6 +1563,12 @@ class AdminPlanIn(BaseModel):
     source: str = Field("admin", pattern="^(admin|invoice|device_bundle)$")
 
 
+def admin_only(request: Request):
+    """Runs before the body is parsed, so a request without the token gets 403, never a validation hint."""
+    if not ADMIN_TOKEN or not secrets.compare_digest(request.headers.get("X-Admin-Token", ""), ADMIN_TOKEN):
+        raise HTTPException(403, "Admin token missing or wrong")
+
+
 @app.get("/api/me/plan")
 def my_plan(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return plan_info(db, user)
@@ -1581,11 +1587,9 @@ def request_invoice(body: PlanRequestIn, doctor: User = Depends(require_role("do
     return {"requested": True, "plan": r.plan, "months": r.months, "created_at": iso(r.created_at)}
 
 
-@app.post("/api/admin/plan")
-def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(get_db)):
+@app.post("/api/admin/plan", dependencies=[Depends(admin_only)])
+def admin_set_plan(body: AdminPlanIn, db: Session = Depends(get_db)):
     """Manual activation. Protected by ADMIN_TOKEN (a server secret, used from the command line, never by the apps)."""
-    if not ADMIN_TOKEN or not secrets.compare_digest(request.headers.get("X-Admin-Token", ""), ADMIN_TOKEN):
-        raise HTTPException(403, "Admin token missing or wrong")
     u = db.scalar(select(User).where(User.email == body.email.lower()))
     if not u:
         raise HTTPException(404, "User not found")
@@ -1601,11 +1605,9 @@ def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(ge
     return plan_info(db, u)
 
 
-@app.get("/api/admin/status")
-def admin_status(request: Request, days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+@app.get("/api/admin/status", dependencies=[Depends(admin_only)])
+def admin_status(days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
     """Owner's numbers (docs/PRICING.md §4), no personal data: counts and shares only. Protected by ADMIN_TOKEN."""
-    if not ADMIN_TOKEN or not secrets.compare_digest(request.headers.get("X-Admin-Token", ""), ADMIN_TOKEN):
-        raise HTTPException(403, "Admin token missing or wrong")
     now = utcnow(); since = now - timedelta(days=days)
     cnt = lambda stmt: db.scalar(stmt) or 0
     patients = cnt(select(func.count(User.id)).where(User.role == "patient"))
