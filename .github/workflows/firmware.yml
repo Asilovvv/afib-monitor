@@ -23,6 +23,8 @@ jobs:
         run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
       - name: Device code on a PC, same strips
         run: g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/check30_host.cpp -o /tmp/c30 && /tmp/c30 < /tmp/parity.txt
+      - name: Device code on the 10 frozen guard strips (verdicts committed as data)
+        run: /tmp/c30 < tools/parity/guard_strips.txt
       - name: Device PVC header is generated from the committed model
         run: python tools/pvc_export.py backend/app/pvc_model.json /tmp/pvc_model.h && diff -q /tmp/pvc_model.h firmware/AFibMonitor/pvc_model.h
       - name: PVC features and model on the device = server, bit for bit (research estimate)

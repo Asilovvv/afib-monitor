@@ -791,3 +791,16 @@ def test_plans_trial_limits_invoice_webhook(monkeypatch):
     assert c.post("/api/billing/revenuecat", json=ev3, headers={"Authorization": "rc-secret"}).json()["applied"] is False
     # export carries the plan, account deletion removes billing rows
     assert c.get("/api/me/export", headers=H).json()["plan"]["plan"] == "free"
+
+
+def test_verdict_guard_strips():
+    """tools/parity/guard_strips.json: 10 strips with frozen verdicts. The phone (tools/mobile/guard_test.ts) and the chip
+    (firmware workflow) check the same file. A failure here means the medical rule moved — that needs a notebook."""
+    import json
+    from pathlib import Path
+    from app import ecgtools
+    cases = json.loads((Path(__file__).resolve().parents[2] / "tools" / "parity" / "guard_strips.json").read_text())
+    assert len(cases) == 10
+    for c in cases:
+        r = ecgtools.check(c["x"], c["fs"])
+        assert (r["verdict"], r["beats"]) == (c["expected"], c["beats"]), c["name"]
