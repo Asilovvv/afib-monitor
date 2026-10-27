@@ -118,7 +118,7 @@ export default function Devices() {
 
       <form className="card form" onSubmit={addDevice}>
         <h2>{f.tr('Добавить датчик', 'Add a device', 'Датчик кошуу')}</h2>
-        <p className="muted">{f.tr('ID чипа — шесть знаков из имени Bluetooth «AFib-XXXXXX» на коробке и в приложении.', 'Chip ID — the six characters of the Bluetooth name "AFib-XXXXXX" on the box and in the app.', 'Чип ID — кутудагы жана тиркемедеги «AFib-XXXXXX» Bluetooth атынын алты белгиси.')}</p>
+        <p className="muted">{f.tr('ID чипа — последние шесть знаков MAC-адреса платы; его печатает скрипт прошивки (MAC: 68:ee:8f:d8:40:48 → D84048). Напишите его на наклейке коробки.', 'Chip ID — the last six characters of the board MAC address, printed by the flashing script (MAC: 68:ee:8f:d8:40:48 → D84048). Write it on the box sticker.', 'Чип ID — платанын MAC дарегинин акыркы алты белгиси; аны прошивка скрипти басып чыгарат (MAC: 68:ee:8f:d8:40:48 → D84048). Кутунун стикерине жазыңыз.')}</p>
         <div className="row2">
           <label>ID<input value={add.chip_id} onChange={e => setAdd({ ...add, chip_id: e.target.value.toUpperCase() })} placeholder="A1B2C3" pattern="[A-Za-z0-9:_-]{3,32}" required /></label>
           <label>{f.tr('Наклейка', 'Sticker', 'Стикер')}<input value={add.label} onChange={e => setAdd({ ...add, label: e.target.value })} placeholder="№1" maxLength={60} /></label>
