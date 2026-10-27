@@ -1,6 +1,8 @@
 import { locOf } from '../i18n'
+import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Battery, Button, Icon, Row, Sheet, T, type IconName } from '../components/ui'
+import { BenchSheet } from './Bench'
 import { useApp } from '../store'
 import { useNow, fmtDur } from './Monitor'
 
@@ -19,6 +21,7 @@ function Line({ icon, label, value, extra }: { icon: IconName; label: string; va
 export function DeviceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { theme: tm, t, source, status, battery, rssi, ecg, connectedAt, stop, pending, lastSync, syncNow, user, lang } = useApp()
   const now = useNow(1000)
+  const [bench, setBench] = useState(false)
   const bars = rssi == null ? 0 : rssi > -60 ? 4 : rssi > -70 ? 3 : rssi > -80 ? 2 : 1
   return (
     <Sheet open={open} onClose={onClose} title={t('device')}>
@@ -41,7 +44,9 @@ export function DeviceSheet({ open, onClose }: { open: boolean; onClose: () => v
       <Line icon="clock" label={t('uptime')} value={connectedAt ? fmtDur(t, (now - connectedAt) / 1000) : '—'} />
       <Line icon="pulse" label={t('model')} value="TCN int8 · 27 KB" />
       <Line icon="sync" label={t('sync')} value={user ? (pending ? `${pending} ${t('pending')}` : lastSync ? new Date(lastSync).toLocaleTimeString(locOf(lang), { hour: '2-digit', minute: '2-digit' }) : t('never')) : '—'} />
-      <Row style={{ marginTop: 16 }} gap={10}>
+      <Button title={t('bench')} kind="ghost" icon="cpu" onPress={() => setBench(true)} style={{ marginTop: 12 }} />
+      <BenchSheet open={bench} onClose={() => setBench(false)} />
+      <Row style={{ marginTop: 6 }} gap={10}>
         {user && <Button title={t('sync_now')} kind="soft" icon="sync" onPress={syncNow} style={{ flex: 1 }} />}
         {source !== 'none' && <Button title={t('stop')} kind="ghost" icon="x" onPress={() => { stop(); onClose() }} style={{ flex: 1 }} />}
       </Row>
