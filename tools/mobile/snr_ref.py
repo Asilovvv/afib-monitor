@@ -29,12 +29,13 @@ def snr_of(mv, fs=FS):
     ps = float(y.var()) - pn
     return (10 * np.log10(ps / pn) if ps > 0 else float('-inf')), len(r)
 
-cases = []
-for name, noise, seed in [("clean", 0.0, 1), ("mild_noise", 0.05, 2), ("heavy_noise", 0.2, 3), ("afib_mild", 0.05, 4)]:
-    x = np.array(synth_ecg(30, FS, afib=name.startswith("afib"), bpm=70, seed=seed))
-    rng = np.random.default_rng(seed)
-    x = x + rng.normal(0, noise, len(x)) + 0.1 * np.sin(2 * np.pi * 0.3 * np.arange(len(x)) / FS)   # noise + baseline wander
-    v, n = snr_of(x)
-    cases.append({"name": name, "fs": FS, "snr_db": None if v is None else round(v, 2), "beats": n, "x": [round(float(a), 4) for a in x]})
-    print(name, v, n)
-Path(__file__).with_name("fixtures").joinpath("snr_cases.json").write_text(json.dumps(cases))
+if __name__ == "__main__":
+    cases = []
+    for name, noise, seed in [("clean", 0.0, 1), ("mild_noise", 0.05, 2), ("heavy_noise", 0.2, 3), ("afib_mild", 0.05, 4)]:
+        x = np.array(synth_ecg(30, FS, afib=name.startswith("afib"), bpm=70, seed=seed))
+        rng = np.random.default_rng(seed)
+        x = x + rng.normal(0, noise, len(x)) + 0.1 * np.sin(2 * np.pi * 0.3 * np.arange(len(x)) / FS)   # noise + baseline wander
+        v, n = snr_of(x)
+        cases.append({"name": name, "fs": FS, "snr_db": None if v is None else round(v, 2), "beats": n, "x": [round(float(a), 4) for a in x]})
+        print(name, v, n)
+    Path(__file__).with_name("fixtures").joinpath("snr_cases.json").write_text(json.dumps(cases))
