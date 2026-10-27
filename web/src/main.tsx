@@ -21,6 +21,7 @@ import Report from './pages/Report'
 import Settings from './pages/Settings'
 import Devices from './pages/Devices'
 import Join from './pages/Join'
+import Admin from './pages/Admin'
 import Shell from './pages/Shell'
 import { applyTheme, getTheme } from './theme'
 
@@ -52,6 +53,7 @@ function App() {
       <Route path="/app/patients/:id/:tab?" element={app(<PatientPage />)} />
       <Route path="/app/alerts" element={app(<Alerts />)} />
       <Route path="/app/devices" element={app(doctor && <Devices />)} />
+      <Route path="/app/admin" element={app(doctor && <Admin />)} />
       <Route path="/app/settings" element={app(doctor && <Settings me={me} onUpdate={setMe} />)} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

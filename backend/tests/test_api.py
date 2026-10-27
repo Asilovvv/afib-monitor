@@ -839,3 +839,15 @@ def test_export_then_import_into_new_account():
     assert c.post("/api/me/import", json=exp, headers=H2).status_code == 409        # not empty any more
     assert c.post("/api/me/import", json={"format": "other"}, headers=H2).status_code == 400
     assert any(x["action"] == "import" for x in c.get("/api/me/access-log", headers=H2).json())
+
+
+def test_admin_status_counts_only(monkeypatch):
+    from app import main as M
+    monkeypatch.setattr(M, "ADMIN_TOKEN", "test-admin-token")
+    _pair("adm")
+    assert c.get("/api/admin/status").status_code == 403
+    r = c.get("/api/admin/status?days=7", headers={"X-Admin-Token": "test-admin-token"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["users"]["patients"] > 0 and "share_patients_with_relative" in j["pricing_metrics"]
+    assert "email" not in r.text and "name" not in j["users"]                    # counts only, never people

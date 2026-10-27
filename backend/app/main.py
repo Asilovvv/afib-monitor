@@ -1580,6 +1580,53 @@ def admin_set_plan(body: AdminPlanIn, request: Request, db: Session = Depends(ge
     return plan_info(db, u)
 
 
+@app.get("/api/admin/status")
+def admin_status(request: Request, days: int = Query(30, ge=1, le=365), db: Session = Depends(get_db)):
+    """Owner's numbers (docs/PRICING.md §4), no personal data: counts and shares only. Protected by ADMIN_TOKEN."""
+    if not ADMIN_TOKEN or request.headers.get("X-Admin-Token", "") != ADMIN_TOKEN:
+        raise HTTPException(403, "Admin token missing or wrong")
+    now = utcnow(); since = now - timedelta(days=days)
+    cnt = lambda stmt: db.scalar(stmt) or 0
+    patients = cnt(select(func.count(User.id)).where(User.role == "patient"))
+    doctors = cnt(select(func.count(User.id)).where(User.role == "doctor"))
+    family = cnt(select(func.count(User.id)).where(User.role == "family"))
+    new_patients = cnt(select(func.count(User.id)).where(User.role == "patient", User.created_at >= since))
+    checks = cnt(select(func.count(EcgStrip.id)).where(EcgStrip.reason == "check", EcgStrip.ts >= since))
+    checkers = cnt(select(func.count(func.distinct(EcgStrip.patient_id))).where(EcgStrip.reason == "check", EcgStrip.ts >= since))
+    with_doctor = cnt(select(func.count(User.id)).where(User.role == "patient", User.doctor_id.is_not(None)))
+    with_family = cnt(select(func.count(func.distinct(FamilyLink.patient_id))).where(FamilyLink.revoked_at.is_(None)))
+    tg_patients = cnt(select(func.count(func.distinct(TelegramLink.user_id))).where(TelegramLink.kind == "patient"))
+    vitals = cnt(select(func.count(Vital.id)).where(Vital.ts >= since))
+    seen = cnt(select(func.count(StripSeen.id)).where(StripSeen.ts >= since))
+    plans_ = {}
+    for u in db.scalars(select(User).where(User.role.in_(("patient", "doctor")))):
+        p_ = plan_of(u, now); plans_[p_] = plans_.get(p_, 0) + 1
+    trial_now = cnt(select(func.count(User.id)).where(User.role == "patient", User.plan_source == "trial", User.plan_until > now))
+    trial_ended = cnt(select(func.count(User.id)).where(User.role == "patient", User.plan_source == "trial", User.plan_until <= now))
+    paid_family = cnt(select(func.count(User.id)).where(User.role == "patient", User.plan == "family", User.plan_source.in_(("revenuecat", "invoice", "admin", "device_bundle")), (User.plan_until.is_(None)) | (User.plan_until > now)))
+    requests_open = cnt(select(func.count(PlanRequest.id)).where(PlanRequest.handled_at.is_(None)))
+    devices = cnt(select(func.count(Device.id)).where(Device.retired_at.is_(None)))
+    issued = cnt(select(func.count(DeviceIssue.id)).where(DeviceIssue.returned_at.is_(None)))
+    overdue = cnt(select(func.count(DeviceIssue.id)).where(DeviceIssue.returned_at.is_(None), DeviceIssue.due_at < now))
+    share = lambda a, b: round(a / b, 3) if b else None
+    return {
+        "days": days, "as_of": iso(now),
+        "users": {"patients": patients, "doctors": doctors, "family": family, "new_patients": new_patients},
+        "activity": {"checks": checks, "patients_who_checked": checkers, "vitals_entries": vitals, "doctor_seen_marks": seen},
+        "pricing_metrics": {   # docs/PRICING.md §4
+            "share_patients_with_relative": share(with_family, patients),          # good ≥ 0.40, bad < 0.15
+            "share_patients_with_doctor": share(with_doctor, patients),
+            "share_patients_with_telegram": share(tg_patients, patients),
+            "trial_active": trial_now, "trial_ended": trial_ended, "paid_family": paid_family,
+            "trial_to_paid": share(paid_family, trial_ended + paid_family),       # good ≥ 0.10, bad < 0.03
+            "clinic_plans": {k: v for k, v in plans_.items() if k.startswith("clinic")},  # good ≥ 3 after 6 months
+            "invoice_requests_open": requests_open,
+        },
+        "plans": plans_,
+        "devices": {"active": devices, "issued": issued, "overdue": overdue},
+    }
+
+
 # RevenueCat event types that grant / keep / end the "Family" entitlement
 _RC_GRANT = {"INITIAL_PURCHASE", "RENEWAL", "UNCANCELLATION", "NON_RENEWING_PURCHASE", "PRODUCT_CHANGE", "SUBSCRIPTION_EXTENDED"}
 _RC_END = {"EXPIRATION"}
