@@ -516,7 +516,8 @@ def parity(args):
             if len(strip) < 31 * FS_RAW:
                 break
             n0 = len(dev.lines)
-            dev.send('R\n'); time.sleep(0.3)
+            dev.stream(pre[:FS_RAW], speed=10)       # USB samples first, so the ADC is ignored before the reset
+            dev.send('R\n')                          # then reset; commands and samples keep their order on the wire
             dev.stream(pre, speed=10)
             dev.send('C\n')
             dev.stream(strip, speed=10)
