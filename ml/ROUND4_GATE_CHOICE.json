@@ -1,0 +1,64 @@
+{
+ "gate": "g2",
+ "threshold": 0.71,
+ "lag": -1,
+ "hold_decisions": 8,
+ "tuning": {
+  "clean_kept": 0.9705820217597972,
+  "share_blocked_le6": 0.9261129431162407,
+  "changed_le6": 9704,
+  "blocked_le6": 8987,
+  "detail": {
+   "em_12": {
+    "changed": 156,
+    "blocked": 94,
+    "share_blocked": 0.6025641025641025,
+    "affected": 22506,
+    "affected_blocked": 1022,
+    "not_comparable": 119
+   },
+   "em_6": {
+    "changed": 264,
+    "blocked": 181,
+    "share_blocked": 0.6856060606060606,
+    "affected": 22674,
+    "affected_blocked": 3859,
+    "not_comparable": 171
+   },
+   "em_0": {
+    "changed": 2639,
+    "blocked": 2115,
+    "share_blocked": 0.8014399393709739,
+    "affected": 24071,
+    "affected_blocked": 14861,
+    "not_comparable": 214
+   },
+   "ma_12": {
+    "changed": 930,
+    "blocked": 805,
+    "share_blocked": 0.8655913978494624,
+    "affected": 22267,
+    "affected_blocked": 5659,
+    "not_comparable": 91
+   },
+   "ma_6": {
+    "changed": 2470,
+    "blocked": 2369,
+    "share_blocked": 0.9591093117408906,
+    "affected": 21099,
+    "affected_blocked": 12811,
+    "not_comparable": 125
+   },
+   "ma_0": {
+    "changed": 4331,
+    "blocked": 4322,
+    "share_blocked": 0.9979219579773724,
+    "affected": 17371,
+    "affected_blocked": 15483,
+    "not_comparable": 112
+   }
+  }
+ },
+ "made": "2026-10-29 01:06",
+ "rule": "ml/ROUND4_PREREG.md \u00a71"
+}
