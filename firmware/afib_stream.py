@@ -93,18 +93,30 @@ FW_FS, FW_MA, FW_THR, FW_REFR, FW_WARM = 125, 19, np.float32(0.35), 31, 250
 FW_DECAY = np.float32(0.5 ** (1 / (2 * FW_FS)))
 
 
-def fw_beats(mv):
-    """Beat times (s from the start) exactly as the firmware's live detector reports them."""
+def fw_beats(mv, fs=FS_RAW):
+    """Beat times (s from the start) exactly as the firmware's live detector reports them.
+    fs=125: the samples are already the device's filtered 125-Hz stream (phone bench file): detector only."""
     f32 = np.float32
+    if fs == FW_FS:
+        return _fw_detect(np.asarray(mv, f32))
     z = np.zeros((2, 2), f32); tog = False
-    buf = np.zeros(FW_MA, f32); ssum = f32(0); prev = f32(0); pk = f32(0); last = -10 ** 6; armed = True; i = 0
-    beats = []
+    y125 = []
     for v in np.asarray(mv, f32):
         for k in range(2):
             c = FW_SOS[k]; y = f32(c[0] * v + z[k, 0]); z[k, 0] = f32(c[1] * v - c[3] * y + z[k, 1]); z[k, 1] = f32(c[2] * v - c[4] * y); v = y
         tog = not tog
         if not tog:
             continue
+        y125.append(v)
+    return _fw_detect(np.array(y125, f32))
+
+
+def _fw_detect(y125):
+    """The live R detector on 125-Hz samples (afib_main.cpp detectorStep / live_path.h RDetector)."""
+    f32 = np.float32
+    buf = np.zeros(FW_MA, f32); ssum = f32(0); prev = f32(0); pk = f32(0); last = -10 ** 6; armed = True; i = 0
+    beats = []
+    for v in y125:
         d = f32(v - prev); prev = v; e = f32(d * d); j = i % FW_MA
         ssum = f32(ssum + e - buf[j]); buf[j] = e; env = f32(ssum / FW_MA); pk = max(f32(pk * FW_DECAY), env)
         if i >= FW_WARM:
@@ -139,12 +151,13 @@ def review(paths):
     """Laptop review of recordings made with --live / --checks (no board needed)."""
     import wfdb.processing as wp
     for path in paths:
-        mv = np.loadtxt(path, delimiter=',', skiprows=1, usecols=1, ndmin=1)
-        print(f'\n{path}: {len(mv) / FS_RAW:.1f} s, raw {mv.min():.0f}-{mv.max():.0f} mV')
-        if len(mv) < 10 * FS_RAW:
+        mv, fs = load_csv(path)
+        print(f'\n{path}: {len(mv) / fs:.1f} s at {fs} Hz' + (', raw ADC' if fs == FS_RAW else ', phone file (filtered)')
+              + f', {mv.min():.0f}-{mv.max():.0f}')
+        if len(mv) < 10 * fs:
             print('  too short for a review (< 10 s)'); continue
-        fb = fw_beats(mv)
-        rb = wp.xqrs_detect(sig=mv.astype(float), fs=FS_RAW, verbose=False) / FS_RAW
+        fb = fw_beats(mv, fs)
+        rb = wp.xqrs_detect(sig=mv.astype(float), fs=fs, verbose=False) / fs
         rb = rb[rb >= 2.0]                       # the firmware detector warms up for 2 s
         m, lag = match_beats(fb, rb)
         for name, b in (('firmware', fb), ('reference', rb)):
@@ -153,7 +166,7 @@ def review(paths):
                   f'  irregularity {irr:.3f}' if len(rr) >= 4 and irr is not None else '  (too few beats)'))
         print(f'  same beats: {m}  (only firmware {len(fb) - m}, only reference {len(rb) - m})'
               + ('  -> detector agrees' if len(fb) == len(rb) == m else '  -> look at the differences'))
-        v, n = snr_of(path)
+        v, n = snr_of_array(mv, fs)
         print('  SNR ' + (f'{v:.1f} dB from {n} beats' if v is not None else f'not computed (only {n} beats)'))
         scr = os.path.splitext(path)[0] + '_screen.txt'
         if os.path.exists(scr):
@@ -250,19 +263,40 @@ def live(args):
     return out
 
 
+def load_csv(path):
+    """(mV samples, fs): our --live / --checks files (raw ADC, 250 Hz) or the phone's bench file
+    ('# AFib Monitor raw ECG, 125 Hz, ...' then 't_s,mv,filled'; samples already band-passed by the device)."""
+    fs, vals = FS_RAW, []
+    with open(path) as f:
+        for line in f:
+            if line.startswith('#'):
+                tok = line.split(',')
+                for t in tok:
+                    t = t.strip()
+                    if t.endswith(' Hz') and t[:-3].strip().isdigit():
+                        fs = int(t[:-3])
+                continue
+            parts = line.strip().split(',')
+            if len(parts) >= 2 and parts[1] and (parts[1][0].isdigit() or parts[1][0] in '-.'):
+                vals.append(float(parts[1]))
+    return np.array(vals), fs
+
+
 def snr_of(path):
     """SNR defined as in Notebook 16 (band-passed 0.5-40 Hz signal power / noise power, whole recording).
-    Noise = what is left of each beat after subtracting the average beat; signal power = total power - noise power."""
-    return snr_of_array(np.loadtxt(path, delimiter=',', skiprows=1, usecols=1))
+    Noise = what is left of each beat after subtracting the average beat; signal power = total power - noise power.
+    Works on our 250-Hz files and on the phone's 125-Hz bench files (the phone computes it the same way)."""
+    mv, fs = load_csv(path)
+    return snr_of_array(mv, fs)
 
 
-def snr_of_array(mv):
-    """snr_of() on raw mV at 250 Hz already in memory."""
+def snr_of_array(mv, fs=FS_RAW):
+    """snr_of() on mV samples already in memory (same code as tools/mobile/snr_ref.py)."""
     from scipy.signal import butter, sosfiltfilt, find_peaks
-    y = sosfiltfilt(butter(2, [0.5, 40], btype='band', fs=FS_RAW, output='sos'), mv)
+    y = sosfiltfilt(butter(2, [0.5, 40], btype='band', fs=fs, output='sos'), mv)
     e = np.gradient(y) ** 2
-    pk, _ = find_peaks(e, distance=int(0.3 * FS_RAW), height=0.3 * np.percentile(e, 99))
-    h = int(0.3 * FS_RAW)
+    pk, _ = find_peaks(e, distance=int(0.3 * fs), height=0.3 * np.percentile(e, 99))
+    h = int(0.3 * fs)
     r = [int(p - 10 + np.argmax(np.abs(y[max(0, p - 10):p + 10]))) for p in pk]
     r = [p for p in r if h <= p < len(y) - h]
     if len(r) < 10:
