@@ -140,6 +140,11 @@ def live(args):
         for i, v in enumerate(mv):
             w.writerow([f'{i / FS_RAW:.3f}', v])
     print(f'\nsaved {out}: {len(mv)} samples = {len(mv) / FS_RAW:.1f} s;', status[-1] if status else 'no RAW status line')
+    preds = [l for l in dev.lines if l.startswith('PRED')]
+    if preds:                                  # what the screen showed during the recording (verdict, prob, clip)
+        po = os.path.splitext(out)[0] + '_screen.txt'
+        open(po, 'w').write('\n'.join(preds) + '\n')
+        print(f'saved {po}: {len(preds)} screen verdicts')
     if status and 'dropped=0' not in status[-1]:
         print('  WARNING: samples were dropped on the device, repeat the recording')
 
