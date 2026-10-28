@@ -22,7 +22,7 @@ from sqlalchemy import delete, select
 from .db import SessionLocal
 from .events import broker
 from .bot_texts import t as bt
-from .models import (STATE_AFIB, STATE_NORMAL, Alert, AlertAck, CheckPlan, Device, DeviceIssue, EcgStrip, FamilyLink, Reading, TelegramCode,
+from .models import (STATE_AFIB, STATE_NO_SIGNAL, STATE_NORMAL, Alert, AlertAck, CheckPlan, Device, DeviceIssue, EcgStrip, FamilyLink, Reading, TelegramCode,
                      TelegramLink, TelegramMessage, User)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
@@ -716,10 +716,12 @@ def _status(chat: int) -> str:
             if research:
                 if not online:
                     st = "⚪ нет связи" + (f" (с {local(r.ts)})" if r else "")
-                elif r.state == STATE_AFIB:
-                    st = f"🔴 ФП, {round(r.bpm)} уд/мин"
+                elif r.state == STATE_AFIB:                       # model estimate, research view
+                    st = f"🔴 возможна ФП, {round(r.bpm)} уд/мин"
                 elif r.state == STATE_NORMAL:
-                    st = f"🟢 норма, {round(r.bpm)} уд/мин"
+                    st = f"🟢 ровный ритм, {round(r.bpm)} уд/мин"
+                elif r.state == STATE_NO_SIGNAL:                  # electrodes off, clipped or noisy signal
+                    st = "🟠 нет сигнала или помехи"
                 else:
                     st = "🟡 накопление данных"
             else:

@@ -477,15 +477,22 @@ static void drawHeader() {
 #endif
 }
 
+// Live screen. A person on the AD8232 gets no rhythm verdict here: the verdict comes only from the 30-second
+// check (tap the strip), the same rule as on the phone and the server, in wellness words. The model's live
+// estimate is research: it is named on screen only while a database recording is played over USB (MIT-BIH
+// bench, docs/BOARD_DAY.md A4); for a person it goes to the phone over BLE, which shows it only to pilot
+// participants (mobile/src/store.tsx, mode "research").
 static void drawStatus(const Prediction& p, float progress, bool leadOff) {
 #if HAS_DISPLAY
+  const bool db = usbMode();               // database playback, not a person
   const int y0 = PLOT_Y + PLOT_H + 4;
-  uint16_t bg; const char* label;
-  if (leadOff || p.flat)        { bg = 0x7BE0; label = "CHECK ELECTRODES"; }
-  else if (p.clipped)           { bg = 0xFC00; label = "POOR SIGNAL"; }
+  uint16_t bg; const char* label; const char* hint = "";
+  if (leadOff || p.flat)        { bg = 0x7BE0; label = "CHECK ELECTRODES"; hint = "electrodes off or no signal"; }
+  else if (p.clipped)           { bg = 0xFC00; label = "POOR SIGNAL"; hint = "sit still, check the electrodes"; }
   else if (!p.valid)            { bg = 0x4208; label = "COLLECTING..."; }
-  else if (p.prob >= AFIB_THRESHOLD) { bg = 0xC000; label = "AFIB DETECTED"; }
-  else                          { bg = 0x0320; label = "NORMAL RHYTHM"; }
+  else if (db)                  { bg = p.prob >= AFIB_THRESHOLD ? 0x8000 : 0x0300;
+                                  label = p.prob >= AFIB_THRESHOLD ? "MODEL: AF-LIKE RR" : "MODEL: REGULAR RR"; }
+  else                          { bg = 0x0410; label = "TAP: 30 S CHECK"; hint = "live ECG - no verdict here"; }
 
   M5.Display.fillRoundRect(6, y0, W - 12, 40, 6, bg);
   M5.Display.setTextColor(TFT_WHITE, bg);
@@ -499,23 +506,28 @@ static void drawStatus(const Prediction& p, float progress, bool leadOff) {
   M5.Display.fillRect(6, y0 + 44, W - 12, 4, COL_GRID);
   M5.Display.fillRect(6, y0 + 44, prog, 4, TFT_CYAN);
 
-  // metrics row
+  // metrics row: heart rate for everyone; the model score only for database playback, labelled research
   const int y1 = y0 + 54;
   M5.Display.fillRect(0, y1, W, H - y1, COL_BG);
   M5.Display.setFont(&fonts::Font2);
   M5.Display.setTextColor(TFT_WHITE, COL_BG);
-  char buf[32];
+  char buf[40];
   M5.Display.setCursor(8, y1);
   snprintf(buf, sizeof buf, "BPM %s", (p.valid && p.bpm > 0) ? String((int)roundf(p.bpm)).c_str() : "--");
   M5.Display.print(buf);
   M5.Display.setCursor(100, y1);
-  snprintf(buf, sizeof buf, "AFib %s", p.valid ? (String((int)roundf(p.prob * 100)) + "%").c_str() : "--");
-  M5.Display.print(buf);
-  M5.Display.setCursor(200, y1);
-  snprintf(buf, sizeof buf, "int8 %s", p.valid ? (String(p.inferUs / 1000.0f, 1) + " ms").c_str() : "--");
-  M5.Display.print(buf);
+  if (db) {
+    snprintf(buf, sizeof buf, "research %s", p.valid ? (String((int)roundf(p.prob * 100)) + "%").c_str() : "--");
+    M5.Display.print(buf);
+    M5.Display.setCursor(230, y1);
+    snprintf(buf, sizeof buf, "%s", p.valid ? (String(p.inferUs / 1000.0f, 0) + " ms").c_str() : "--");
+    M5.Display.print(buf);
+  } else {
+    M5.Display.setTextColor(TFT_LIGHTGREY, COL_BG);
+    M5.Display.print(hint);
+  }
 #else
-  (void)0;
+  (void)p; (void)progress; (void)leadOff;
 #endif
 }
 

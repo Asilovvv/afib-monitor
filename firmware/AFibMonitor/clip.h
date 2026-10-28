@@ -1,6 +1,6 @@
 // Saturation guard for the live screen (not part of the 30-second check, which is shared with the server).
 // On 28.10.2026 an unsoldered AD8232 header gave a rail-to-rail square wave and the screen still showed
-// NORMAL / AFIB DETECTED (docs/BOARD_DAY.md). An ECG spends little time near its extremes (R peak, S wave);
+// a rhythm verdict (docs/BOARD_DAY.md). An ECG spends little time near its extremes (R peak, S wave);
 // a saturated or square signal spends most of it there. Threshold chosen on MIT-BIH AFDB before use:
 // 4-s raw windows of the 5 eval records have this fraction > 0.5 in under 0.1 % of windows
 // (median 0.006-0.054); a square wave gives 1.0, a sine clipped at both rails 0.81.

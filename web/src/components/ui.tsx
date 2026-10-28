@@ -38,7 +38,7 @@ export const STATE: Record<number, { label: string; cls: string }> = {
   0: { label: 'Сбор данных', cls: 'st-wait' },
   1: { label: 'Норма', cls: 'st-ok' },
   2: { label: 'Фибрилляция', cls: 'st-af' },
-  3: { label: 'Нет сигнала', cls: 'st-off' },
+  3: { label: 'Нет сигнала или помехи', cls: 'st-off' },
 }
 
 export const SYMPTOM_LABEL: Record<string, string> = {
