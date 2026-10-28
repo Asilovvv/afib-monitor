@@ -41,25 +41,9 @@ def load(path):
 
 
 def firmware_beats(x):
-    """Beat times (s) exactly as the firmware detector reports them (envelope crossing, 125 Hz)."""
-    z = np.zeros((2, 2), f32); tog = False
-    buf = np.zeros(E.MA_N, f32); ssum = f32(0); prev = f32(0); pk = f32(0); last = -10**6; armed = True; i = 0
-    beats = []
-    for v in x:
-        for s in range(2):
-            c = E.SOS[s]; y = f32(c[0] * v + z[s, 0]); z[s, 0] = f32(c[1] * v - c[3] * y + z[s, 1]); z[s, 1] = f32(c[2] * v - c[4] * y); v = y
-        tog = not tog
-        if not tog:
-            continue
-        d = f32(v - prev); prev = v; e = f32(d * d); k = i % E.MA_N
-        ssum = f32(ssum + e - buf[k]); buf[k] = e; env = f32(ssum / E.MA_N); pk = max(f32(pk * E.rDecay), env)
-        if i >= E.R_WARM:
-            if armed and env > E.R_THR * pk and i - last > E.R_REFR:
-                beats.append(i / E.FS); last = i; armed = False
-            elif not armed and env < f32(0.5) * E.R_THR * pk:
-                armed = True
-        i += 1
-    return np.array(beats)
+    """Beat times (s) exactly as the firmware detector reports them (envelope crossing, 125 Hz).
+    One implementation for the laptop tools: firmware/afib_stream.py fw_beats."""
+    return E.A.fw_beats(x)
 
 
 def reference_beats(x):

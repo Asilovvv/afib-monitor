@@ -32,7 +32,7 @@ fi
 echo "== flashing $PORT"
 venv/bin/python -m esptool --chip esp32s3 --port "$PORT" --baud 921600 write_flash 0x0 afib-m5-cores3se.bin
 echo
-echo "Done. Press reset once. Next steps (firmware/BENCH_TEST.md):"
-echo "  cd $DIR && venv/bin/python afib_stream.py --port $PORT --bench"
-echo "  cd $DIR && venv/bin/python afib_stream.py --port $PORT --live 30 --out gel_1.csv   # laptop on battery!"
-echo "  cd $DIR && venv/bin/python afib_stream.py --snr gel_1.csv"
+echo "Done. Press reset once. Next steps (firmware/BENCH_TEST.md); the port is found automatically:"
+echo "  cd $DIR && venv/bin/python afib_stream.py --model-check"
+echo "  cd $DIR && venv/bin/python afib_stream.py --bench"
+echo "  cd $DIR && venv/bin/python afib_stream.py --live 30 --out gel_1.csv --review   # laptop on battery!"

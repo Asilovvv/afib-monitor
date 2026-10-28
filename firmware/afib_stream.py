@@ -4,7 +4,7 @@ afib_stream.py — sends real ECG from the MIT-BIH AF Database to the CoreS3 SE 
 and reads the device's predictions.
 
 Install once:   pip install wfdb pyserial numpy
-Find the port:  ls /dev/cu.usbmodem*        (macOS)
+The port is found automatically (ESP32-S3 USB, VID 0x303A); --port /dev/cu.usbmodem101 picks one by hand.
 
 Demo (real time, shows on the screen like a live patient):
     python afib_stream.py --port /dev/cu.usbmodem101 --record 08215 --rhythm AFIB
@@ -20,6 +20,11 @@ Live ECG from the AD8232 (laptop on battery, sit still), saved as CSV at 250 Hz,
     python afib_stream.py --port /dev/cu.usbmodem101 --live 30 --out gel_1.csv
     python afib_stream.py --port /dev/cu.usbmodem101 --checks 5        # A6: five 30-s checks, verdicts logged
     python afib_stream.py --snr gel_1.csv reusable_1.csv
+
+Review a recording on the laptop (no board needed): beats found by the firmware detector (emulated, float32)
+against an independent detector (wfdb XQRS), RR intervals, SNR, and what the screen showed (*_screen.txt):
+    python afib_stream.py --review gel_1.csv check_1.csv
+    python afib_stream.py --live 60 --out move_2.csv --review       # record, then review at once
 """
 import argparse
 import csv
@@ -64,10 +69,104 @@ def label_of(segs, a, b):
     return None
 
 
+ESP32S3_VID = 0x303A                # Espressif USB-Serial/JTAG (CoreS3 SE)
+
+
+def find_port():
+    """The board's serial port; the name changes with the USB socket (usbmodem101, usbmodem1101, ...)."""
+    from serial.tools import list_ports
+    ports = list(list_ports.comports())
+    cand = [p for p in ports if p.vid == ESP32S3_VID] or \
+           [p for p in ports if 'usbmodem' in p.device or 'ttyACM' in p.device]
+    if len(cand) == 1:
+        print(f'  port: {cand[0].device} (found automatically)')
+        return cand[0].device
+    if not cand:
+        sys.exit('Board not found. Connect the CoreS3 SE with a USB-C DATA cable and check that its screen is on.')
+    sys.exit('Several possible boards: ' + ', '.join(p.device for p in cand) + ' — choose one with --port')
+
+
+# ---- firmware path on a PC (afib_main.cpp: filterSample -> keep every 2nd sample -> detectorStep), float32 ----
+FW_SOS = np.array([[0.1424442454, 0.2848884908, 0.1424442454, -0.6856000535, 0.2606960323],
+                   [1.0, -2.0, 1.0, -1.9822347504, 0.9823948463]], np.float32)
+FW_FS, FW_MA, FW_THR, FW_REFR, FW_WARM = 125, 19, np.float32(0.35), 31, 250
+FW_DECAY = np.float32(0.5 ** (1 / (2 * FW_FS)))
+
+
+def fw_beats(mv):
+    """Beat times (s from the start) exactly as the firmware's live detector reports them."""
+    f32 = np.float32
+    z = np.zeros((2, 2), f32); tog = False
+    buf = np.zeros(FW_MA, f32); ssum = f32(0); prev = f32(0); pk = f32(0); last = -10 ** 6; armed = True; i = 0
+    beats = []
+    for v in np.asarray(mv, f32):
+        for k in range(2):
+            c = FW_SOS[k]; y = f32(c[0] * v + z[k, 0]); z[k, 0] = f32(c[1] * v - c[3] * y + z[k, 1]); z[k, 1] = f32(c[2] * v - c[4] * y); v = y
+        tog = not tog
+        if not tog:
+            continue
+        d = f32(v - prev); prev = v; e = f32(d * d); j = i % FW_MA
+        ssum = f32(ssum + e - buf[j]); buf[j] = e; env = f32(ssum / FW_MA); pk = max(f32(pk * FW_DECAY), env)
+        if i >= FW_WARM:
+            if armed and env > FW_THR * pk and i - last > FW_REFR:
+                beats.append(i / FW_FS); last = i; armed = False
+            elif not armed and env < f32(0.5) * FW_THR * pk:
+                armed = True
+        i += 1
+    return np.array(beats)
+
+
+def irregularity(rr):
+    """Mean |successive RR difference| / mean RR, RR within 0.25-2.0 s (the 30-s check's measure)."""
+    rr = np.asarray([r for r in rr if 0.25 <= r <= 2.0])
+    return None if len(rr) < 4 else float(np.mean(np.abs(np.diff(rr))) / np.mean(rr))
+
+
+def match_beats(a, b, tol=0.15):
+    """Beats in a with a partner in b within tol s, after removing the median lag between the detectors."""
+    if len(a) == 0 or len(b) == 0:
+        return 0, 0.0
+    lag = float(np.median([b[np.argmin(np.abs(b - t))] - t for t in a]))
+    used, m = set(), 0
+    for t in a + lag:
+        j = int(np.argmin(np.abs(b - t)))
+        if abs(b[j] - t) <= tol and j not in used:
+            used.add(j); m += 1
+    return m, lag
+
+
+def review(paths):
+    """Laptop review of recordings made with --live / --checks (no board needed)."""
+    import wfdb.processing as wp
+    for path in paths:
+        mv = np.loadtxt(path, delimiter=',', skiprows=1, usecols=1, ndmin=1)
+        print(f'\n{path}: {len(mv) / FS_RAW:.1f} s, raw {mv.min():.0f}-{mv.max():.0f} mV')
+        if len(mv) < 10 * FS_RAW:
+            print('  too short for a review (< 10 s)'); continue
+        fb = fw_beats(mv)
+        rb = wp.xqrs_detect(sig=mv.astype(float), fs=FS_RAW, verbose=False) / FS_RAW
+        rb = rb[rb >= 2.0]                       # the firmware detector warms up for 2 s
+        m, lag = match_beats(fb, rb)
+        for name, b in (('firmware', fb), ('reference', rb)):
+            rr = np.diff(b); irr = irregularity(rr)
+            print(f'  {name:9s} beats {len(b):3d}' + (f'  HR {60 / rr.mean():5.1f}/min  RR {rr.min():.2f}-{rr.max():.2f} s'
+                  f'  irregularity {irr:.3f}' if len(rr) >= 4 and irr is not None else '  (too few beats)'))
+        print(f'  same beats: {m}  (only firmware {len(fb) - m}, only reference {len(rb) - m})'
+              + ('  -> detector agrees' if len(fb) == len(rb) == m else '  -> look at the differences'))
+        v, n = snr_of(path)
+        print('  SNR ' + (f'{v:.1f} dB from {n} beats' if v is not None else f'not computed (only {n} beats)'))
+        scr = os.path.splitext(path)[0] + '_screen.txt'
+        if os.path.exists(scr):
+            kv = [dict(x.split('=', 1) for x in l.split()[1:] if '=' in x) for l in open(scr) if l.startswith('PRED')]
+            shown = [('no signal' if k.get('flat') == '1' else 'poor signal' if k.get('clip') == '1' else
+                      'model >= 0.5' if k.get('label') == '1' else 'model < 0.5') for k in kv]
+            print('  screen updates:', {s_: shown.count(s_) for s_ in dict.fromkeys(shown)})
+
+
 class Device:
     def __init__(self, port):
         import serial
-        self.ser = serial.Serial(port, 115200, timeout=0.1)
+        self.ser = serial.Serial(port or find_port(), 115200, timeout=0.1)
         time.sleep(2.0)                       # board may reset when the port opens
         self.ser.reset_input_buffer()
         self.preds = []
@@ -147,6 +246,7 @@ def live(args):
         print(f'saved {po}: {len(preds)} screen verdicts')
     if status and 'dropped=0' not in status[-1]:
         print('  WARNING: samples were dropped on the device, repeat the recording')
+    return out
 
 
 def snr_of(path):
@@ -332,6 +432,7 @@ def checks(args):
             f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} check {k}: {line}\n')
     got = [names.get(v, 'no verdict') for _, v, _ in rows]
     print('summary:', ', '.join(got), '(appended to checks.log)')
+    return [f'check_{k}.csv' for k, _, _ in rows]
 
 
 def bench(args):
@@ -343,7 +444,7 @@ def bench(args):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--port', help='e.g. /dev/cu.usbmodem101 or COM5')
+    ap.add_argument('--port', help='default: found automatically; e.g. /dev/cu.usbmodem101 or COM5')
     ap.add_argument('--record', default='08215')
     ap.add_argument('--rhythm', choices=['N', 'AFIB'], help='jump to the first 1+ min segment of this rhythm')
     ap.add_argument('--start', type=float, default=0, help='start time, seconds')
@@ -357,16 +458,25 @@ if __name__ == '__main__':
     ap.add_argument('--live', type=float, help='record the device ECG for this many seconds')
     ap.add_argument('--out', help='CSV file for --live')
     ap.add_argument('--snr', nargs='+', help='CSV files from --live')
+    ap.add_argument('--review', nargs='*', help='review CSV files from --live/--checks on the laptop; '
+                    'with --live or --checks and no files: review what was just recorded')
     a = ap.parse_args()
     if a.snr:
         snr(a)
         sys.exit()
-    if not a.port:
-        ap.error('--port is required')
+    if a.review is not None and not (a.live or a.checks):
+        if not a.review:
+            ap.error('--review needs CSV files, or use it together with --live / --checks')
+        review(a.review)
+        sys.exit()
     if a.checks:
-        checks(a)
+        made = checks(a)
+        if a.review is not None:
+            review(made)
     elif a.live:
-        live(a)
+        made = live(a)
+        if a.review is not None:
+            review([made])
     elif a.bench:
         bench(a)
     elif a.model_check:
