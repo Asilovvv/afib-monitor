@@ -423,13 +423,14 @@ def checks(args):
         kv = dict(x.split('=', 1) for x in res.split()[1:] if '=' in x)
         print(f'\r  check {k}: {names.get(kv.get("verdict"), "?"):16s} bpm={kv.get("bpm")} beats={kv.get("beats")} '
               f'sqi={kv.get("sqi")} irr={kv.get("irr")} bsqi={kv.get("bsqi")}  raw -> {out}')
-        rows.append((k, kv.get('verdict'), res))
+        rows.append((k, kv.get('verdict'), time.strftime('%Y-%m-%d %H:%M:%S') + f' check {k}: {res}'))
         if k < args.checks:
             time.sleep(12)                    # the verdict stays on screen for 10 s
     dev.close()
-    with open('checks.log', 'a') as f:
+    with open('checks.log', 'a') as f:            # each line carries the time its verdict arrived
         for k, v, line in rows:
-            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} check {k}: {line}\n')
+            if line:
+                f.write(line + '\n')
     got = [names.get(v, 'no verdict') for _, v, _ in rows]
     print('summary:', ', '.join(got), '(appended to checks.log)')
     return [f'check_{k}.csv' for k, _, _ in rows]
