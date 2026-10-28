@@ -71,7 +71,7 @@ export function CheckSheet({ open, onClose }: { open: boolean; onClose: () => vo
         <View style={s.center}>
           <ElectrodeMap />
           <View style={{ alignSelf: 'stretch', gap: 8, marginTop: 14 }}>
-            {(['check_prep_1', 'check_prep_2', 'check_prep_3'] as const).map(k => (
+            {(['check_prep_4', 'check_prep_1', 'check_prep_2', 'check_prep_3'] as const).map(k => (
               <Row key={k} gap={10}><Icon name="check" color={tm.ok} size={18} /><T style={{ flex: 1, fontSize: 16, lineHeight: 22 }}>{t(k)}</T></Row>
             ))}
           </View>

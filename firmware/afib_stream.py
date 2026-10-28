@@ -253,8 +253,12 @@ def live(args):
 def snr_of(path):
     """SNR defined as in Notebook 16 (band-passed 0.5-40 Hz signal power / noise power, whole recording).
     Noise = what is left of each beat after subtracting the average beat; signal power = total power - noise power."""
+    return snr_of_array(np.loadtxt(path, delimiter=',', skiprows=1, usecols=1))
+
+
+def snr_of_array(mv):
+    """snr_of() on raw mV at 250 Hz already in memory."""
     from scipy.signal import butter, sosfiltfilt, find_peaks
-    mv = np.loadtxt(path, delimiter=',', skiprows=1, usecols=1)
     y = sosfiltfilt(butter(2, [0.5, 40], btype='band', fs=FS_RAW, output='sos'), mv)
     e = np.gradient(y) ** 2
     pk, _ = find_peaks(e, distance=int(0.3 * FS_RAW), height=0.3 * np.percentile(e, 99))
