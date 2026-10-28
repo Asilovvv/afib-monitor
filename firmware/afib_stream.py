@@ -18,6 +18,7 @@ Benchmark (inference time and RAM on the chip):
 
 Live ECG from the AD8232 (laptop on battery, sit still), saved as CSV at 250 Hz, then its SNR:
     python afib_stream.py --port /dev/cu.usbmodem101 --live 30 --out gel_1.csv
+    python afib_stream.py --port /dev/cu.usbmodem101 --checks 5        # A6: five 30-s checks, verdicts logged
     python afib_stream.py --snr gel_1.csv reusable_1.csv
 """
 import argparse
@@ -289,6 +290,45 @@ def model_check(args):
     print('MODEL CHECK', 'OK: board = PC' if bad == 0 else f'MISMATCH in {bad} of {len(cases)} cases: the inference on the chip differs')
 
 
+def checks(args):
+    """Board day A6: start N 30-second checks over USB ("C") and log each device verdict ("CHECK verdict=…"),
+    with the raw ECG of each check saved next to it (check_<k>.csv) for tools/firmware/rr_review.py."""
+    names = {'0': 'REPEAT THE CHECK', '1': 'REGULAR RHYTHM', '2': 'IRREGULAR'}
+    dev = Device(args.port)
+    rows = []
+    for k in range(1, args.checks + 1):
+        n0 = len(dev.lines)
+        dev.send('E 1\n'); time.sleep(0.2); dev.send('C\n')
+        t0 = time.time(); res = None
+        while time.time() - t0 < 45:
+            res = next((l for l in dev.lines[n0:] if l.startswith('CHECK verdict')), None)
+            if res:
+                break
+            print(f'\r  check {k}/{args.checks}: {time.time() - t0:4.0f} s — sit still', end='', flush=True)
+            time.sleep(0.5)
+        dev.send('E 0\n'); time.sleep(0.5)
+        mv = [float(l.split()[1]) for l in dev.lines[n0:] if l.startswith('E ') and len(l.split()) == 2]
+        out = f'check_{k}.csv'
+        with open(out, 'w', newline='') as f:
+            w = csv.writer(f); w.writerow(['t_s', 'mv'])
+            for i, v in enumerate(mv):
+                w.writerow([f'{i / FS_RAW:.3f}', v])
+        if res is None:
+            print(f'\r  check {k}: no verdict in 45 s (is the firmware running?)'); rows.append((k, None, '')); continue
+        kv = dict(x.split('=', 1) for x in res.split()[1:] if '=' in x)
+        print(f'\r  check {k}: {names.get(kv.get("verdict"), "?"):16s} bpm={kv.get("bpm")} beats={kv.get("beats")} '
+              f'sqi={kv.get("sqi")} irr={kv.get("irr")} bsqi={kv.get("bsqi")}  raw -> {out}')
+        rows.append((k, kv.get('verdict'), res))
+        if k < args.checks:
+            time.sleep(12)                    # the verdict stays on screen for 10 s
+    dev.close()
+    with open('checks.log', 'a') as f:
+        for k, v, line in rows:
+            f.write(f'{time.strftime("%Y-%m-%d %H:%M:%S")} check {k}: {line}\n')
+    got = [names.get(v, 'no verdict') for _, v, _ in rows]
+    print('summary:', ', '.join(got), '(appended to checks.log)')
+
+
 def bench(args):
     dev = Device(args.port)
     dev.send('I\n'); time.sleep(0.5)
@@ -308,6 +348,7 @@ if __name__ == '__main__':
     ap.add_argument('--records', help='comma-separated records for --eval')
     ap.add_argument('--bench', action='store_true')
     ap.add_argument('--model-check', action='store_true', help='same int8 inputs on the board and on a PC')
+    ap.add_argument('--checks', type=int, help='run N 30-second checks over USB and log the verdicts (A6)')
     ap.add_argument('--live', type=float, help='record the device ECG for this many seconds')
     ap.add_argument('--out', help='CSV file for --live')
     ap.add_argument('--snr', nargs='+', help='CSV files from --live')
@@ -317,7 +358,9 @@ if __name__ == '__main__':
         sys.exit()
     if not a.port:
         ap.error('--port is required')
-    if a.live:
+    if a.checks:
+        checks(a)
+    elif a.live:
         live(a)
     elif a.bench:
         bench(a)
