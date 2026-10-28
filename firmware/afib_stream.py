@@ -158,7 +158,8 @@ def review(paths):
         scr = os.path.splitext(path)[0] + '_screen.txt'
         if os.path.exists(scr):
             kv = [dict(x.split('=', 1) for x in l.split()[1:] if '=' in x) for l in open(scr) if l.startswith('PRED')]
-            shown = [('no signal' if k.get('flat') == '1' else 'poor signal' if k.get('clip') == '1' else
+            shown = [('no signal' if k.get('flat') == '1' else 'poor signal (clipped)' if k.get('clip') == '1' else
+                      'poor signal (noise)' if k.get('noisy') == '1' else
                       'model >= 0.5' if k.get('label') == '1' else 'model < 0.5') for k in kv]
             print('  screen updates:', {s_: shown.count(s_) for s_ in dict.fromkeys(shown)})
 
@@ -316,7 +317,7 @@ def demo(args):
 def evaluate(args):
     records = args.records.split(',') if args.records else DEFAULT_EVAL
     dev = Device(args.port)
-    rows = []
+    rows, gated = [], {}
     for rec in records:
         sig, segs = load_record(rec)
         dev.preds = []
@@ -337,6 +338,9 @@ def evaluate(args):
             truth = label_of(segs, start + n - span, start + n)
             if truth is None or kv.get('flat') == '1':
                 continue
+            if kv.get('noisy') == '1':        # the noise gate showed "poor signal" instead of a verdict
+                gated[truth] = gated.get(truth, 0) + 1
+                continue
             rows.append(dict(record=rec, n=n, truth=truth, prob=float(kv['prob']),
                              pred=int(kv['label']), infer_us=int(kv['infer_us'])))
     dev.close()
@@ -347,6 +351,8 @@ def evaluate(args):
     p = np.array([r['pred'] for r in rows])
     tp = int(((p == 1) & (y == 1)).sum()); tn = int(((p == 0) & (y == 0)).sum())
     fp = int(((p == 1) & (y == 0)).sum()); fn = int(((p == 0) & (y == 1)).sum())
+    if gated:
+        print(f'noise gate: no verdict on {gated.get(1, 0)} AF and {gated.get(0, 0)} normal windows (not counted below)')
     sens = tp / max(tp + fn, 1); spec = tn / max(tn + fp, 1)
     acc = (tp + tn) / len(y); f1 = 2 * tp / max(2 * tp + fp + fn, 1)
     us = np.array([r['infer_us'] for r in rows])

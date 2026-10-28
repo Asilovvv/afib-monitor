@@ -74,21 +74,22 @@ class LiveHost:
     def __exit__(self, *a):
         return False
 
-    def run(self, records, fmt="%.4f"):
-        """records: {name: raw mV at 250 Hz}. Returns a list of decision dicts."""
+    def run(self, records):
+        """records: {name: raw mV at 250 Hz}. Returns a list of decision dicts (float32 samples, binary stream)."""
         s, z = input_quant()
-        lines = []
+        chunks = []
         for name, x in records.items():
-            lines.append(f"R {name}")
-            lines.append("\n".join(fmt % v for v in np.asarray(x, float)))
-            lines.append("E")
-        r = subprocess.run([build(), repr(s), str(z), str(self.lag)], input="\n".join(lines) + "\n",
-                           capture_output=True, text=True, check=True)
+            nb = name.encode()
+            x = np.asarray(x, np.float32)
+            chunks += [np.int32(len(nb)).tobytes(), nb, np.int32(len(x)).tobytes(), x.tobytes()]
+        r = subprocess.run([build(), repr(s), str(z), str(self.lag), "bin"], input=b"".join(chunks),
+                           capture_output=True, check=True)
         dec = []
-        for ln in r.stdout.splitlines():
+        for ln in r.stdout.decode().splitlines():
             p = ln.split()
             if not p or p[0] != "D":
                 continue
             dec.append(dict(name=p[1], n=int(p[2]), sd=float(p[3]), g1=float(p[4]), g2=float(p[5]), g3=float(p[6]),
-                            beats10=int(p[7]), lagmed=int(p[8]), q=np.array(p[9:], dtype=np.int16).astype(np.int8)))
+                            beats10=int(p[7]), lagmed=int(p[8]), span=int(p[9]),
+                            q=np.array(p[10:], dtype=np.int16).astype(np.int8)))
         return dec

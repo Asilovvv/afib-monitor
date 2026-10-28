@@ -6,6 +6,17 @@
 
 namespace live_gate {
 
+// The gate that ships (ml/ROUND4_GATE_CHOICE.json, chosen on tuning data only; test: ml/ROUND4_GATE.md):
+// a live decision is "noisy" when the 30-s check's two beat detectors agree on less than 71 % of the beats of the
+// last 10 s; then no verdict is shown until 8 decisions (32 beats) in a row have passed without a noisy window,
+// so that no RR interval measured during the noise stays in the model's input.
+static const double MIN_AGREE = 0.71;
+static const int HOLD = 8;
+
+inline double two_detectors(const check30::Vec& x) {
+  return check30::bsqi(check30::r_peaks(x, 125), check30::r_peaks_amp(x, 125), 125);
+}
+
 struct Metrics { double g1, g2, g3; };
 
 // x: the last 10 s at 125 Hz, oldest first; beats: positions of the live detector's beats inside x (samples);

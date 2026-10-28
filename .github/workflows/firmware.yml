@@ -25,6 +25,10 @@ jobs:
         run: g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/check30_host.cpp -o /tmp/c30 && /tmp/c30 < /tmp/parity.txt
       - name: Device code on the 10 frozen guard strips (verdicts committed as data)
         run: /tmp/c30 < tools/parity/guard_strips.txt
+      - name: Live path on a PC (live_path.h + live_gate.h) = frozen decisions; the noise gate blocks artifact bursts
+        run: |
+          pip install -q numpy
+          g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/live_host.cpp -o /tmp/live_host && python tools/parity/live_cases.py /tmp/live_host
       - name: Live-screen saturation guard (clip.h) on synthetic signals
         run: g++ -O2 -std=c++17 -I firmware/AFibMonitor tools/parity/clip_host.cpp -o /tmp/clip && /tmp/clip
       - name: Device PVC header is generated from the committed model
