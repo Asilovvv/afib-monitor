@@ -480,6 +480,67 @@ def checks(args):
     return [f'check_{k}.csv' for k, _, _ in rows]
 
 
+def fw_filter_dec(mv):
+    """The device's band-pass (float32, from a reset) and its decimation phase: the 125-Hz samples it would see."""
+    f32 = np.float32
+    z = np.zeros((2, 2), f32); tog = False; out = []
+    for v in np.asarray(mv, f32):
+        for k in range(2):
+            c = FW_SOS[k]; y = f32(c[0] * v + z[k, 0]); z[k, 0] = f32(c[1] * v - c[3] * y + z[k, 1]); z[k, 1] = f32(c[2] * v - c[4] * y); v = y
+        tog = not tog
+        if tog:
+            out.append(float(v))
+    return out
+
+
+def parity(args):
+    """Board day A7: the 30-s check on the chip vs the server's code on exactly the same samples.
+    For each strip: reset, 10 s of a MIT-BIH AF Database record to warm the filter, then "C" (start a check) and
+    31 s more. The laptop rebuilds the 3,750 samples the chip checked (same filter, same decimation phase, same
+    position of "C" in the stream) and runs backend/app/ecgtools.py check() on them."""
+    import importlib.util, urllib.request
+    here = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ecgtools.py')
+    if not os.path.exists(here):
+        urllib.request.urlretrieve('https://raw.githubusercontent.com/Asilovvv/afib-monitor/main/backend/app/ecgtools.py', here)
+    spec = importlib.util.spec_from_file_location('ecgtools', here); et = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(et)
+    names = {0: 'no verdict', 1: 'regular', 2: 'irregular'}
+    per_rec = max(1, args.parity // len(DEFAULT_EVAL))
+    dev = Device(args.port)
+    same = total = 0
+    for rec in DEFAULT_EVAL:
+        sig, segs = load_record(rec)
+        for k in range(per_rec):
+            t0 = int((120 + 600 * k) * FS_RAW)
+            pre, strip = sig[t0 - 10 * FS_RAW:t0], sig[t0:t0 + 31 * FS_RAW]
+            if len(strip) < 31 * FS_RAW:
+                break
+            n0 = len(dev.lines)
+            dev.send('R\n'); time.sleep(0.3)
+            dev.stream(pre, speed=10)
+            dev.send('C\n')
+            dev.stream(strip, speed=10)
+            t1 = time.time(); res = None
+            while time.time() - t1 < 8 and res is None:
+                res = next((l for l in dev.lines[n0:] if l.startswith('CHECK verdict')), None)
+                time.sleep(0.05)
+            vals = [float(f'{v:.4f}') for v in np.concatenate([pre, strip])]
+            y = fw_filter_dec(vals)[len(pre) // 2:len(pre) // 2 + 30 * FS_RAW // 2]
+            srv = et.check(y, 125)
+            total += 1
+            if res is None:
+                print(f'  {rec} {t0 // FS_RAW:5d} s: no verdict from the chip'); continue
+            kv = dict(x.split('=', 1) for x in res.split()[1:] if '=' in x)
+            chip = int(kv['verdict']); sv = {'regular': 1, 'irregular': 2}.get(srv['verdict'], 0)
+            ok = chip == sv
+            same += ok
+            print(f'  {rec} {t0 // FS_RAW:5d} s: chip {names[chip]:10s} (irr {kv["irr"]}, beats {kv["beats"]})  '
+                  f'server {names[sv]:10s} (irr {srv["irregularity"]}, beats {srv["beats"]})  '
+                  + ('same' if ok else 'DIFFERENT'))
+    dev.close()
+    print(f'A7: chip = server on {same} of {total} strips' + (' — OK' if same == total else ' — MISMATCH'))
+
+
 def bench(args):
     dev = Device(args.port)
     dev.send('I\n'); time.sleep(0.5)
@@ -499,6 +560,7 @@ if __name__ == '__main__':
     ap.add_argument('--records', help='comma-separated records for --eval')
     ap.add_argument('--bench', action='store_true')
     ap.add_argument('--model-check', action='store_true', help='same int8 inputs on the board and on a PC')
+    ap.add_argument('--parity', type=int, help='A7: N strips, the 30-s check on the chip vs the server code')
     ap.add_argument('--checks', type=int, help='run N 30-second checks over USB and log the verdicts (A6)')
     ap.add_argument('--live', type=float, help='record the device ECG for this many seconds')
     ap.add_argument('--out', help='CSV file for --live')
@@ -514,7 +576,9 @@ if __name__ == '__main__':
             ap.error('--review needs CSV files, or use it together with --live / --checks')
         review(a.review)
         sys.exit()
-    if a.checks:
+    if a.parity:
+        parity(a)
+    elif a.checks:
         made = checks(a)
         if a.review is not None:
             review(made)
