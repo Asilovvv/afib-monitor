@@ -1,0 +1,48 @@
+{
+ "base": "http://localhost:8097",
+ "clients": 50,
+ "requests": 2000,
+ "wall_s": 29.84,
+ "rows": [
+  {
+   "type": "upload",
+   "n": 1393,
+   "errors": 0,
+   "codes": {
+    "200": 1393
+   },
+   "p50_ms": 703.7,
+   "p95_ms": 923.3,
+   "max_ms": 1252.6,
+   "mean_ms": 702.3,
+   "pass": true
+  },
+  {
+   "type": "report",
+   "n": 397,
+   "errors": 0,
+   "codes": {
+    "200": 397
+   },
+   "p50_ms": 700.9,
+   "p95_ms": 958.9,
+   "max_ms": 1243.0,
+   "mean_ms": 712.9,
+   "pass": true
+  },
+  {
+   "type": "overview",
+   "n": 210,
+   "errors": 0,
+   "codes": {
+    "200": 210
+   },
+   "p50_ms": 975.4,
+   "p95_ms": 1441.9,
+   "max_ms": 1790.9,
+   "mean_ms": 1008.9,
+   "pass": false
+  }
+ ],
+ "pass": false
+}

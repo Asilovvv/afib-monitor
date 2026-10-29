@@ -1,0 +1,14 @@
+start 2026-10-29T04:40:42Z
+clone                      exit=0     2s
+web_build                  exit=0    15s
+venv_install               exit=0    28s
+run_server                 exit=0     8s
+pytest_sqlite              exit=0    35s
+pytest_postgres            exit=0    37s
+e2e                        exit=0     4s
+mobile                     exit=0    31s
+device_check30             exit=0     2s
+device_live_path           exit=143   294s
+pilot_selftest             exit=0    73s
+end 2026-10-29T04:49:34Z
+device_live_path (repeated)  exit=0     2s

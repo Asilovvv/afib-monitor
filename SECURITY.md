@@ -16,6 +16,15 @@ GitHub → Security → "Report a vulnerability" on this repository, not in a pu
 | 7 | `npm audit` (mobile app): 22 findings in Expo **build tools** (braces, node-forge, uuid@7). | Accepted: they run on the developer's computer during the build, are not shipped in the app, and Expo has no fixed version yet. Re-check on each Expo update. |
 | 8 | CORS `*`. | Acceptable: the API uses bearer tokens, not cookies, so another site cannot act with a user's login. |
 
+## Review of 29 October 2026
+
+Structured analysis (threats and controls by category, personal data, ethics, accessibility) in
+[`docs/engineering/SECURITY_PRIVACY.md`](docs/engineering/SECURITY_PRIVACY.md). Fixed that day: tokens in URLs (live stream,
+one-time export link) were written to the server log — now masked (commit 4ea1d72, test); browser security headers added.
+Open, with plans there: the per-address login limit sees Render's proxy address (F-01), tokens cannot be revoked (F-04), no
+password reset (F-06), Bluetooth without pairing (F-10). Dependency audit that day: server 0, portal 0, app 9 in Expo build
+tools that are not shipped in the app bundle.
+
 ## Secrets
 
 `JWT_SECRET`, `DATABASE_URL` (Neon), `TELEGRAM_BOT_TOKEN`, `ADMIN_TOKEN` (manual plan activation) and `REVENUECAT_WEBHOOK_SECRET` live only in Render → Environment, never in the repository. No card data ever reaches the server: the app stores hold it; we receive only webhook events

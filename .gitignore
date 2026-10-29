@@ -8,3 +8,5 @@ mobile/ios/
 afdb_cache/
 .env
 *.env.local
+*.db-shm
+*.db-wal

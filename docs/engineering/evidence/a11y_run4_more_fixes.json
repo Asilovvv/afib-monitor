@@ -1,0 +1,327 @@
+{
+ "base": "http://localhost:8096",
+ "axe": "4.14.0",
+ "tags": [
+  "wcag2a",
+  "wcag2aa",
+  "wcag21a",
+  "wcag21aa"
+ ],
+ "summary": {
+  "critical": 0,
+  "serious": 2,
+  "moderate": 0,
+  "minor": 0
+ },
+ "pass": false,
+ "results": [
+  {
+   "theme": "light",
+   "path": "/",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 12,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/login",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 7,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/guide",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 3,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/join?doctor=DEMO42",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/privacy",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/terms",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 35,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 23,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients/:id",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 28,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients/:id/report",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 2,
+     "examples": [
+      "section:nth-child(2) > .r-fine :: Element has insufficient color contrast of 4.47 (foreground color: #777777, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "footer :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 8,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/alerts",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 16,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/devices",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 15,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/settings",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 29,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 12,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/login",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 7,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/guide",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 3,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/join?doctor=DEMO42",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/privacy",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/terms",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 35,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 23,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients/:id",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 28,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients/:id/report",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 2,
+     "examples": [
+      "section:nth-child(2) > .r-fine :: Element has insufficient color contrast of 4.47 (foreground color: #777777, background color: #ffffff, font size: 7.5pt (10px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "footer :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.3pt (11px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 8,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/alerts",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 16,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/devices",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 15,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/settings",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 29,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  }
+ ]
+}

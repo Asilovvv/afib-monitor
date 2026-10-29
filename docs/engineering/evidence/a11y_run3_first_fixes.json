@@ -1,0 +1,382 @@
+{
+ "base": "http://localhost:8096",
+ "axe": "4.14.0",
+ "tags": [
+  "wcag2a",
+  "wcag2aa",
+  "wcag21a",
+  "wcag21aa"
+ ],
+ "summary": {
+  "critical": 0,
+  "serious": 7,
+  "moderate": 0,
+  "minor": 0
+ },
+ "pass": false,
+ "results": [
+  {
+   "theme": "light",
+   "path": "/",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 12,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/login",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 7,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/guide",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 3,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/join?doctor=DEMO42",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/privacy",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 1,
+     "examples": [
+      ".muted :: Element has insufficient color contrast of 3.41 (foreground color: #68646c, background color: #070a12, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/terms",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 1,
+     "examples": [
+      ".muted :: Element has insufficient color contrast of 3.41 (foreground color: #68646c, background color: #070a12, font size: 10.1pt (13.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 35,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 23,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients/:id",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 2,
+     "examples": [
+      ".ack.tl:nth-child(2) > .st-wait.pill :: Element has insufficient color contrast of 4.3 (foreground color: #6f6a75, background color: #ece8e1, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+      ".ack.tl:nth-child(3) > .st-wait.pill :: Element has insufficient color contrast of 4.3 (foreground color: #6f6a75, background color: #ece8e1, font size: 9.4pt (12.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 27,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/patients/:id/report",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 8,
+     "examples": [
+      ".tag-research :: Element has insufficient color contrast of 2.27 (foreground color: #d9930f, background color: #fbf0d6, font size: 7.9pt (10.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "tr:nth-child(1) > td:nth-child(3) > .r-muted :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "tr:nth-child(2) > td:nth-child(3) > .r-muted :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 8,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/alerts",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 16,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/devices",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 2,
+     "examples": [
+      ".dev.tr.muted > span :: Element has insufficient color contrast of 2.29 (foreground color: #aca9ab, background color: #fffdf9, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1",
+      ".hist.tr.muted > span :: Element has insufficient color contrast of 2.29 (foreground color: #aca9ab, background color: #fffdf9, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 15,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "light",
+   "path": "/app/settings",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 29,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 12,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/login",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 7,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/guide",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 3,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/join?doctor=DEMO42",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/privacy",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/terms",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 4,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 35,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 23,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients/:id",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 27,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/patients/:id/report",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 7,
+     "examples": [
+      "tr:nth-child(1) > td:nth-child(3) > .r-muted :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "tr:nth-child(2) > td:nth-child(3) > .r-muted :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1",
+      "tr:nth-child(3) > td:nth-child(3) > .r-muted :: Element has insufficient color contrast of 3.54 (foreground color: #888888, background color: #ffffff, font size: 8.6pt (11.5px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 8,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/alerts",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 16,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/devices",
+   "lang": "ru",
+   "violations": [
+    {
+     "id": "color-contrast",
+     "impact": "serious",
+     "help": "Elements must meet minimum color contrast ratio thresholds",
+     "nodes": 2,
+     "examples": [
+      ".dev.tr.muted > span :: Element has insufficient color contrast of 2.44 (foreground color: #54555f, background color: #13161e, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1",
+      ".hist.tr.muted > span :: Element has insufficient color contrast of 2.44 (foreground color: #54555f, background color: #13161e, font size: 11.3pt (15px), font weight: normal). Expected contrast ratio of 4.5:1"
+     ]
+    }
+   ],
+   "tabStops": 15,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  },
+  {
+   "theme": "dark",
+   "path": "/app/settings",
+   "lang": "ru",
+   "violations": [],
+   "tabStops": 29,
+   "tabStopsWithoutVisibleFocus": 0,
+   "noRingExamples": [],
+   "unreachable": 0,
+   "unreachableExamples": []
+  }
+ ]
+}
