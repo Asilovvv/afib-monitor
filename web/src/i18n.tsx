@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
 export type Lang = 'ru' | 'en' | 'ky'
 
@@ -93,6 +93,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setL] = useState<Lang>(stored())
   const setLang = (l: Lang) => { setL(l); try { localStorage.setItem('afib.lang', l) } catch { /* private mode */ } }
   const t = (s: string) => (lang === 'en' ? EN[s] ?? s : lang === 'ky' ? KY[s] ?? s : s)
+  useEffect(() => { document.documentElement.lang = lang }, [lang])
   return <I18n.Provider value={{ lang, setLang, t }}>{children}</I18n.Provider>
 }
 

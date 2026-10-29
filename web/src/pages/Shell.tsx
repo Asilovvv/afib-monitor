@@ -134,13 +134,15 @@ export default function Shell({ me, onLogout, children }: { me: User; onLogout: 
           <div className="top-actions">
             <button className="icon-btn" onClick={() => setLang(nextLang(lang))} title={t('Язык')}><b className="lang-t">{lang.toUpperCase()}</b></button>
             <button className="icon-btn" onClick={cycleTheme} title={t('Тема')}>{theme === 'dark' ? Icon.moon() : theme === 'light' ? Icon.sun() : <span className="auto-t">A</span>}</button>
-            <div className="me" onClick={() => setMenu(!menu)}>
-              <Avatar name={me.name} size={34} />
-              <div className="me-txt"><b>{me.name}</b><small>{me.specialty || me.email}</small></div>
+            <div className="me-wrap" onKeyDown={e => { if (e.key === 'Escape') setMenu(false) }}>
+              <button type="button" className="me" onClick={() => setMenu(!menu)} aria-haspopup="menu" aria-expanded={menu}>
+                <Avatar name={me.name} size={34} />
+                <span className="me-txt"><b>{me.name}</b><small>{me.specialty || me.email}</small></span>
+              </button>
               {menu && (
-                <div className="menu" onMouseLeave={() => setMenu(false)}>
-                  <button onClick={() => nav('/app/settings')}>{Icon.cog(16)} {t('Настройки')}</button>
-                  <button onClick={onLogout}>{Icon.logout(16)} {t('Выйти')}</button>
+                <div className="menu" role="menu" onMouseLeave={() => setMenu(false)}>
+                  <button role="menuitem" onClick={() => nav('/app/settings')}>{Icon.cog(16)} {t('Настройки')}</button>
+                  <button role="menuitem" onClick={onLogout}>{Icon.logout(16)} {t('Выйти')}</button>
                 </div>
               )}
             </div>
