@@ -1940,7 +1940,7 @@ def health(deep: bool = False):
 
 
 # ---------------------------------------------------------------- web (built React app)
-WEB_DIST = Path(os.getenv("WEB_DIST", Path(__file__).resolve().parents[2] / "web" / "dist"))
+WEB_DIST = Path(os.getenv("WEB_DIST") or Path(__file__).resolve().parents[2] / "web" / "dist")   # empty = default
 if WEB_DIST.exists():
     app.mount("/assets", StaticFiles(directory=WEB_DIST / "assets"), name="assets")
 

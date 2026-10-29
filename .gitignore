@@ -6,3 +6,5 @@ __pycache__/
 mobile/android/
 mobile/ios/
 afdb_cache/
+.env
+*.env.local

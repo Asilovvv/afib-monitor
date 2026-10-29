@@ -3,7 +3,7 @@ import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./afib.db")
+DATABASE_URL = os.getenv("DATABASE_URL") or "sqlite:///./afib.db"       # empty = unset
 for _p in ("postgres://", "postgresql://"):            # Render/Neon/Heroku URLs -> psycopg 3 driver
     if DATABASE_URL.startswith(_p):
         DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len(_p):]
