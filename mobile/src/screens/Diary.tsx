@@ -1,4 +1,4 @@
-import { DAY_TAGS, locOf } from '../i18n'
+import { DAY_TAGS, fmtDate } from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { api, type Symptom } from '../api'
@@ -65,7 +65,6 @@ export default function Diary() {
   ].sort((a, b) => b.ts - a.ts)
 
   const sevColor = [tm.ok, tm.warn, tm.af]
-  const loc = locOf(lang)
   let lastDay = ''
 
   return (
@@ -78,7 +77,7 @@ export default function Diary() {
       <View style={{ marginTop: 22, gap: 10 }}>
         {items.length === 0 && <Empty icon="book" text={t('no_symptoms')} />}
         {items.map(it => {
-          const day = new Date(it.ts).toLocaleDateString(loc, { weekday: 'long', day: 'numeric', month: 'long' })
+          const day = fmtDate(lang, it.ts, { weekday: 'long', day: 'numeric', month: 'long' })
           const head = day !== lastDay ? (lastDay = day) : null
           return (
             <View key={it.key}>
@@ -89,7 +88,7 @@ export default function Diary() {
                   <View style={{ flex: 1, gap: 4 }}>
                     <T v="h3">{it.kinds.map(k => `${SYM_EMOJI[k] ?? ''} ${t(k)}`).join('   ')}</T>
                     {it.note ? <T v="small" c={tm.ink2}>{it.note}</T> : null}
-                    <T v="mono">{new Date(it.ts).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })} · {t(`sev${it.severity}`)}{it.synced ? '' : ' · ⟳'}</T>
+                    <T v="mono">{fmtDate(lang, it.ts, { hour: '2-digit', minute: '2-digit' })} · {t(`sev${it.severity}`)}{it.synced ? '' : ' · ⟳'}</T>
                   </View>
                 </Row>
               </Card>

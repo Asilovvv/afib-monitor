@@ -34,7 +34,7 @@ const ru = {
   source_sim: 'Симулятор', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ЭКГ-пакеты', sync: 'Синхронизация',
   pending: 'в очереди', synced: 'синхронизировано', never: 'ещё не было', sync_now: 'Синхронизировать',
   // history
-  h24: '24 ч', d7: '7 дней', d30: '30 дней', hr_events: 'Пульс вне обычных границ', hr_low: 'Редкий пульс', hr_high: 'Частый пульс', hr_note: 'Дольше минуты ниже 40 или выше 150. Это не диагноз — покажите врачу, особенно если было плохо.', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'Минуты ФП', pulse: 'Пульс', no_episodes: 'Эпизодов фибрилляции не было',
+  h24: '24 ч', d7: '7 дней', d30: '30 дней', hr_events: 'Пульс вне обычных границ', hr_low: 'Редкий пульс', hr_high: 'Частый пульс', hr_note: 'Дольше минуты ниже 40 или выше 150. Это не диагноз — покажите врачу, особенно если было плохо.', last24: 'За 24 часа', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'Минуты ФП', pulse: 'Пульс', no_episodes: 'Эпизодов фибрилляции не было',
   longest: 'самый длинный', ecg_records: 'Записи ЭКГ', auto_rec: 'автозапись при ФП', manual_rec: 'записано вами', symptom_rec: 'при симптоме',
   verdict_confirmed: 'Подтверждено врачом', verdict_false: 'Ложная тревога', on_phone: 'На этом телефоне', login_needed: 'Войдите, чтобы видеть историю с сервера',
   min: 'мин', h: 'ч', s: 'с', ago: 'назад', now: 'сейчас',
@@ -60,7 +60,7 @@ const ru = {
   st_recording: 'Запись идёт', st_recording_sub: 'Пульс и ЭКГ записываются для вашего врача', wellness_note: 'Режим без диагностики: приложение записывает пульс и ЭКГ, но не определяет нарушения ритма. Покажите записи врачу.',
   rate_app: 'Оценить приложение', rate_sub: 'Что улучшить? Отзыв читает разработчик', rate_ph: 'Что понравилось, что неудобно…', send: 'Отправить', thanks: 'Спасибо за отзыв!',
   consent_terms_a: 'Я принимаю', consent_terms_link: 'условия и политику конфиденциальности', consent_terms_b: 'и согласен на обработку моих медицинских данных.', terms: 'Условия', privacy: 'Конфиденциальность',
-  consent_research: 'Участвую в исследовании вместе со своим врачом (по желанию): приложение покажет исследовательскую оценку ритма и сообщит врачу о возможной ФП; мои обезличенные данные можно использовать для улучшения алгоритма.',
+  research_demo: 'Демо-аккаунт: исследовательский режим включён всегда, чтобы показать всю систему. У обычного пациента он только с согласия и с врачом.', consent_research: 'Участвую в исследовании вместе со своим врачом (по желанию): приложение покажет исследовательскую оценку ритма и сообщит врачу о возможной ФП; мои обезличенные данные можно использовать для улучшения алгоритма.',
   my_data: 'Мои данные', export_data: 'Скачать мои данные', export_sub: 'Один JSON-файл: профиль, ритм, ЭКГ, симптомы', who_viewed: 'Кто смотрел мои данные', nobody_viewed: 'Пока никто', research_toggle: 'Участие в исследовании',
   delete_account: 'Удалить аккаунт', delete_title: 'Удалить аккаунт навсегда?', delete_text: 'Будут удалены профиль, ритм, ЭКГ, симптомы и подключения Telegram. Это нельзя отменить. Введите пароль для подтверждения.', delete_btn: 'Удалить навсегда', deleted: 'Аккаунт удалён',
   check_btn: 'Проверь меня · 30 с', check_sub: 'Сидите спокойно и не разговаривайте', check_running: 'Проверяю… {s} с', check_lost: 'Датчик потерял сигнал — повторите',
@@ -151,7 +151,7 @@ const en: Record<Key, string> = {
   battery: 'Battery', signal: 'Signal', inference: 'On-chip inference', uptime: 'Uptime', model: 'Model', firmware: 'Firmware',
   source_sim: 'Simulator', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ECG packets', sync: 'Sync',
   pending: 'queued', synced: 'synced', never: 'not yet', sync_now: 'Sync now',
-  h24: '24 h', d7: '7 days', d30: '30 days', hr_events: 'Heart rate outside usual limits', hr_low: 'Slow heart rate', hr_high: 'Fast heart rate', hr_note: 'Below 40 or above 150 for over a minute. Not a diagnosis — show your doctor, especially if you felt unwell.', af_abbr: 'AF', ecg_abbr: 'ECG', af_minutes: 'AF minutes', pulse: 'Heart rate', no_episodes: 'No AF episodes',
+  h24: '24 h', d7: '7 days', d30: '30 days', hr_events: 'Heart rate outside usual limits', hr_low: 'Slow heart rate', hr_high: 'Fast heart rate', hr_note: 'Below 40 or above 150 for over a minute. Not a diagnosis — show your doctor, especially if you felt unwell.', last24: 'Last 24 hours', af_abbr: 'AF', ecg_abbr: 'ECG', af_minutes: 'AF minutes', pulse: 'Heart rate', no_episodes: 'No AF episodes',
   longest: 'longest', ecg_records: 'ECG recordings', auto_rec: 'auto-recorded at AF', manual_rec: 'recorded by you', symptom_rec: 'with a symptom',
   verdict_confirmed: 'Confirmed by doctor', verdict_false: 'False alarm', on_phone: 'On this phone', login_needed: 'Sign in to see your history from the server',
   min: 'min', h: 'h', s: 's', ago: 'ago', now: 'now',
@@ -174,7 +174,7 @@ const en: Record<Key, string> = {
   st_recording: 'Recording', st_recording_sub: 'Heart rate and ECG are recorded for your doctor', wellness_note: 'No-diagnosis mode: the app records heart rate and ECG but does not detect rhythm disorders. Show the recordings to your doctor.',
   rate_app: 'Rate the app', rate_sub: 'What should we improve? The developer reads every note', rate_ph: 'What you liked, what was awkward…', send: 'Send', thanks: 'Thank you for the feedback!',
   consent_terms_a: 'I accept the', consent_terms_link: 'terms and privacy policy', consent_terms_b: 'and agree to the processing of my health data.', terms: 'Terms', privacy: 'Privacy',
-  consent_research: 'I take part in the study with my doctor (optional): the app shows a research rhythm estimate and tells my doctor about possible AF; my de-identified data may be used to improve the algorithm.',
+  research_demo: 'Demo account: research mode is always on to show the whole system. For a real patient it needs consent and a linked doctor.', consent_research: 'I take part in the study with my doctor (optional): the app shows a research rhythm estimate and tells my doctor about possible AF; my de-identified data may be used to improve the algorithm.',
   my_data: 'My data', export_data: 'Download my data', export_sub: 'One JSON file: profile, rhythm, ECG, symptoms', who_viewed: 'Who viewed my data', nobody_viewed: 'Nobody yet', research_toggle: 'Research participation',
   delete_account: 'Delete account', delete_title: 'Delete your account forever?', delete_text: 'Your profile, rhythm, ECG, symptoms and Telegram connections will be deleted. This cannot be undone. Enter your password to confirm.', delete_btn: 'Delete forever', deleted: 'Account deleted',
   check_btn: 'Check me · 30 s', check_sub: 'Sit still and do not talk', check_running: 'Checking… {s} s', check_lost: 'The sensor lost the signal — try again',
@@ -264,7 +264,7 @@ const ky: Record<Key, string> = {
   battery: 'Батарея', signal: 'Сигнал', inference: 'Чиптеги инференс', uptime: 'Иштөө убактысы', model: 'Модель', firmware: 'Микропрограмма',
   source_sim: 'Симулятор', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ЭКГ-пакеттер', sync: 'Синхрондоо',
   pending: 'кезекте', synced: 'синхрондолду', never: 'азырынча жок', sync_now: 'Синхрондоо',
-  h24: '24 саат', d7: '7 күн', d30: '30 күн', hr_events: 'Пульс адаттагы чектен тышкары', hr_low: 'Сейрек пульс', hr_high: 'Тез пульс', hr_note: '1 мүнөттөн ашык 40тан төмөн же 150дөн жогору. Бул диагноз эмес — дарыгерге көрсөтүңүз, айрыкча өзүңүздү жаман сезсеңиз.', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'ФП мүнөттөрү', pulse: 'Пульс', no_episodes: 'Фибрилляция эпизоддору болгон жок',
+  h24: '24 саат', d7: '7 күн', d30: '30 күн', hr_events: 'Пульс адаттагы чектен тышкары', hr_low: 'Сейрек пульс', hr_high: 'Тез пульс', hr_note: '1 мүнөттөн ашык 40тан төмөн же 150дөн жогору. Бул диагноз эмес — дарыгерге көрсөтүңүз, айрыкча өзүңүздү жаман сезсеңиз.', last24: 'Акыркы 24 саат', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'ФП мүнөттөрү', pulse: 'Пульс', no_episodes: 'Фибрилляция эпизоддору болгон жок',
   longest: 'эң узуну', ecg_records: 'ЭКГ жазуулары', auto_rec: 'ФПда автожазуу', manual_rec: 'сиз жаздыңыз', symptom_rec: 'белги учурунда',
   verdict_confirmed: 'Дарыгер ырастады', verdict_false: 'Жалган эскертүү', on_phone: 'Бул телефондо', login_needed: 'Сервердеги тарыхты көрүү үчүн кириңиз',
   min: 'мүн', h: 'саат', s: 'сек', ago: 'мурун', now: 'азыр',
@@ -287,7 +287,7 @@ const ky: Record<Key, string> = {
   st_recording: 'Жазылууда', st_recording_sub: 'Пульс жана ЭКГ дарыгериңиз үчүн жазылууда', wellness_note: 'Диагностикасыз режим: тиркеме пульсту жана ЭКГны жазат, бирок ритмдин бузулушун аныктабайт. Жазууларды дарыгерге көрсөтүңүз.',
   rate_app: 'Тиркемеге баа берүү', rate_sub: 'Эмнени жакшыртуу керек? Пикирди иштеп чыгуучу окуйт', rate_ph: 'Эмне жакты, эмне ыңгайсыз…', send: 'Жөнөтүү', thanks: 'Пикириңиз үчүн рахмат!',
   consent_terms_a: 'Мен', consent_terms_link: 'шарттарды жана купуялуулук саясатын', consent_terms_b: 'кабыл алам жана медициналык маалыматтарымды иштетүүгө макулмун.', terms: 'Шарттар', privacy: 'Купуялуулук',
-  consent_research: 'Дарыгерим менен изилдөөгө катышам (каалоо боюнча): тиркеме ритмдин изилдөө баасын көрсөтөт жана мүмкүн болгон ФП жөнүндө дарыгерге билдирет; жашыруун маалыматтарым алгоритмди жакшыртууга колдонулушу мүмкүн.',
+  research_demo: 'Демо-аккаунт: бүт системаны көрсөтүү үчүн изилдөө режими дайыма күйүк. Кадимки бейтапта ал макулдук жана дарыгер менен гана.', consent_research: 'Дарыгерим менен изилдөөгө катышам (каалоо боюнча): тиркеме ритмдин изилдөө баасын көрсөтөт жана мүмкүн болгон ФП жөнүндө дарыгерге билдирет; жашыруун маалыматтарым алгоритмди жакшыртууга колдонулушу мүмкүн.',
   my_data: 'Менин маалыматтарым', export_data: 'Маалыматымды жүктөө', export_sub: 'Бир JSON файл: профиль, ритм, ЭКГ, белгилер', who_viewed: 'Маалыматымды ким көрдү', nobody_viewed: 'Азырынча эч ким', research_toggle: 'Изилдөөгө катышуу',
   delete_account: 'Аккаунтту өчүрүү', delete_title: 'Аккаунтту биротоло өчүрөсүзбү?', delete_text: 'Профиль, ритм, ЭКГ, белгилер жана Telegram туташуулары өчүрүлөт. Муну кайтаруу мүмкүн эмес. Ырастоо үчүн сырсөздү киргизиңиз.', delete_btn: 'Биротоло өчүрүү', deleted: 'Аккаунт өчүрүлдү',
   check_btn: 'Мени текшер · 30 с', check_sub: 'Тынч отуруңуз, сүйлөбөңүз', check_running: 'Текшерип жатам… {s} с', check_lost: 'Датчик сигналды жоготту — кайталаңыз',
@@ -363,3 +363,23 @@ export function translate(lang: Lang, k: Key | string, vars?: Record<string, str
 /** Locale for dates; Kyrgyz month names where the OS has them. */
 export const locOf = (l: Lang | string) => (l === 'en' ? 'en-GB' : l === 'ky' ? 'ky-KG' : 'ru-RU')
 export const nextLang = (l: Lang): Lang => (l === 'ru' ? 'ky' : l === 'ky' ? 'en' : 'ru')
+
+const KY_MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь']
+const KY_MONTHS_SHORT = ['янв.', 'фев.', 'мар.', 'апр.', 'май', 'июн.', 'июл.', 'авг.', 'сен.', 'окт.', 'ноя.', 'дек.']
+const KY_DAYS = ['жекшемби', 'дүйшөмбү', 'шейшемби', 'шаршемби', 'бейшемби', 'жума', 'ишемби']
+
+/** Date/time in the app language. Phones and browsers often have no Kyrgyz date names and fall back to Russian,
+ *  so Kyrgyz is formatted here ("бейшемби, 29-октябрь, 06:50"); Russian and English use the system formatter. */
+export function fmtDate(lang: Lang | string, d: Date | string | number, o: Intl.DateTimeFormatOptions): string {
+  const x = new Date(d)
+  if (lang !== 'ky') return x.toLocaleString(locOf(lang), o)
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const parts: string[] = []
+  if (o.weekday) parts.push(KY_DAYS[x.getDay()])
+  if (o.day || o.month) {
+    const m = o.month === 'long' ? KY_MONTHS[x.getMonth()] : o.month ? KY_MONTHS_SHORT[x.getMonth()] : ''
+    parts.push([o.day ? String(x.getDate()) : '', m].filter(Boolean).join('-'))
+  }
+  if (o.hour) parts.push(`${p2(x.getHours())}:${p2(x.getMinutes())}`)
+  return parts.join(', ')
+}

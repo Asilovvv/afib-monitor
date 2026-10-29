@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
 import { Card, Row, T } from '../components/ui'
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useApp } from '../store'
 
 /** Clinic rental: "device №3 issued until <date>". Shown only while a loan is open; nothing else about it lives on the
@@ -15,7 +15,7 @@ export function LoanCard() {
     load(); const iv = setInterval(load, 10 * 60e3); return () => clearInterval(iv)
   }, [user])
   if (!loan) return null
-  const due = new Date(loan.due_at).toLocaleDateString(locOf(lang), { day: 'numeric', month: 'long' })
+  const due = fmtDate(lang, loan.due_at, { day: 'numeric', month: 'long' })
   return (
     <Card style={{ marginTop: 14, borderColor: loan.overdue ? tm.warn : undefined }}>
       <Row gap={8}><T style={{ fontSize: 20 }}>📦</T>

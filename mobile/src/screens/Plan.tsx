@@ -3,7 +3,7 @@ import { Linking, StyleSheet, View } from 'react-native'
 import { api, type PlanInfo } from '../api'
 import { billingAvailable, buy, manageUrl, offers, restore, type Offer } from '../billing'
 import { Button, Card, Icon, Row, Sheet, T } from '../components/ui'
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useApp } from '../store'
 import { F } from '../theme'
 
@@ -29,7 +29,7 @@ export function PlanSheet({ open, onClose, reason }: { open: boolean; onClose: (
   const [busy, setBusy] = useState<string | null>(null)
   useEffect(() => { if (open) { api.myPlan().then(setInfo).catch(() => undefined); offers().then(setOffs) } }, [open])
   const paid = info?.plan === 'family'
-  const until = info?.until ? new Date(info.until).toLocaleDateString(locOf(lang), { day: 'numeric', month: 'long' }) : null
+  const until = info?.until ? fmtDate(lang, info.until, { day: 'numeric', month: 'long' }) : null
   const price = info?.prices_som.family
 
   const purchase = async (o: Offer) => {

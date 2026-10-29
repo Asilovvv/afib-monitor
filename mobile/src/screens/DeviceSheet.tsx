@@ -1,4 +1,4 @@
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Battery, Button, Icon, Row, Sheet, T, type IconName } from '../components/ui'
@@ -43,7 +43,7 @@ export function DeviceSheet({ open, onClose }: { open: boolean; onClose: () => v
       <Line icon="wave" label={t('packets')} value={`${ecg.packets}${ecg.lost ? ` · −${ecg.lost}` : ''}`} />
       <Line icon="clock" label={t('uptime')} value={connectedAt ? fmtDur(t, (now - connectedAt) / 1000) : '—'} />
       <Line icon="pulse" label={t('model')} value="TCN int8 · 27 KB" />
-      <Line icon="sync" label={t('sync')} value={user ? (pending ? `${pending} ${t('pending')}` : lastSync ? new Date(lastSync).toLocaleTimeString(locOf(lang), { hour: '2-digit', minute: '2-digit' }) : t('never')) : '—'} />
+      <Line icon="sync" label={t('sync')} value={user ? (pending ? `${pending} ${t('pending')}` : lastSync ? fmtDate(lang, lastSync, { hour: '2-digit', minute: '2-digit' }) : t('never')) : '—'} />
       <Button title={t('bench')} kind="ghost" icon="cpu" onPress={() => setBench(true)} style={{ marginTop: 12 }} />
       <BenchSheet open={bench} onClose={() => setBench(false)} />
       <Row style={{ marginTop: 6 }} gap={10}>

@@ -1,4 +1,4 @@
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native'
 import { api, type EcgMeta, type Report } from '../api'
@@ -23,7 +23,7 @@ function EcgViewer({ meta, onClose }: { meta: EcgMeta | null; onClose: () => voi
   }, [meta])
   const af = meta?.state === 2
   return (
-    <Sheet open={!!meta} onClose={onClose} title={meta ? new Date(meta.ts).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}>
+    <Sheet open={!!meta} onClose={onClose} title={meta ? fmtDate(lang, meta.ts, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}>
       {meta && (
         <View style={{ gap: 14 }}>
           <Row gap={8}>
@@ -70,7 +70,6 @@ export default function History() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [ecg, setEcg] = useState<EcgMeta | null>(null)
-  const loc = locOf(lang)
 
   const load = useCallback(async () => {
     if (!user) return
@@ -80,7 +79,7 @@ export default function History() {
   }, [user, hours])
   useEffect(() => { load() }, [load, dataVersion])
 
-  const dt = (iso: string | number) => new Date(iso).toLocaleString(loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const dt = (iso: string | number) => fmtDate(lang, iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 
   if (!user) {
     return (
@@ -146,7 +145,7 @@ export default function History() {
                   <View style={[s.key, { backgroundColor: e.kind === 'low' ? '#5B8DEF' : tm.af, width: 10, height: 10, borderRadius: 5 }]} />
                   <View style={{ flex: 1 }}>
                     <T v="h3">{e.kind === 'low' ? t('hr_low') : t('hr_high')} · {e.bpm} {t('bpm')}</T>
-                    <T v="small">{new Date(e.start).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {fmtDur(t, e.duration_s)}</T>
+                    <T v="small">{fmtDate(lang, e.start, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {fmtDur(t, e.duration_s)}</T>
                   </View>
                 </Row>
               ))}

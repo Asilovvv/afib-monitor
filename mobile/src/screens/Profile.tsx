@@ -1,4 +1,4 @@
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useEffect, useState } from 'react'
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Switch, TextInput, View, Platform } from 'react-native'
 import { api, PlanError, researchGiven, settings, type Risk, type TgLink } from '../api'
@@ -240,7 +240,8 @@ function FeedbackCard() {
 }
 
 function MyDataCard() {
-  const { theme: tm, t, toast, signOut, lang, setUser, openPlan } = useApp()
+  const { theme: tm, t, toast, signOut, lang, setUser, openPlan, user } = useApp()
+  const demo = !!user?.email?.toLowerCase().endsWith('@demo.kg')   // the server keeps demo accounts in research mode
   const [log, setLog] = useState<{ ts: string; who: string; action: string }[] | null>(null)
   const [showLog, setShowLog] = useState(false)
   const [research, setResearch] = useState<boolean | null>(null)
@@ -298,7 +299,7 @@ function MyDataCard() {
     catch (e) { toast((e as Error).message, 'af') }
     setBusy(false)
   }
-  const when = (iso: string) => new Date(iso).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const when = (iso: string) => fmtDate(lang, iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   return (
     <Card style={{ paddingVertical: 6 }}>
       <T v="label" style={{ marginTop: 10, marginBottom: 2 }}>{t('my_data')}</T>
@@ -311,8 +312,8 @@ function MyDataCard() {
           <T v="small" style={{ flex: 1 }}>{a.who} — {t(`act_${a.action}`)}</T><T v="mono">{when(a.ts)}</T>
         </Row>
       ))}
-      <Item icon="book" title={t('research_toggle')} sub={t('consent_research')} onPress={research == null ? undefined : toggleResearch}
-        right={<View style={[s.toggle, { backgroundColor: research ? tm.ok : tm.bg2 }]}><View style={[s.knob, { alignSelf: research ? 'flex-end' : 'flex-start' }]} /></View>} />
+      <Item icon="book" title={t('research_toggle')} sub={demo ? t('research_demo') : t('consent_research')} onPress={demo || research == null ? undefined : toggleResearch}
+        right={<View style={[s.toggle, { backgroundColor: research || demo ? tm.ok : tm.bg2 }]}><View style={[s.knob, { alignSelf: research || demo ? 'flex-end' : 'flex-start' }]} /></View>} />
       <Pressable onPress={() => setDel(true)} style={{ paddingVertical: 14 }}><T c={tm.af} style={{ fontFamily: F.semi }}>{t('delete_account')}</T></Pressable>
       <Sheet open={del} onClose={() => { setDel(false); setPw('') }} title={t('delete_title')}>
         <T v="small" style={{ marginBottom: 12, lineHeight: 20 }}>{t('delete_text')}</T>

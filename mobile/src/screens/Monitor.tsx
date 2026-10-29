@@ -1,4 +1,4 @@
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Animated, Easing, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
@@ -6,6 +6,7 @@ import { EcgLive } from '../components/Ecg'
 import { PoincareCard, QualityPill, useLiveAnalysis } from '../components/Poincare'
 import { Battery, Button, Card, Icon, Pill, Ring, Row, Stat, T } from '../components/ui'
 import { RhythmState } from '../protocol'
+import { api, type Report } from '../api'
 import { useApp } from '../store'
 import { F, stateTone } from '../theme'
 import { DeviceSheet } from './DeviceSheet'
@@ -68,7 +69,7 @@ function Halo({ color }: { color: string }) {
 
 export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
   const { theme: tm, t, user, source, link, status, battery, ecg, episodes, history, startDevice, startSimulator,
-    recording, recordEcg, lang, mode, big } = useApp()
+    recording, recordEcg, lang, mode, big, dataVersion } = useApp()
   const now = useNow()
   const [devOpen, setDevOpen] = useState(false)
   const [symOpen, setSymOpen] = useState(false)
@@ -93,7 +94,21 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
     return { eps: eps.length, burden: h.length ? af / h.length : 0, minutes: h.length ? (h[h.length - 1].at - h[0].at) / 60000 : 0 }
   }, [episodes, history])
 
-  const dateStr = new Date(now).toLocaleDateString(locOf(lang), { weekday: 'long', day: 'numeric', month: 'long' })
+  // Right after the app opens the phone has only a few seconds of rhythm, so "Today" would read 0 / 0 % / 0 s.
+  // When the server holds more (the last 24 h of this account), show that instead, labelled "Last 24 hours".
+  const [day, setDay] = useState<Report['stats'] | null>(null)
+  useEffect(() => {
+    if (!user) { setDay(null); return }
+    let alive = true
+    api.report(24).then(r => { if (alive) setDay(r.stats) }).catch(() => undefined)
+    return () => { alive = false }
+  }, [user, dataVersion])
+  const useServer = !!day && day.monitored_minutes > today.minutes
+  const card = useServer && day
+    ? { label: t('last24'), eps: day.episodes_count, burden: day.af_burden, minutes: day.monitored_minutes }
+    : { label: t('today'), ...today }
+
+  const dateStr = fmtDate(lang, now, { weekday: 'long', day: 'numeric', month: 'long' })
 
   return (
     <View style={{ flex: 1 }}>
@@ -188,11 +203,13 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
 
             {/* today */}
             <Card style={{ marginTop: 14 }}>
-              <T v="label" style={{ marginBottom: 12 }}>{t('today')}</T>
+              <T v="label" style={{ marginBottom: 12 }}>{card.label}</T>
               <Row gap={14}>
-                <Stat label={t('episodes')} value={String(today.eps)} color={today.eps ? tm.af : undefined} />
-                <Stat label={t('burden')} value={`${(today.burden * 100).toFixed(today.burden < 0.1 ? 1 : 0)}%`} />
-                <Stat label={t('monitored')} value={fmtDur(t, today.minutes * 60)} />
+                {/* wellness mode: no rhythm verdict anywhere, so no episodes or AF burden either (as in History) */}
+                {!wellness && <Stat label={t('episodes')} value={String(card.eps)} color={card.eps ? tm.af : undefined} />}
+                {!wellness && <Stat label={t('burden')} value={`${(card.burden * 100).toFixed(card.burden < 0.1 ? 1 : 0)}%`} />}
+                {wellness && useServer && day?.hr_mean ? <Stat label={t('pulse')} value={String(Math.round(day.hr_mean))} /> : null}
+                <Stat label={t('monitored')} value={fmtDur(t, card.minutes * 60)} />
               </Row>
             </Card>
             </>)}

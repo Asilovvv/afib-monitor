@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native'
 import Svg, { Circle, Line, Text as SvgText } from 'react-native-svg'
 import { api, type Vital, type VitalKind, type VitalsSummary } from '../api'
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { Button, Card, Icon, Row, Sheet, T } from '../components/ui'
 import { useApp } from '../store'
 import { F } from '../theme'
@@ -25,7 +25,7 @@ export function VitalsCard({ big = false }: { big?: boolean }) {
   useEffect(() => { load() }, [load, dataVersion])
   if (!user) return null
   const bp = data?.bp
-  const when = (iso: string) => new Date(iso).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const when = (iso: string) => fmtDate(lang, iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   return (
     <>
       <Card style={{ marginTop: 14 }}>
@@ -45,9 +45,9 @@ export function VitalsCard({ big = false }: { big?: boolean }) {
           </>
         ) : <T v="small" c={tm.ink3}>{t('vit_none')}</T>}
         <Row gap={8} style={{ marginTop: 12, flexWrap: 'wrap' }}>
-          <Button title={t('vit_add_bp')} icon="plus" onPress={() => setOpen('bp')} style={{ flex: 1, minWidth: 160 }} />
-          <Button title={t('vit_glucose')} kind="soft" onPress={() => setOpen('glucose')} />
-          <Button title={t('vit_weight')} kind="soft" onPress={() => setOpen('weight')} />
+          <Button title={t('vit_add_bp')} icon="plus" onPress={() => setOpen('bp')} style={{ width: '100%' }} />
+          <Button title={t('vit_glucose')} kind="soft" onPress={() => setOpen('glucose')} style={{ flex: 1 }} />
+          <Button title={t('vit_weight')} kind="soft" onPress={() => setOpen('weight')} style={{ flex: 1 }} />
         </Row>
         {(data?.glucose || data?.weight) && (
           <T v="small" style={{ marginTop: 10 }}>
@@ -171,7 +171,7 @@ function VitalSheet({ kind, onClose, last }: { kind: VitalKind | null; onClose: 
           <T v="label">{t('vit_last')}</T>
           {recent.map(v => (
             <Row key={v.id} style={{ justifyContent: 'space-between' }}>
-              <T v="small">{new Date(v.ts).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</T>
+              <T v="small">{fmtDate(lang, v.ts, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</T>
               <Row gap={10}><T v="mono">{fmt(v)}</T>
                 <Pressable onPress={() => remove(v)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`${t('vit_delete')} ${fmt(v)}`}><Icon name="x" size={16} color={tm.ink3} /></Pressable></Row>
             </Row>

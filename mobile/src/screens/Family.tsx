@@ -3,7 +3,7 @@ import { Alert, Platform, Pressable, RefreshControl, ScrollView, Share, StyleShe
 import { api, settings, type FamilyCard as CardT } from '../api'
 import { joinUrl } from '../joinlink'
 import { Button, Card, Icon, Row, T } from '../components/ui'
-import { locOf } from '../i18n'
+import { fmtDate } from '../i18n'
 import { useApp } from '../store'
 import { F } from '../theme'
 
@@ -29,7 +29,7 @@ export function FamilyHome({ onProfile }: { onProfile: () => void }) {
     if (Platform.OS === 'web') { go(); return }
     Alert.alert(t('fam_leave'), c.name, [{ text: t('cancel'), style: 'cancel' }, { text: t('fam_leave'), style: 'destructive', onPress: go }])
   }
-  const when = (iso: string) => new Date(iso).toLocaleString(locOf(lang), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const when = (iso: string) => fmtDate(lang, iso, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   const online = (iso: string | null) => !!iso && Date.now() - new Date(iso).getTime() < 2 * 60e3
 
   return (
@@ -106,7 +106,7 @@ export function RelativesCard() {
       <T v="small" style={{ marginBottom: 10, lineHeight: 19 }}>{t('fam_sub')}</T>
       {list.length ? list.map(l => (
         <Row key={l.id} style={{ justifyContent: 'space-between', paddingVertical: 6 }}>
-          <T>{l.name} <T v="small">· {t('fam_since')} {new Date(l.since).toLocaleDateString(locOf(lang), { day: 'numeric', month: 'short' })}</T></T>
+          <T>{l.name} <T v="small">· {t('fam_since')} {fmtDate(lang, l.since, { day: 'numeric', month: 'short' })}</T></T>
           <Pressable onPress={() => revoke(l)} hitSlop={8}><T v="small" c={tm.af}>{t('fam_revoke')}</T></Pressable>
         </Row>
       )) : <T v="small" c={tm.ink3}>{t('fam_none')}</T>}

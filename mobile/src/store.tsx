@@ -1,4 +1,5 @@
 import { serverError } from './servererr'
+import { fmtDate } from './i18n'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
 import { setVoiceEnabled } from './voice'
@@ -194,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       seenMax.current = Math.max(...rows.map(r => r.id))
       AsyncStorage.setItem(K.seen, String(seenMax.current)).catch(() => undefined)
       for (const r of fresh.slice(0, 3)) {
-        const when = new Date(r.strip_ts).toLocaleString(langRef.current === 'en' ? 'en-GB' : 'ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+        const when = fmtDate(langRef.current, r.strip_ts, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
         const body = translate(langRef.current, r.action === 'call' ? 'seen_call_b' : 'seen_b', { doctor: r.doctor, when })
         toast(body, 'ok')
         if (Platform.OS !== 'web') {
