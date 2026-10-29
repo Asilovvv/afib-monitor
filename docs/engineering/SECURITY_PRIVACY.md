@@ -43,7 +43,7 @@ review (20.10.2026) are in the root [`SECURITY.md`](../../SECURITY.md); this fil
 | F-06 | medium | No password change and no password reset. | Open. A reset needs e-mail delivery (not configured). |
 | F-07 | low | No Content-Security-Policy. | Open: needs testing of inline styles and fonts before it can be switched on. |
 | F-08 | low | The app keeps the JWT in AsyncStorage, not the Keychain / Keystore. | Open. Plan: `expo-secure-store`. |
-| F-09 | low | The Telegram webhook secret is compared with `!=` instead of a constant-time comparison. | Open, one-line fix (`secrets.compare_digest`). |
+| F-09 | low | The Telegram webhook secret was compared with `!=` instead of a constant-time comparison. | **Fixed** 29.10.2026 (`secrets.compare_digest`); `test_telegram_flow` still passes. |
 | F-10 | medium | BLE without pairing or encryption: anyone in radio range can read the rhythm state and ECG while the sensor is on (packets carry no name). | Open. Needs LE Secure Connections bonding in the firmware and the app, then a bench test. |
 | F-11 | low | The app accepts any server address, including `http://` (needed for local development), so a user could send data unencrypted. | Open. Plan: refuse `http://` for non-local addresses in release builds. |
 | F-12 | info | CORS `*`. | Accepted: bearer tokens, no cookies. |

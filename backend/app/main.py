@@ -1792,7 +1792,7 @@ def telegram_unlink(link_id: int, user: User = Depends(current_user), db: Sessio
 
 @app.post("/api/telegram/webhook", include_in_schema=False)
 async def telegram_webhook(request: Request):
-    if not telegram.enabled() or request.headers.get("X-Telegram-Bot-Api-Secret-Token") != telegram.SECRET:
+    if not telegram.enabled() or not secrets.compare_digest(request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), telegram.SECRET):
         raise HTTPException(403, "Forbidden")
     asyncio.get_running_loop().create_task(telegram._guard(telegram.handle_update(await request.json())))
     return {"ok": True}

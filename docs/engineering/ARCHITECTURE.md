@@ -487,7 +487,7 @@ export download link is deliberately left out of the schema).
 **Conventions.** JSON over HTTPS; `Authorization: Bearer <JWT>` except the public endpoints (register, login, doctor-code
 lookup, config, health) and the three secret-authenticated ones (Telegram webhook: `X-Telegram-Bot-Api-Secret-Token`;
 RevenueCat webhook: `Authorization` shared secret; admin: `X-Admin-Token`; the admin and RevenueCat secrets are compared
-in constant time, the Telegram one with a plain comparison — SECURITY_PRIVACY F-09). Times are UTC ISO
+in constant time, and so is the Telegram one since 29.10.2026). Times are UTC ISO
 8601 with `Z`; uploads use Unix seconds.
 
 | Status | Meaning in this API |
