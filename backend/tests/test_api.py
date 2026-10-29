@@ -871,3 +871,21 @@ def test_delete_account_after_doctor_marked_seen():
     r = c.request("DELETE", "/api/me", json={"password": "secret1"}, headers=auth(pt))
     assert r.status_code == 200, r.text
     assert c.get(f"/api/ecg/{a['id']}", headers=auth(dt)).status_code == 404
+
+
+def test_access_log_hides_url_tokens_and_security_headers():
+    """Secrets never reach the logs: uvicorn prints full URLs, and two credentials travel in URLs (live stream token,
+    one-time export link). Every response carries the browser security headers; HSTS only behind HTTPS."""
+    import logging
+    rec = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                            ("1.2.3.4:5", "GET", "/api/stream?token=eyJhbG.payload.sig&x=1", "1.1", 200), None)
+    rec2 = logging.LogRecord("uvicorn.access", logging.INFO, __file__, 1, '%s - "%s %s HTTP/%s" %d',
+                             ("1.2.3.4:5", "GET", "/api/export/AbC-123_xyz", "1.1", 200), None)
+    for f in logging.getLogger("uvicorn.access").filters:
+        f.filter(rec); f.filter(rec2)
+    assert "eyJhbG" not in rec.getMessage() and "token=***&x=1" in rec.getMessage()
+    assert "AbC-123" not in rec2.getMessage() and "/api/export/***" in rec2.getMessage()
+    r = c.get("/api/health")
+    assert r.headers["X-Content-Type-Options"] == "nosniff" and r.headers["X-Frame-Options"] == "DENY"
+    assert r.headers["Referrer-Policy"] == "no-referrer" and "Strict-Transport-Security" not in r.headers
+    assert "Strict-Transport-Security" in c.get("/api/health", headers={"X-Forwarded-Proto": "https"}).headers

@@ -1,7 +1,9 @@
 """AFib Monitor backend v2: REST API + live events for the mobile app (patients) and the web dashboard (doctors)."""
 import asyncio
 import json
+import logging
 import os
+import re
 import secrets
 import threading
 from datetime import datetime, timedelta, timezone
@@ -53,10 +55,38 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.middleware("http")
 async def _track_activity(request: Request, call_next):
     """Remember when a person last used the API (not Render's health pings): the demo simulator pauses when
-    nobody is looking, so a free serverless database (Neon) can sleep instead of burning its monthly hours."""
+    nobody is looking, so a free serverless database (Neon) can sleep instead of burning its monthly hours.
+    Also adds the browser security headers to every response."""
     if request.url.path.startswith("/api/") and request.url.path != "/api/health":
         activity.touch()
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")                 # nobody embeds the portal: no clickjacking
+    response.headers.setdefault("Referrer-Policy", "no-referrer")          # one-time export links never leak in Referer
+    if request.headers.get("x-forwarded-proto") == "https":                 # Render terminates TLS in front of us
+        response.headers.setdefault("Strict-Transport-Security", "max-age=15552000")
+    return response
+
+
+# Two credentials travel inside URLs: the live stream token (the browser's EventSource cannot send headers) and the
+# one-time export link. Uvicorn's access log prints the full URL, so both are masked before a line is written.
+_URL_SECRET = re.compile(r"([?&]token=)[^&\s\"]+|(/api/export/)[^/?&\s\"]+")
+
+
+def redact_url(s: str) -> str:
+    return _URL_SECRET.sub(lambda m: (m.group(1) or m.group(2)) + "***", s)
+
+
+class _RedactUrlSecrets(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(redact_url(a) if isinstance(a, str) else a for a in record.args)
+        if isinstance(record.msg, str):
+            record.msg = redact_url(record.msg)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactUrlSecrets())
 
 ALERT_WINDOW = timedelta(minutes=10)
 CONSENT_KINDS = ("terms", "data", "research")
