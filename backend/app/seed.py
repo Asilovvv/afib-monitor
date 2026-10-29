@@ -14,7 +14,7 @@ from . import analytics
 from .auth import hash_password
 from .db import Base, SessionLocal, engine
 from .ecgsynth import synth_ecg
-from .models import (DAY_TAGS, CheckPlan, Alert, DayTag, MedDose, Medication, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
+from .models import (DAY_TAGS, CheckPlan, Alert, DayTag, Device, DeviceIssue, MedDose, Medication, EcgStrip, EpisodeReview, Note, Reading, Symptom, User, STATE_AFIB, STATE_NORMAL,
                      STATE_NO_SIGNAL)
 
 DAYS = 7
@@ -120,6 +120,35 @@ def seed_check_plans(db):
         db.commit()
 
 
+DEMO_DEVICES = [  # chip ID (made up), sticker, electrodes in the box, issued to (email), days until due (negative = overdue)
+    ("3F9A21", "№1", 12, "aibek@demo.kg", 9),
+    ("7C04B8", "№2", 6, "gulmira@demo.kg", -2),
+    ("E15D60", "№3", 20, None, None),
+]
+
+
+def seed_devices(db, doc):
+    """Three clinic sensors for the demo doctor: one on loan, one overdue, one free, plus one finished loan."""
+    if db.scalar(select(Device).where(Device.owner_id == doc.id).limit(1)):
+        return
+    now = utcnow()
+    for chip, label, electrodes, email, due_days in DEMO_DEVICES:
+        d = Device(owner_id=doc.id, chip_id=chip, label=label, electrodes=electrodes, created_at=now - timedelta(days=40))
+        db.add(d)
+        db.flush()
+        if chip == "E15D60":
+            n = db.scalar(select(User).where(User.email == "nurlan@demo.kg"))
+            if n:
+                db.add(DeviceIssue(device_id=d.id, patient_id=n.id, doctor_id=doc.id, issued_at=now - timedelta(days=30),
+                                   due_at=now - timedelta(days=16), returned_at=now - timedelta(days=17), electrodes_given=6))
+        if email:
+            pat = db.scalar(select(User).where(User.email == email))
+            if pat:
+                db.add(DeviceIssue(device_id=d.id, patient_id=pat.id, doctor_id=doc.id, issued_at=now - timedelta(days=14 - (due_days or 0)),
+                                   due_at=now + timedelta(days=due_days), electrodes_given=6))
+    db.commit()
+
+
 def run():
     Base.metadata.create_all(engine)
     db = SessionLocal()
@@ -192,8 +221,9 @@ def run():
                 db.add(EpisodeReview(patient_id=p.id, episode_start=e["start"], reviewer_id=doc.id,
                                      verdict="false_alarm" if (pattern == "rare" or k % 5 == 3) else "confirmed"))
         db.commit()
-        print(f"{name}: {len(rows)} readings, {len(onsets)} alerts ({pattern})")
+        print(f"{p.name}: {len(rows)} readings, {len(onsets)} alerts ({pattern})")
     seed_check_plans(db)
+    seed_devices(db, doc)
     if not db.scalar(select(Note).limit(1)):
         a = db.scalar(select(User).where(User.email == "aibek@demo.kg"))
         g = db.scalar(select(User).where(User.email == "gulmira@demo.kg"))
