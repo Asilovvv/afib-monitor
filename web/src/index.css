@@ -49,11 +49,11 @@ h1 { font-size: 28px; line-height: 1.15; }
 h2 { font-size: 16px; }
 a { color: inherit; text-decoration: none; }
 button { font: inherit; color: inherit; cursor: pointer; }
-input, textarea {
+input, textarea, select {
   font: inherit; color: var(--ink); width: 100%; margin-top: 6px; padding: 11px 13px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--bg); outline: none; transition: border-color .15s, box-shadow .15s;
 }
-input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 textarea { resize: vertical; }
 label { display: block; font-size: 13px; color: var(--ink-2); font-weight: 500; }
 kbd { font: 11px var(--f-mono); padding: 1px 6px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink-3); background: var(--card); }
@@ -63,7 +63,8 @@ kbd { font: 11px var(--f-mono); padding: 1px 6px; border: 1px solid var(--line);
 .num.big { font-size: 17px; }
 .fine { color: var(--ink-3); font-size: 12px; margin: 4px 0 0; }
 .error { color: var(--af-ink); background: var(--af-soft); padding: 10px 14px; border-radius: 10px; }
-.eyebrow { color: var(--ink-3); font-size: 13px; margin: 0 0 6px; text-transform: capitalize; }
+.eyebrow { color: var(--ink-3); font-size: 13px; margin: 0 0 6px; }
+.eyebrow::first-letter { text-transform: uppercase; }
 ::selection { background: var(--accent-soft); }
 
 .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card);
@@ -672,6 +673,7 @@ td.ok { color: var(--ok); } td.af { color: var(--af-ink); } td.muted { color: va
 /* clinic devices */
 .tr.dev { grid-template-columns: 1fr 1fr .7fr 1.4fr 1fr 1.2fr; min-width: 760px; }
 .tr.hist { grid-template-columns: 1fr 1.4fr 1fr 1fr 1fr 1.2fr; min-width: 760px; }
+.tr.dev.muted > span:only-child, .tr.hist.muted > span:only-child { grid-column: 1 / -1; }
 .tr.muted, .tr.muted > span { color: var(--ink-3); }   /* retired rows: muted text, not transparency (contrast) */
 
 /* printable patient guide (/guide) — A4, black-and-white friendly */

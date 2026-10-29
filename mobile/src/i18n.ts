@@ -1,3 +1,4 @@
+import { serverError } from './servererr'
 export type Lang = 'ru' | 'en' | 'ky'
 
 const ru = {
@@ -33,7 +34,7 @@ const ru = {
   source_sim: 'Симулятор', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ЭКГ-пакеты', sync: 'Синхронизация',
   pending: 'в очереди', synced: 'синхронизировано', never: 'ещё не было', sync_now: 'Синхронизировать',
   // history
-  h24: '24 ч', d7: '7 дней', d30: '30 дней', hr_events: 'Пульс вне обычных границ', hr_low: 'Редкий пульс', hr_high: 'Частый пульс', hr_note: 'Дольше минуты ниже 40 или выше 150. Это не диагноз — покажите врачу, особенно если было плохо.', af_minutes: 'Минуты ФП', pulse: 'Пульс', no_episodes: 'Эпизодов фибрилляции не было',
+  h24: '24 ч', d7: '7 дней', d30: '30 дней', hr_events: 'Пульс вне обычных границ', hr_low: 'Редкий пульс', hr_high: 'Частый пульс', hr_note: 'Дольше минуты ниже 40 или выше 150. Это не диагноз — покажите врачу, особенно если было плохо.', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'Минуты ФП', pulse: 'Пульс', no_episodes: 'Эпизодов фибрилляции не было',
   longest: 'самый длинный', ecg_records: 'Записи ЭКГ', auto_rec: 'автозапись при ФП', manual_rec: 'записано вами', symptom_rec: 'при симптоме',
   verdict_confirmed: 'Подтверждено врачом', verdict_false: 'Ложная тревога', on_phone: 'На этом телефоне', login_needed: 'Войдите, чтобы видеть историю с сервера',
   min: 'мин', h: 'ч', s: 'с', ago: 'назад', now: 'сейчас',
@@ -150,7 +151,7 @@ const en: Record<Key, string> = {
   battery: 'Battery', signal: 'Signal', inference: 'On-chip inference', uptime: 'Uptime', model: 'Model', firmware: 'Firmware',
   source_sim: 'Simulator', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ECG packets', sync: 'Sync',
   pending: 'queued', synced: 'synced', never: 'not yet', sync_now: 'Sync now',
-  h24: '24 h', d7: '7 days', d30: '30 days', hr_events: 'Heart rate outside usual limits', hr_low: 'Slow heart rate', hr_high: 'Fast heart rate', hr_note: 'Below 40 or above 150 for over a minute. Not a diagnosis — show your doctor, especially if you felt unwell.', af_minutes: 'AF minutes', pulse: 'Heart rate', no_episodes: 'No AF episodes',
+  h24: '24 h', d7: '7 days', d30: '30 days', hr_events: 'Heart rate outside usual limits', hr_low: 'Slow heart rate', hr_high: 'Fast heart rate', hr_note: 'Below 40 or above 150 for over a minute. Not a diagnosis — show your doctor, especially if you felt unwell.', af_abbr: 'AF', ecg_abbr: 'ECG', af_minutes: 'AF minutes', pulse: 'Heart rate', no_episodes: 'No AF episodes',
   longest: 'longest', ecg_records: 'ECG recordings', auto_rec: 'auto-recorded at AF', manual_rec: 'recorded by you', symptom_rec: 'with a symptom',
   verdict_confirmed: 'Confirmed by doctor', verdict_false: 'False alarm', on_phone: 'On this phone', login_needed: 'Sign in to see your history from the server',
   min: 'min', h: 'h', s: 's', ago: 'ago', now: 'now',
@@ -263,7 +264,7 @@ const ky: Record<Key, string> = {
   battery: 'Батарея', signal: 'Сигнал', inference: 'Чиптеги инференс', uptime: 'Иштөө убактысы', model: 'Модель', firmware: 'Микропрограмма',
   source_sim: 'Симулятор', source_dev: 'CoreS3 SE · Bluetooth', packets: 'ЭКГ-пакеттер', sync: 'Синхрондоо',
   pending: 'кезекте', synced: 'синхрондолду', never: 'азырынча жок', sync_now: 'Синхрондоо',
-  h24: '24 саат', d7: '7 күн', d30: '30 күн', hr_events: 'Пульс адаттагы чектен тышкары', hr_low: 'Сейрек пульс', hr_high: 'Тез пульс', hr_note: '1 мүнөттөн ашык 40тан төмөн же 150дөн жогору. Бул диагноз эмес — дарыгерге көрсөтүңүз, айрыкча өзүңүздү жаман сезсеңиз.', af_minutes: 'ФП мүнөттөрү', pulse: 'Пульс', no_episodes: 'Фибрилляция эпизоддору болгон жок',
+  h24: '24 саат', d7: '7 күн', d30: '30 күн', hr_events: 'Пульс адаттагы чектен тышкары', hr_low: 'Сейрек пульс', hr_high: 'Тез пульс', hr_note: '1 мүнөттөн ашык 40тан төмөн же 150дөн жогору. Бул диагноз эмес — дарыгерге көрсөтүңүз, айрыкча өзүңүздү жаман сезсеңиз.', af_abbr: 'ФП', ecg_abbr: 'ЭКГ', af_minutes: 'ФП мүнөттөрү', pulse: 'Пульс', no_episodes: 'Фибрилляция эпизоддору болгон жок',
   longest: 'эң узуну', ecg_records: 'ЭКГ жазуулары', auto_rec: 'ФПда автожазуу', manual_rec: 'сиз жаздыңыз', symptom_rec: 'белги учурунда',
   verdict_confirmed: 'Дарыгер ырастады', verdict_false: 'Жалган эскертүү', on_phone: 'Бул телефондо', login_needed: 'Сервердеги тарыхты көрүү үчүн кириңиз',
   min: 'мүн', h: 'саат', s: 'сек', ago: 'мурун', now: 'азыр',
@@ -354,7 +355,7 @@ export const DAY_TAGS = ['alcohol', 'caffeine', 'poor_sleep', 'stress', 'exercis
 export const SYMPTOMS = ['palpitations', 'dizziness', 'shortness_of_breath', 'chest_pain', 'fatigue', 'anxiety', 'other'] as const
 
 export function translate(lang: Lang, k: Key | string, vars?: Record<string, string | number>): string {
-  let s = (DICT[lang] as Record<string, string>)[k] ?? (ru as Record<string, string>)[k] ?? k
+  let s = (DICT[lang] as Record<string, string>)[k] ?? (ru as Record<string, string>)[k] ?? serverError(k, lang)
   if (vars) for (const [a, b] of Object.entries(vars)) s = s.replace(`{${a}}`, String(b))
   return s
 }

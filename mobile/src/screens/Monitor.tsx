@@ -99,7 +99,7 @@ export default function Monitor({ go }: { go: (tab: 'diary') => void }) {
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={s.page} showsVerticalScrollIndicator={false}>
         <Row style={{ justifyContent: 'space-between', minHeight: 34 }}>
-          <T v="small" style={{ textTransform: 'capitalize', flex: 1 }}>{dateStr}</T>
+          <T v="small" style={{ flex: 1 }}>{dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}</T>
           {source !== 'none' && (
             <Pressable onPress={() => setDevOpen(true)} style={[s.chip, { backgroundColor: tm.card, borderColor: tm.line }]}>
               <Icon name="bt" size={16} color={link.state === 'connected' ? tm.accent : tm.ink3} />

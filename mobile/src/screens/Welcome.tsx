@@ -140,7 +140,7 @@ export function Auth({ onDone }: { onDone?: () => void }) {
     } catch (e) {
       const m = (e as Error).message
       setSrv(null)
-      setErr(m === 'no_server' ? t('server_bad') : /abort|network|fetch/i.test(m) ? t('server_bad') : m === 'plan_required' ? t('pl_fam_full') : m === 'doctor_full' ? t('pl_doctor_full') : m)
+      setErr(m === 'no_server' ? t('server_bad') : /abort|network|fetch/i.test(m) ? t('server_bad') : m === 'plan_required' ? t('pl_fam_full') : m === 'doctor_full' ? t('pl_doctor_full') : t(m))
     }
     setBusy(false)
   }

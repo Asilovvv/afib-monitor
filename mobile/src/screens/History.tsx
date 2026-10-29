@@ -75,7 +75,7 @@ export default function History() {
   const load = useCallback(async () => {
     if (!user) return
     setLoading(true)
-    try { setRep(await api.report(hours)); setErr('') } catch (e) { setErr((e as Error).message) }
+    try { setRep(await api.report(hours)); setErr('') } catch (e) { setErr(t((e as Error).message)) }
     setLoading(false)
   }, [user, hours])
   useEffect(() => { load() }, [load, dataVersion])
@@ -132,7 +132,7 @@ export default function History() {
                 <T v="h3">{t('af_minutes')}</T>
                 <Row gap={10}>
                   <Row gap={4}><View style={[s.key, { backgroundColor: tm.okSoft }]} /><T v="small">{t('monitored')}</T></Row>
-                  <Row gap={4}><View style={[s.key, { backgroundColor: tm.af }]} /><T v="small">AF</T></Row>
+                  <Row gap={4}><View style={[s.key, { backgroundColor: tm.af }]} /><T v="small">{t('af_abbr')}</T></Row>
                 </Row>
               </Row>
               <HourBars data={rep.hourly} />
@@ -171,7 +171,7 @@ export default function History() {
                     </View>
                     {strip && (
                       <Card style={s.ecgBtn} onPress={() => setEcg(strip)} tone={tm.bg2}>
-                        <Icon name="wave" size={16} color={tm.af} /><T v="mono" c={tm.ink}>ECG</T>
+                        <Icon name="wave" size={16} color={tm.af} /><T v="mono" c={tm.ink}>{t('ecg_abbr')}</T>
                       </Card>
                     )}
                   </Row>

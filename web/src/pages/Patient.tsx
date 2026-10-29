@@ -46,7 +46,7 @@ export default function PatientPage() {
           <BatteryBadge level={rep.battery} />
         </div>
         <div className="p-actions">
-          <Seg value={hours} onChange={setHours} items={[[24, '24h'], [168, '7d'], [720, '30d']]} />
+          <Seg value={hours} onChange={setHours} items={[[24, f.tr('24 ч', '24h', '24 саат')], [168, f.tr('7 дн', '7d', '7 күн')], [720, f.tr('30 дн', '30d', '30 күн')]]} />
           <Link to={`/app/patients/${id}/report?hours=${hours}`} className="btn ghost">{Icon.print()} {f.t('Отчёт')}</Link>
         </div>
       </header>

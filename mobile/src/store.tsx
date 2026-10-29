@@ -1,3 +1,4 @@
+import { serverError } from './servererr'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Haptics from 'expo-haptics'
 import { setVoiceEnabled } from './voice'
@@ -140,7 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toast = useCallback((text: string, tone: Toast['tone'] = 'info') => {
     const id = ++tid.current
-    setToasts(ts => [...ts.slice(-2), { id, text, tone }])
+    setToasts(ts => [...ts.slice(-2), { id, text: serverError(text, langRef.current), tone }])
     setTimeout(() => setToasts(ts => ts.filter(x => x.id !== id)), 3800)
   }, [])
 

@@ -1,3 +1,4 @@
+import { serverError } from './servererr'
 export type User = {
   id: number; email: string; name: string; role: 'doctor' | 'patient'
   birth_year: number | null; sex: 'm' | 'f' | null; phone: string | null
@@ -99,6 +100,11 @@ export class ApiError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status }
 }
 
+/** The language the user picked (stored by i18n.tsx); used to show server errors in that language. */
+function currentLang(): string {
+  try { return localStorage.getItem('afib.lang') ?? 'ru' } catch { return 'ru' }
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   const tok = getToken()
@@ -108,7 +114,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     let msg = r.statusText
     try { const j = await r.json(); msg = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail) } catch { /* empty */ }
     if (r.status === 401) setToken(null)
-    throw new ApiError(r.status, msg)
+    throw new ApiError(r.status, serverError(msg, currentLang()))
   }
   return r.json() as Promise<T>
 }
