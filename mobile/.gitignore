@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# tools/iphone_install.sh: which dependencies the iOS project was last built from
+.afib-native-stamp
