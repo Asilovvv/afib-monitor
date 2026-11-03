@@ -74,3 +74,4 @@ jobs:
       - run: npx -y tsx@4.19.2 ../tools/mobile/joinlink_test.ts
       - run: npx -y tsx@4.19.2 ../tools/mobile/i18n_test.ts
       - run: npx -y tsx@4.19.2 ../tools/mobile/blediag_test.ts
+      - run: npx -y tsx@4.19.2 ../tools/mobile/blelink_test.ts

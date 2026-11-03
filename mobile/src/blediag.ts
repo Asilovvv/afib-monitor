@@ -40,3 +40,15 @@ export const DIAG_KEY: Record<Exclude<Diagnosis, 'found'>, 'nf_old' | 'nf_nothin
   old_firmware: 'nf_old', nothing_nearby: 'nf_nothing', others_only: 'nf_others',
 }
 
+
+/** Message key for an error the scan itself reports (react-native-ble-plx BleErrorCode). */
+export function scanErrorKey(err: { errorCode?: number } | null | undefined): string {
+  switch (err?.errorCode) {
+    case 101: return 'bt_unauthorized'      // BluetoothUnauthorized
+    case 102: return 'bt_off'               // BluetoothPoweredOff
+    case 100: return 'bt_unsupported'       // BluetoothUnsupported
+    case 600: return 'scan_busy'            // ScanStartFailed: Android allows only a few scan starts per 30 s
+    case 601: return 'location_off'         // LocationServicesDisabled: Android 11 and older need Location for a scan
+    default: return 'ble_error'
+  }
+}
