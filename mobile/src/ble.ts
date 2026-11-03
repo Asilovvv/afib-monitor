@@ -1,5 +1,6 @@
 import { PermissionsAndroid, Platform } from 'react-native'
 import { BleManager, State, type Device, type Subscription } from 'react-native-ble-plx'
+import { accept, diagnose, DIAG_KEY, type Seen } from './blediag'
 import { base64ToBytes, DEVICE_NAME, ECG_UUID, parseEcg, parseStatus, SERVICE_UUID, STATUS_UUID, type EcgPacket, type Status } from './protocol'
 
 export type LinkState = 'idle' | 'scanning' | 'connecting' | 'connected' | 'error'
@@ -59,42 +60,73 @@ export class DeviceLink {
     if (!(await this.permissions())) { this.onState('error', 'no_permission'); return }
     const notReady = await this.radioReady()
     if (notReady) { this.onState('error', notReady); return }
+    // Already linked to this phone (another screen, or iOS kept the link): the board does not advertise then,
+    // so a scan would never find it.
+    const linked = await this.ble.connectedDevices([SERVICE_UUID]).catch(() => [] as Device[])
+    if (linked[0]) { await this.attach(linked[0]); return }
     this.onState('scanning')
+    let done = false
     const timeout = setTimeout(() => {
+      if (done) return
+      done = true
       this.ble.stopDeviceScan()
-      if (!this.device) this.onState('error', 'not_found')
+      if (this.wantConnected && !this.device) this.explainNotFound().catch(() => this.onState('error', 'not_found'))
     }, 15000)
     this.ble.startDeviceScan([SERVICE_UUID], null, async (err, dev) => {
-      if (err) { clearTimeout(timeout); console.warn('BLE scan', err.message); this.onState('error', 'ble_error'); return }
-      if (!dev || (dev.name && dev.name !== DEVICE_NAME && dev.localName !== DEVICE_NAME)) return
+      if (done) return
+      if (err) { done = true; clearTimeout(timeout); console.warn('BLE scan', err.message); this.onState('error', 'ble_error'); return }
+      if (!dev || !accept(dev)) return
+      done = true
       this.ble.stopDeviceScan(); clearTimeout(timeout)
-      try {
-        this.onState('connecting')
-        const d = await dev.connect({ timeout: 10000, requestMTU: Platform.OS === 'android' ? 185 : undefined })
-        this.rssi = dev.rssi; this.name = d.name ?? dev.localName ?? DEVICE_NAME
-        await d.discoverAllServicesAndCharacteristics()
-        this.device = d
-        this.discSub = d.onDisconnected(() => {
-          this.cleanup()
-          if (this.wantConnected) { this.onState('connecting', 'reconnecting'); setTimeout(() => this.connect(), 2000) }
-          else this.onState('idle')
-        })
-        this.sub = d.monitorCharacteristicForService(SERVICE_UUID, STATUS_UUID, (e, ch) => {
-          if (e || !ch?.value) return
-          const s = parseStatus(base64ToBytes(ch.value))
-          if (s) this.onStatus(s)
-        })
-        this.ecgSub = d.monitorCharacteristicForService(SERVICE_UUID, ECG_UUID, (e, ch) => {
-          if (e || !ch?.value) return
-          const p = parseEcg(base64ToBytes(ch.value))
-          if (p) this.onEcg(p)
-        })
-        this.onState('connected', d.name ?? DEVICE_NAME)
-      } catch (e) {
-        console.warn('BLE connect', (e as Error).message)
-        this.onState('error', 'ble_error')
-      }
+      await this.attach(dev)
     })
+  }
+
+  /** The filtered scan found nothing in 15 s: look 5 s without a filter and tell the person what is wrong
+   *  (mobile/src/blediag.ts), or connect if the board turns up after all. */
+  private async explainNotFound() {
+    this.onState('scanning', 'looking_around')
+    const seen = new Map<string, Device>()
+    await new Promise<void>(res => {
+      this.ble.startDeviceScan(null, null, (err, dev) => {
+        if (err) { res(); return }
+        if (dev) seen.set(dev.id, dev)
+      })
+      setTimeout(() => { this.ble.stopDeviceScan(); res() }, 5000)
+    })
+    if (!this.wantConnected) return
+    const { diagnosis, device } = diagnose([...seen.values()] as Seen[])
+    if (diagnosis === 'found' && device?.id) { await this.attach(seen.get(device.id)!); return }
+    this.onState('error', diagnosis === 'found' ? 'not_found' : DIAG_KEY[diagnosis])
+  }
+
+  private async attach(dev: Device) {
+    try {
+      this.onState('connecting')
+      const d = await dev.connect({ timeout: 10000, requestMTU: Platform.OS === 'android' ? 185 : undefined })
+      this.rssi = dev.rssi; this.name = d.name ?? dev.localName ?? DEVICE_NAME
+      await d.discoverAllServicesAndCharacteristics()
+      this.device = d
+      this.discSub = d.onDisconnected(() => {
+        this.cleanup()
+        if (this.wantConnected) { this.onState('connecting', 'reconnecting'); setTimeout(() => this.connect(), 2000) }
+        else this.onState('idle')
+      })
+      this.sub = d.monitorCharacteristicForService(SERVICE_UUID, STATUS_UUID, (e, ch) => {
+        if (e || !ch?.value) return
+        const s = parseStatus(base64ToBytes(ch.value))
+        if (s) this.onStatus(s)
+      })
+      this.ecgSub = d.monitorCharacteristicForService(SERVICE_UUID, ECG_UUID, (e, ch) => {
+        if (e || !ch?.value) return
+        const p = parseEcg(base64ToBytes(ch.value))
+        if (p) this.onEcg(p)
+      })
+      this.onState('connected', d.name ?? DEVICE_NAME)
+    } catch (e) {
+      console.warn('BLE connect', (e as Error).message)
+      this.onState('error', 'connect_failed')
+    }
   }
 
   async readRssi(): Promise<number | null> {

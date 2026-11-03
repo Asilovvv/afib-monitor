@@ -34,6 +34,13 @@ export function base64ToBytes(b64: string): Uint8Array {
   return out
 }
 
+/** Inference time for the screen. The packet holds it in a u16 of µs, so the board sends 65535 for 65.5 ms or more
+ *  (the current model takes about 73 ms, docs/BOARD_DAY.md A5): shown as "≥ 65.5 ms", not as a precise 65.54. */
+export function fmtInfer(us: number | null | undefined): string {
+  if (!us) return '—'
+  return us >= 65535 ? '≥ 65.5 ms' : `${(us / 1000).toFixed(2)} ms`
+}
+
 export function parseStatus(bytes: Uint8Array, at = Date.now()): Status | null {
   if (bytes.length < 12 || bytes[0] !== 1) return null
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)

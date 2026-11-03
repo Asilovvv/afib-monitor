@@ -21,6 +21,8 @@
 | `mobile/` | Приложение пациента (Android и iPhone) | React Native (Expo SDK 57), BLE, SVG, уведомления |
 | `docs/screenshots/` | Скриншоты для диплома и презентации | |
 
+**Датчик и телефон: от нуля до подключения** (прошивка, питание, приложение, Bluetooth, что делать, если телефон не видит датчик) — [`docs/CONNECT.md`](docs/CONNECT.md).
+
 Демо-аккаунты (создаются автоматически при `SEED_DEMO=1`):
 - врач `doctor@demo.kg` / `demo1234`, код для пациентов `DEMO42` (только для демо-адресов `@demo.kg`: пароль демо-врача публичный, поэтому настоящего пациента к нему привязать нельзя);
 - пациенты `aibek@demo.kg`, `gulmira@demo.kg`, `nurlan@demo.kg`, `sabina@demo.kg`, `ermek@demo.kg` / `demo1234`.

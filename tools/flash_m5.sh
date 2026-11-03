@@ -14,14 +14,16 @@ if [ ! -x venv/bin/python ]; then
   echo "== installing tools into $DIR (once)"
   python3 -m venv venv
   venv/bin/pip install -q --upgrade pip
-  venv/bin/pip install -q esptool pyserial numpy scipy wfdb
+  venv/bin/pip install -q esptool pyserial numpy scipy wfdb bleak
 fi
+venv/bin/python -c "import bleak" 2>/dev/null || venv/bin/pip install -q bleak   # added 3 Nov 2026: ble_check.py
 
 echo "== downloading the newest firmware"
 curl -fsSL -o afib-m5-cores3se.bin "$REL/afib-m5-cores3se.bin"
 curl -fsSL -o SHA256SUMS "$REL/SHA256SUMS"
 grep afib-m5-cores3se.bin SHA256SUMS | shasum -a 256 -c -
 curl -fsSL -o afib_stream.py "https://raw.githubusercontent.com/$REPO/main/firmware/afib_stream.py"
+curl -fsSL -o ble_check.py "https://raw.githubusercontent.com/$REPO/main/firmware/ble_check.py"
 
 PORT="${1:-$(ls /dev/cu.usbmodem* 2>/dev/null | head -1 || true)}"
 if [ -z "$PORT" ]; then
@@ -32,7 +34,10 @@ fi
 echo "== flashing $PORT"
 venv/bin/python -m esptool --chip esp32s3 --port "$PORT" --baud 921600 write_flash 0x0 afib-m5-cores3se.bin
 echo
-echo "Done. Press reset once. Next steps (firmware/BENCH_TEST.md); the port is found automatically:"
+echo "Done. Press reset once: the top line of the screen shows BT WAIT (ready for the phone)."
+echo "Bluetooth check from this laptop, without the phone (docs/CONNECT.md):"
+echo "  cd $DIR && venv/bin/python ble_check.py --connect 20"
+echo "Next steps (firmware/BENCH_TEST.md); the port is found automatically:"
 echo "  cd $DIR && venv/bin/python afib_stream.py --model-check"
 echo "  cd $DIR && venv/bin/python afib_stream.py --bench"
 echo "  cd $DIR && venv/bin/python afib_stream.py --live 30 --out gel_1.csv --review   # laptop on battery!"

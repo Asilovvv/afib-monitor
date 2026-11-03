@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Platform, StyleSheet, View } from 'react-native'
 import { Button, Card, Row, Sheet, T } from '../components/ui'
-import { ECG_FS, ECG_PER_PACKET } from '../protocol'
+import { ECG_FS, ECG_PER_PACKET, fmtInfer } from '../protocol'
 import { snrDb } from '../snr'
 import { useApp } from '../store'
 
@@ -101,7 +101,7 @@ export function BenchSheet({ open, onClose }: { open: boolean; onClose: () => vo
         color={snr?.snr == null ? undefined : ok(snr.snr >= 9)} />
       <Line label={t('battery')} value={battery != null ? `${battery}%` : '—'} />
       <Line label={t('signal')} value={rssi != null ? `${rssi} dBm` : '—'} />
-      <Line label={t('inference')} value={status?.inferUs ? `${(status.inferUs / 1000).toFixed(2)} ms` : '—'} />
+      <Line label={t('inference')} value={fmtInfer(status?.inferUs)} />
       <Line label={t('bench_proto')} value={status ? `v1 · ${Math.round(status.deviceMs / 1000)} s` : '—'} />
       <Line label={t('bench_total')} value={`${ecg.packets} · −${ecg.lost}`} />
       <View style={{ marginTop: 16, gap: 8 }}>

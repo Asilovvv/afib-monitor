@@ -19,6 +19,8 @@ jobs:
           git clone -q --depth 1 --filter=blob:none --sparse https://github.com/KiCad/kicad-footprints.git /tmp/kfp
           git -C /tmp/kfp sparse-checkout set Package_CSP.pretty Package_TO_SOT_SMD.pretty Resistor_SMD.pretty Capacitor_SMD.pretty LED_SMD.pretty Connector_USB.pretty Connector_JST.pretty
           KICAD_FOOTPRINTS=/tmp/kfp python hardware/patch_v1/design.py
+      - name: Laptop Bluetooth check parses the board's packets (firmware/ble_check.py, no Bluetooth needed)
+        run: python firmware/ble_check.py --self-test
       - name: Server verdicts on 40 synthetic strips
         run: PYTHONPATH=backend python tools/parity/make_cases.py /tmp/parity.json /tmp/parity.txt
       - name: Device code on a PC, same strips

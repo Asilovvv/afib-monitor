@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Battery, Button, Icon, Row, Sheet, T, type IconName } from '../components/ui'
 import { BenchSheet } from './Bench'
+import { fmtInfer } from '../protocol'
 import { useApp } from '../store'
 import { useNow, fmtDur } from './Monitor'
 
@@ -39,7 +40,7 @@ export function DeviceSheet({ open, onClose }: { open: boolean; onClose: () => v
       <Line icon="bolt" label={t('battery')} value={battery != null ? `${battery}%` : '—'} extra={<Battery level={battery} color={tm.ink3} />} />
       <Line icon="signal" label={t('signal')} value={rssi != null ? `${rssi} dBm` : '—'}
         extra={<Row gap={2}>{[1, 2, 3, 4].map(i => <View key={i} style={{ width: 4, height: 4 + i * 3, borderRadius: 1, backgroundColor: i <= bars ? tm.ok : tm.line }} />)}</Row>} />
-      <Line icon="cpu" label={t('inference')} value={status?.inferUs ? `${(status.inferUs / 1000).toFixed(2)} ms` : '—'} />
+      <Line icon="cpu" label={t('inference')} value={fmtInfer(status?.inferUs)} />
       <Line icon="wave" label={t('packets')} value={`${ecg.packets}${ecg.lost ? ` · −${ecg.lost}` : ''}`} />
       <Line icon="clock" label={t('uptime')} value={connectedAt ? fmtDur(t, (now - connectedAt) / 1000) : '—'} />
       <Line icon="pulse" label={t('model')} value="TCN int8 · 27 KB" />

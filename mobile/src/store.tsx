@@ -308,6 +308,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deviceLink = useMemo(() => new DeviceLink(onStatus, (state, detail) => {
     setLink({ state, detail })
     if (state === 'connected') setConnectedAt(Date.now())
+    // Back to the connect card, which shows why (not found, Bluetooth off, …) and the button to try again.
+    // Before 3 Nov 2026 the monitor stayed on "Ожидание данных…" and the reason was never shown.
+    if (state === 'error') { setSource(src => (src === 'device' ? 'none' : src)); setConnectedAt(null) }
   }, onEcg), [onStatus, onEcg])
   const sim = useMemo(() => new Simulator(onStatus, onEcg), [onStatus, onEcg])
 

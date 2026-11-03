@@ -343,6 +343,7 @@ static void setupBle() {
   adv->addServiceUUID(AFIB_SERVICE_UUID);
   adv->setScanResponse(true);
   BLEDevice::startAdvertising();
+  Serial.println("BLE advertising as AFib-Monitor");
 }
 
 static void bleSend(uint8_t state, float prob, float bpm, uint32_t inferUs) {
@@ -351,7 +352,7 @@ static void bleSend(uint8_t state, float prob, float bpm, uint32_t inferUs) {
   uint16_t p = (uint16_t)constrain(lroundf(prob * 1000), 0, 1000);
   uint16_t h = (uint16_t)constrain(lroundf(bpm * 10), 0, 65535);
   uint32_t t = millis();
-  uint16_t us = (uint16_t)min<uint32_t>(inferUs, 65535);
+  uint16_t us = (uint16_t)min<uint32_t>(inferUs, 65535);   // 65535 = 65.5 ms or more (the app shows "≥ 65.5 ms")
   b[0] = 1; b[1] = state;
   memcpy(b + 2, &p, 2); memcpy(b + 4, &h, 2); memcpy(b + 6, &t, 4); memcpy(b + 10, &us, 2);
   int bat = boardBattery();
@@ -432,6 +433,12 @@ static void drawHeader() {
   M5.Display.setCursor(6, 8);
   M5.Display.print("AFib Monitor");
   M5.Display.setFont(&fonts::Font2);
+  // Bluetooth state, so a person can see whether the phone is linked without opening the app:
+  // "BT WAIT" = advertising, the app can find the board; "BT PHONE" = a phone is connected (only one at a time,
+  // so while it shows PHONE another phone or laptop will not find the board). docs/CONNECT.md, step 5.
+  M5.Display.setTextColor(bleConnected ? TFT_GREEN : TFT_LIGHTGREY, COL_BG);
+  M5.Display.setCursor(124, 10);
+  M5.Display.print(bleConnected ? "BT PHONE" : "BT WAIT ");
   M5.Display.setTextColor(usbMode() ? TFT_CYAN : TFT_LIGHTGREY, COL_BG);
   M5.Display.setCursor(196, 10);
   M5.Display.print(usbMode() ? "SRC: USB (MIT-BIH)" : "SRC: AD8232 G10  ");
@@ -662,6 +669,12 @@ void loop() {
 
   bool usb = usbMode();
   if (usb != lastUsb) { lastUsb = usb; resetWindow(); drawHeader(); }
+  static bool lastBle = false;
+  if (bleConnected != lastBle) {           // set from the Bluetooth task; shown and logged here
+    lastBle = bleConnected;
+    drawHeader();
+    Serial.println(lastBle ? "BLE phone connected" : "BLE phone disconnected, advertising again as AFib-Monitor");
+  }
 
   // 30-second check: tap the status bar to start; the verdict stays on screen for 10 s
 #if HAS_DISPLAY
