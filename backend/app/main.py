@@ -650,6 +650,19 @@ def ingest(db: Session, user: User, items: list) -> tuple[int, int]:
     items = sorted(items, key=lambda r: r.ts)
     if not items:
         return 0, 0
+    # A batch can arrive twice: the phone retries after a timeout when the server had already saved it. Readings at a
+    # time already stored for this patient are skipped, so a retry gives no second AF alert or Telegram message.
+    have = set(db.scalars(select(Reading.ts).where(Reading.patient_id == user.id, Reading.ts >= from_unix(items[0].ts),
+                                                    Reading.ts <= from_unix(items[-1].ts))))
+    fresh = []
+    for r in items:
+        ts = from_unix(r.ts)
+        if ts not in have:
+            have.add(ts)
+            fresh.append(r)
+    items = fresh
+    if not items:
+        return 0, 0
     prev = db.scalar(select(Reading.state).where(Reading.patient_id == user.id,
                                                  Reading.ts < from_unix(items[0].ts))
                      .order_by(Reading.ts.desc()).limit(1))
@@ -674,21 +687,40 @@ def ingest(db: Session, user: User, items: list) -> tuple[int, int]:
     return len(rows), len(alerts)
 
 
+_patient_locks: dict[int, threading.Lock] = {}
+_locks_guard = threading.Lock()
+
+
+def patient_lock(patient_id: int) -> threading.Lock:
+    """Uploads of one patient one at a time, so two copies of a retried request cannot both pass the "already have it"
+    check before either is saved. The server is one process (Dockerfile: one uvicorn); with several workers this would
+    need a unique index on (patient_id, ts) instead."""
+    with _locks_guard:
+        return _patient_locks.setdefault(patient_id, threading.Lock())
+
+
 @app.post("/api/readings")
 def upload_readings(body: ReadingsIn, user: User = Depends(require_role("patient")),
                     db: Session = Depends(get_db)):
-    saved, n_alerts = ingest(db, user, body.readings)
+    with patient_lock(user.id):
+        saved, n_alerts = ingest(db, user, body.readings)
     return {"saved": saved, "alerts": n_alerts}
 
 
 @app.post("/api/symptoms")
 def add_symptom(body: SymptomIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
-    s = Symptom(patient_id=user.id, ts=from_unix(body.ts) if body.ts else utcnow(), kinds=",".join(body.kinds),
-                severity=body.severity, note=body.note)
-    db.add(s)
-    db.commit()
-    broker.publish(user.doctor_id, "symptom", {"patient_id": user.id, "patient_name": user.name, "id": s.id})
-    return symptom_out(s)
+    with patient_lock(user.id):
+        if body.ts:                                  # the phone's retry of a symptom the server already has
+            same = db.scalar(select(Symptom).where(Symptom.patient_id == user.id, Symptom.ts == from_unix(body.ts),
+                                                   Symptom.kinds == ",".join(body.kinds)))
+            if same:
+                return symptom_out(same)
+        s = Symptom(patient_id=user.id, ts=from_unix(body.ts) if body.ts else utcnow(), kinds=",".join(body.kinds),
+                    severity=body.severity, note=body.note)
+        db.add(s)
+        db.commit()
+        broker.publish(user.doctor_id, "symptom", {"patient_id": user.id, "patient_name": user.name, "id": s.id})
+        return symptom_out(s)
 
 
 TZ_HOURS = float(os.getenv("TZ_OFFSET_HOURS", "6"))     # Asia/Bishkek
@@ -911,19 +943,27 @@ def diary_of(db: Session, patient_id: int, since: datetime, until: datetime) -> 
 
 @app.post("/api/ecg")
 def add_ecg(body: EcgIn, user: User = Depends(require_role("patient")), db: Session = Depends(get_db)):
-    e = EcgStrip(patient_id=user.id, ts=from_unix(body.ts), fs=body.fs,
-                 samples=json.dumps([round(x, 4) for x in body.samples]),
-                 state=body.state, prob=body.prob, bpm=body.bpm, reason=body.reason)
-    db.add(e)
-    db.commit()
-    broker.publish(user.doctor_id, "ecg", {"patient_id": user.id, "patient_name": user.name, "id": e.id,
-                                           "reason": e.reason})
-    telegram.notify_ecg(e.id)
-    out = ecg_meta(e)
-    if body.reason == "check":                   # "check me in 30 s": wellness verdict, see ml/CHECK30_CINC2017.md
-        out["check"] = ecgtools.check(body.samples, body.fs)
-        telegram.notify_family_check(user.id, out["check"]["verdict"])
-    return out
+    with patient_lock(user.id):
+        same = db.scalar(select(EcgStrip).where(EcgStrip.patient_id == user.id, EcgStrip.ts == from_unix(body.ts),
+                                                EcgStrip.reason == body.reason))
+        if same:                                     # the phone's retry: the same answer, no second note to the doctor
+            out = ecg_meta(same)
+            if body.reason == "check":
+                out["check"] = ecgtools.check(json.loads(same.samples), same.fs)
+            return out
+        e = EcgStrip(patient_id=user.id, ts=from_unix(body.ts), fs=body.fs,
+                     samples=json.dumps([round(x, 4) for x in body.samples]),
+                     state=body.state, prob=body.prob, bpm=body.bpm, reason=body.reason)
+        db.add(e)
+        db.commit()
+        broker.publish(user.doctor_id, "ecg", {"patient_id": user.id, "patient_name": user.name, "id": e.id,
+                                               "reason": e.reason})
+        telegram.notify_ecg(e.id)
+        out = ecg_meta(e)
+        if body.reason == "check":                   # "check me in 30 s": wellness verdict, see ml/CHECK30_CINC2017.md
+            out["check"] = ecgtools.check(body.samples, body.fs)
+            telegram.notify_family_check(user.id, out["check"]["verdict"])
+        return out
 
 
 def symptom_out(s: Symptom) -> dict:

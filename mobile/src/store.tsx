@@ -10,6 +10,7 @@ import type { Join } from './joinlink'
 import * as Notifications from 'expo-notifications'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Platform, useColorScheme } from 'react-native'
+import { drain, singleFlight } from './sync'
 import { api, settings, type EcgOut, type ReadingOut, type User } from './api'
 import { DeviceLink, type LinkState } from './ble'
 import { translate, type Key, type Lang } from './i18n'
@@ -156,30 +157,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ------------------------------------------------ upload to the server
-  const syncNow = useCallback(async () => {
+  // one upload at a time (src/sync.ts): two side by side used to drop queued items that were never sent
+  const syncNow = useMemo(() => singleFlight(async () => {
     if (!settings.token || !settings.server) return
-    let sent = false
-    try {
-      while (symQueue.current.length) {
-        await api.symptom(symQueue.current[0]); symQueue.current.shift(); sent = true
-      }
-      while (ecgQueue.current.length) {
-        await api.ecg(ecgQueue.current[0]); ecgQueue.current.shift(); sent = true
-      }
-      while (queue.current.length) {
-        const batch = queue.current.slice(0, 2000)
-        await api.upload(batch)
-        queue.current = queue.current.slice(batch.length); sent = true
-      }
+    const { sent, error } = await drain({ sym: symQueue.current, ecg: ecgQueue.current, readings: queue.current }, api)
+    if (error) setSyncError(error.message)
+    else {
       setLastSync(Date.now()); setSyncError(null)
       setSymptoms(s => s.map(x => ({ ...x, synced: true })))
-    } catch (e) {
-      setSyncError((e as Error).message)
     }
     persist()
     if (sent) setDataVersion(v => v + 1)
     checkSeen()
-  }, [persist])
+  }), [persist])
 
   // "your doctor looked at your recording": polled with every sync; new rows -> toast + local notification
   const seenMax = useRef<number | null>(null)
